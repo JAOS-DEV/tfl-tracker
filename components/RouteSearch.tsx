@@ -198,31 +198,47 @@ export function RouteSearch({
 
   const fetchNearbyStops = async (position: GeolocationPosition) => {
     try {
-      const response = await fetch(
-        `/api/tfl/nearby-stops?lat=${position.coords.latitude}&lon=${position.coords.longitude}&radius=1000`,
-      );
+      const params = new URLSearchParams({
+        lat: position.coords.latitude.toFixed(6),
+        lon: position.coords.longitude.toFixed(6),
+        radius: "1000",
+      });
+      const response = await fetch(`/api/tfl/nearby-stops?${params.toString()}`);
+
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; results?: NearbyStopResult[] }
+        | null;
 
       if (!response.ok) {
-        const payload = (await response.json()) as { error?: string };
         const friendly = formatFriendlyError(
-          new Error(payload.error ?? "Nearby stop lookup failed"),
+          new Error(payload?.error ?? "Nearby stop lookup failed"),
+          { nearbyStops: true },
         );
         setError(friendly.message);
         setErrorAction(friendly.action ?? null);
         return;
       }
 
-      const data = (await response.json()) as { results: NearbyStopResult[] };
+      if (!payload?.results) {
+        const friendly = formatFriendlyError(
+          new Error("Nearby stop lookup returned an unexpected response."),
+          { nearbyStops: true },
+        );
+        setError(friendly.message);
+        setErrorAction(friendly.action ?? null);
+        return;
+      }
+
       setResults((current) => ({
         ...current,
-        nearby: data.results,
+        nearby: payload.results ?? [],
       }));
 
-      if (data.results.length === 0) {
+      if (payload.results.length === 0) {
         setError("No nearby bus stops found within about 1 km.");
       }
     } catch (nearbyError) {
-      const friendly = formatFriendlyError(nearbyError);
+      const friendly = formatFriendlyError(nearbyError, { nearbyStops: true });
       setError(friendly.message);
       setErrorAction(friendly.action ?? null);
     } finally {

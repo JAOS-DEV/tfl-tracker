@@ -138,8 +138,10 @@ export const rawLineStatusResponseSchema = z.array(rawLineObjectSchema);
 
 const rawStopSearchItemSchema = z
   .object({
-    id: z.string(),
-    name: z.string(),
+    id: z.string().optional(),
+    naptanId: z.string().optional(),
+    name: z.string().optional(),
+    commonName: z.string().optional(),
     indicator: z.string().optional(),
     stopLetter: z.string().optional(),
     towards: z.string().optional(),
@@ -152,4 +154,30 @@ const rawStopSearchItemSchema = z
   })
   .passthrough();
 
-export const rawStopSearchResponseSchema = z.array(rawStopSearchItemSchema);
+const rawStopSearchMatchesSchema = z.object({
+  matches: z.array(rawStopSearchItemSchema),
+});
+
+const rawNearbyStopsResponseSchema = z.object({
+  stopPoints: z.array(rawStopSearchItemSchema),
+});
+
+export const rawStopSearchResponseSchema = z.union([
+  z.array(rawStopSearchItemSchema),
+  rawStopSearchMatchesSchema,
+  rawNearbyStopsResponseSchema,
+]);
+
+export function extractStopSearchItems(
+  raw: z.infer<typeof rawStopSearchResponseSchema>,
+): z.infer<typeof rawStopSearchItemSchema>[] {
+  if (Array.isArray(raw)) {
+    return raw;
+  }
+
+  if ("matches" in raw) {
+    return raw.matches;
+  }
+
+  return raw.stopPoints;
+}

@@ -238,8 +238,10 @@ export function normalizeLineStatus(
 }
 
 interface RawStopSearchItem {
-  id: string;
-  name: string;
+  id?: string;
+  naptanId?: string;
+  name?: string;
+  commonName?: string;
   indicator?: string;
   stopLetter?: string;
   towards?: string;
@@ -277,8 +279,8 @@ function extractRoutesServed(lines: RawStopSearchItem["lines"]): string[] {
 
 function normalizeStopSearchItem(stop: RawStopSearchItem): StopSearchResult {
   return {
-    stopPointId: stop.id,
-    name: stop.name,
+    stopPointId: stop.id ?? stop.naptanId ?? "",
+    name: stop.name ?? stop.commonName ?? "Unknown stop",
     stopLetter: stop.stopLetter ?? stop.indicator,
     towards: stop.towards,
     modes: stop.modes ?? [],
@@ -298,6 +300,7 @@ export function normalizeStopSearch(
   return raw
     .filter(isBusStop)
     .map(normalizeStopSearchItem)
+    .filter((stop) => stop.stopPointId.length > 0)
     .filter((stop) => {
       if (seen.has(stop.stopPointId)) {
         return false;
@@ -319,7 +322,7 @@ export function normalizeNearbyStops(
     }
 
     const stop = normalizeStopSearchItem(item);
-    if (seen.has(stop.stopPointId)) {
+    if (!stop.stopPointId || seen.has(stop.stopPointId)) {
       continue;
     }
 

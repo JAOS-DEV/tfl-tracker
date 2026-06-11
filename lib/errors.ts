@@ -27,6 +27,7 @@ export function formatFriendlyError(
   context?: {
     isOffline?: boolean;
     invalidRouteIds?: string[];
+    nearbyStops?: boolean;
   },
 ): FriendlyError {
   if (context?.isOffline) {
@@ -162,6 +163,31 @@ export function formatFriendlyError(
       title: "TfL data temporarily unavailable",
       message,
       action: "Retry in a few moments.",
+    };
+  }
+
+  if (
+    context?.nearbyStops ||
+    includesAny(message, [
+      "nearby stop",
+      "nearby stops",
+      "invalid request parameters",
+      "did not match the expected pattern",
+      "unexpected token",
+    ])
+  ) {
+    const nearbyMessage = includesAny(message, [
+      "did not match the expected pattern",
+      "unexpected token",
+    ])
+      ? "Could not read the nearby stops response from the server."
+      : message;
+
+    return {
+      kind: "generic",
+      title: "Could not load nearby stops",
+      message: nearbyMessage,
+      action: "Tap Find stops near me to try again.",
     };
   }
 

@@ -11,6 +11,7 @@ import {
   normalizeStopSearch,
 } from "@/lib/tfl/normalizers";
 import {
+  extractStopSearchItems,
   lineSearchQuerySchema,
   nearbyStopsQuerySchema,
   rawArrivalsResponseSchema,
@@ -100,7 +101,7 @@ async function handleNearbyStops(
   );
 
   const parsed = rawStopSearchResponseSchema.parse(raw);
-  const results = normalizeNearbyStops(parsed);
+  const results = normalizeNearbyStops(extractStopSearchItems(parsed));
 
   return jsonResponse({ results });
 }
@@ -161,7 +162,7 @@ async function handleStopSearch(
   );
 
   const parsed = rawStopSearchResponseSchema.parse(raw);
-  const results = normalizeStopSearch(parsed);
+  const results = normalizeStopSearch(extractStopSearchItems(parsed));
 
   return jsonResponse({ results });
 }

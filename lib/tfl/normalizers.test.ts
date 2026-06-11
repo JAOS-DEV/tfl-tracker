@@ -180,4 +180,29 @@ describe("normalizeNearbyStops", () => {
     expect(results.map((stop) => stop.stopPointId)).toEqual(["near", "far"]);
     expect(results[0]?.distanceMetres).toBe(50);
   });
+
+  it("normalizes TfL nearby stop points that use commonName and naptanId", () => {
+    const results = normalizeNearbyStops([
+      {
+        naptanId: "490000050G",
+        commonName: "Clapham Common Station",
+        indicator: "Stop G",
+        modes: ["bus"],
+        lines: [{ id: "37", name: "37" }],
+        distance: 120,
+      },
+    ]);
+
+    expect(results).toEqual([
+      {
+        stopPointId: "490000050G",
+        name: "Clapham Common Station",
+        stopLetter: "Stop G",
+        towards: undefined,
+        modes: ["bus"],
+        routesServed: ["37"],
+        distanceMetres: 120,
+      },
+    ]);
+  });
 });
