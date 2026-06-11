@@ -1,11 +1,19 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { RouteCard } from "@/components/RouteCard";
 import { MultiRouteDashboard } from "@/components/MultiRouteDashboard";
 import type { DisplaySettings } from "@/lib/displaySettings";
 import type { FavouriteRoute } from "@/lib/favouriteRoutes";
 import { isFavouriteRoute } from "@/lib/favouriteRoutes";
 import type { RouteAlertPreferences } from "@/lib/routeAlerts";
+import {
+  areAllRoutesExpanded,
+  isRouteExpanded,
+  mergeRouteExpansionState,
+  setAllRoutesExpanded,
+  type RouteExpansionState,
+} from "@/lib/routeCardExpansion";
 import type { ActiveRoute, RouteVisualMode } from "@/lib/tfl/types";
 
 interface ActiveRoutesProps {
@@ -29,6 +37,20 @@ export function ActiveRoutes({
   onToggleFavourite,
   onAlertPreferencesChange,
 }: ActiveRoutesProps): React.ReactElement {
+  const routeIds = useMemo(
+    () => activeRoutes.map((route) => route.routeId),
+    [activeRoutes],
+  );
+  const [expansionOverrides, setExpansionOverrides] = useState<RouteExpansionState>(
+    {},
+  );
+  const expandedByRouteId = useMemo(
+    () => mergeRouteExpansionState(expansionOverrides, routeIds),
+    [expansionOverrides, routeIds],
+  );
+
+  const allRoutesExpanded = areAllRoutesExpanded(expandedByRouteId, routeIds);
+
   const handleRemove = (routeId: string) => {
     onActiveRoutesChange(
       activeRoutes.filter((route) => route.routeId !== routeId),
@@ -37,6 +59,17 @@ export function ActiveRoutes({
 
   const handleClearAll = () => {
     onActiveRoutesChange([]);
+  };
+
+  const handleToggleAllExpanded = () => {
+    setExpansionOverrides(setAllRoutesExpanded(routeIds, !allRoutesExpanded));
+  };
+
+  const handleRouteExpandedChange = (routeId: string, expanded: boolean) => {
+    setExpansionOverrides((current) => ({
+      ...current,
+      [routeId]: expanded,
+    }));
   };
 
   if (activeRoutes.length === 0) {
@@ -61,21 +94,30 @@ export function ActiveRoutes({
         displaySettings={displaySettings}
       />
 
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
           Active routes ({activeRoutes.length})
         </h2>
-        <button
-          type="button"
-          onClick={handleClearAll}
-          className="min-h-11 rounded-lg px-3 py-2 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-        >
-          Clear all
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleToggleAllExpanded}
+            className="min-h-11 rounded-lg px-3 py-2 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            {allRoutesExpanded ? "Collapse all" : "Expand all"}
+          </button>
+          <button
+            type="button"
+            onClick={handleClearAll}
+            className="min-h-11 rounded-lg px-3 py-2 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            Clear all
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-1">
-        {activeRoutes.map((route) => (
+        {activeRoutes.map((route, index) => (
           <RouteCard
             key={route.routeId}
             activeRoute={route}
@@ -87,6 +129,15 @@ export function ActiveRoutes({
             onToggleFavourite={onToggleFavourite}
             alertPreferences={alertPreferences[route.routeId]}
             onAlertPreferencesChange={onAlertPreferencesChange}
+            isExpanded={isRouteExpanded(
+              expandedByRouteId,
+              route.routeId,
+              index,
+              activeRoutes.length,
+            )}
+            onExpandedChange={(expanded) =>
+              handleRouteExpandedChange(route.routeId, expanded)
+            }
           />
         ))}
       </div>

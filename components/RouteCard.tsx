@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 import { BusDetailsModal } from "@/components/BusDetailsModal";
 import { DirectionSegmentedControl } from "@/components/DirectionSegmentedControl";
 import { ErrorState } from "@/components/ErrorState";
@@ -60,6 +60,8 @@ interface RouteCardProps {
   onToggleFavourite: (route: Pick<ActiveRoute, "routeId" | "routeName">) => void;
   alertPreferences?: RouteAlertPreferences;
   onAlertPreferencesChange: (preferences: RouteAlertPreferences) => void;
+  isExpanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
 }
 
 type SheetType = "service" | "history" | "alerts" | "routeInfo" | null;
@@ -74,6 +76,8 @@ export function RouteCard({
   onToggleFavourite,
   alertPreferences,
   onAlertPreferencesChange,
+  isExpanded,
+  onExpandedChange,
 }: RouteCardProps): React.ReactElement {
   const isMobile = useMediaQuery("(max-width: 639px)");
   const isOnline = useOnlineStatus();
@@ -216,6 +220,19 @@ export function RouteCard({
   const showHistoryInline = displaySettings.showHistoryInline;
   const showServiceInline = displaySettings.showServiceDetailsInline;
 
+  const handleCollapsedHeaderActivate = () => {
+    if (!isExpanded) {
+      onExpandedChange(true);
+    }
+  };
+
+  const handleCollapsedHeaderKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (!isExpanded && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      onExpandedChange(true);
+    }
+  };
+
   return (
     <>
       <article
@@ -223,9 +240,14 @@ export function RouteCard({
         className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
       >
         <header
-          className={`sticky top-0 z-10 border-b border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95 ${
-            displaySettings.compactRouteCards ? "px-3 py-3" : "px-4 py-4"
+          className={`sticky top-0 z-10 border-b border-zinc-200 bg-white/95 px-4 py-4 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95 ${
+            isExpanded ? "" : "cursor-pointer"
           }`}
+          onClick={handleCollapsedHeaderActivate}
+          onKeyDown={handleCollapsedHeaderKeyDown}
+          role={isExpanded ? undefined : "button"}
+          tabIndex={isExpanded ? undefined : 0}
+          aria-expanded={isExpanded}
         >
           <div
             className={`flex gap-2 ${
@@ -248,12 +270,13 @@ export function RouteCard({
             </div>
             <button
               type="button"
-              onClick={() =>
+              onClick={(event) => {
+                event.stopPropagation();
                 onToggleFavourite({
                   routeId: activeRoute.routeId,
                   routeName: route.routeName,
-                })
-              }
+                });
+              }}
               aria-label={
                 isFavourite ? "Remove from favourites" : "Add to favourites"
               }
@@ -265,7 +288,10 @@ export function RouteCard({
             >
               {isFavourite ? "★" : "☆"}
             </button>
-            <RouteCardMoreMenu
+            <div onClick={(event) => event.stopPropagation()}>
+              <RouteCardMoreMenu
+                isExpanded={isExpanded}
+                onToggleExpanded={() => onExpandedChange(!isExpanded)}
               isFavourite={isFavourite}
               onToggleFavourite={() =>
                 onToggleFavourite({
@@ -279,7 +305,8 @@ export function RouteCard({
               }}
               onOpenAlerts={() => setOpenSheet("alerts")}
               onOpenRouteInfo={() => setOpenSheet("routeInfo")}
-            />
+              />
+            </div>
           </div>
 
           <div className="mt-2">
@@ -293,109 +320,116 @@ export function RouteCard({
           ) : null}
         </header>
 
-        <div
-          className={
-            visualMode === "loop" ? "space-y-3 sm:space-y-4" : "space-y-4 p-4"
-          }
-        >
+        {isExpanded ? (
           <div
             className={
-              visualMode === "loop" ? "space-y-3 px-3 pt-3 sm:px-4 sm:pt-4" : ""
+              visualMode === "loop" ? "space-y-3 sm:space-y-4" : "space-y-4 p-4"
             }
           >
-            <StatusBanner status={statusQuery.data} />
+            <div
+              className={
+                visualMode === "loop" ? "space-y-3 px-3 pt-3 sm:px-4 sm:pt-4" : ""
+              }
+            >
+              <StatusBanner status={statusQuery.data} />
 
-            {arrivalsQuery.isError ? (
-              <ErrorState
-                title={
-                  formatFriendlyError(arrivalsQuery.error, {
-                    isOffline: !isOnline,
-                  }).title
-                }
-                message={
-                  formatFriendlyError(arrivalsQuery.error, {
-                    isOffline: !isOnline,
-                  }).message
-                }
-                action={
-                  formatFriendlyError(arrivalsQuery.error, {
-                    isOffline: !isOnline,
-                  }).action
-                }
-                onRetry={() => {
-                  void arrivalsQuery.refetch();
-                }}
-              />
-            ) : null}
-          </div>
-
-          {visualMode === "loop" ? (
-            <SchematicRouteLoop
-              route={route}
-              vehicles={vehicles}
-              onStopSelect={setSelectedStop}
-              onBusSelect={setSelectedVehicle}
-              selectedStopId={selectedStop?.naptanId ?? null}
-              selectedVehicleId={selectedVehicle?.vehicleId ?? null}
-            />
-          ) : (
-            <div className="px-4">
-              <DirectionSegmentedControl
-                route={route}
-                selectedDirection={selectedDirection}
-                onChange={setSelectedDirection}
-                variant={isMobile ? "mobile" : "desktop"}
-              />
-              <div className="mt-4">
-                <h3 className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  {getDirectionLabel(route, selectedDirection)}
-                </h3>
-                <RouteDiagram
-                  route={route}
-                  direction={selectedDirection}
-                  predictions={arrivalsQuery.data?.predictions ?? []}
-                  onStopSelect={setSelectedStop}
+              {arrivalsQuery.isError ? (
+                <ErrorState
+                  title={
+                    formatFriendlyError(arrivalsQuery.error, {
+                      isOffline: !isOnline,
+                    }).title
+                  }
+                  message={
+                    formatFriendlyError(arrivalsQuery.error, {
+                      isOffline: !isOnline,
+                    }).message
+                  }
+                  action={
+                    formatFriendlyError(arrivalsQuery.error, {
+                      isOffline: !isOnline,
+                    }).action
+                  }
+                  onRetry={() => {
+                    void arrivalsQuery.refetch();
+                  }}
                 />
-              </div>
+              ) : null}
             </div>
-          )}
 
-          <div
-            className={`space-y-3 ${
-              visualMode === "loop" ? "px-3 sm:px-4" : ""
-            }`}
-          >
-            <RouteVisualModeToggle mode={visualMode} onChange={setVisualMode} />
-
-            <RouteCardActionBar
-              onServiceDetails={() => setOpenSheet("service")}
-              onHistory={() => setOpenSheet("history")}
-              onAlerts={() => setOpenSheet("alerts")}
-              historySummary={historySummary}
-            />
-
-            {showServiceInline && serviceHealth ? (
-              <ServiceHealthCard
+            {visualMode === "loop" ? (
+              <SchematicRouteLoop
                 route={route}
-                metrics={serviceHealth}
-                compact={visualMode === "loop"}
-                variant="full"
+                vehicles={vehicles}
+                onStopSelect={setSelectedStop}
+                onBusSelect={setSelectedVehicle}
+                selectedStopId={selectedStop?.naptanId ?? null}
+                selectedVehicleId={selectedVehicle?.vehicleId ?? null}
               />
-            ) : null}
+            ) : (
+              <div className="px-4">
+                <DirectionSegmentedControl
+                  route={route}
+                  selectedDirection={selectedDirection}
+                  onChange={setSelectedDirection}
+                  variant={isMobile ? "mobile" : "desktop"}
+                />
+                <div className="mt-4">
+                  <h3 className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    {getDirectionLabel(route, selectedDirection)}
+                  </h3>
+                  <RouteDiagram
+                    route={route}
+                    direction={selectedDirection}
+                    predictions={arrivalsQuery.data?.predictions ?? []}
+                    onStopSelect={setSelectedStop}
+                  />
+                </div>
+              </div>
+            )}
 
-            {showHistoryInline ? (
-              <RouteHistoryPanel routeId={activeRoute.routeId} />
-            ) : null}
+            <div
+              className={`space-y-3 ${
+                visualMode === "loop" ? "px-3 sm:px-4" : ""
+              }`}
+            >
+              <RouteVisualModeToggle mode={visualMode} onChange={setVisualMode} />
+
+              <RouteCardActionBar
+                onServiceDetails={() => setOpenSheet("service")}
+                onHistory={() => setOpenSheet("history")}
+                onAlerts={() => setOpenSheet("alerts")}
+                historySummary={historySummary}
+              />
+
+              {showServiceInline && serviceHealth ? (
+                <ServiceHealthCard
+                  route={route}
+                  metrics={serviceHealth}
+                  compact={visualMode === "loop"}
+                  variant="full"
+                />
+              ) : null}
+
+              {showHistoryInline ? (
+                <RouteHistoryPanel routeId={activeRoute.routeId} />
+              ) : null}
+            </div>
+
+            <p
+              className={`text-xs text-zinc-500 sm:text-sm dark:text-zinc-400 ${
+                visualMode === "loop" ? "px-3 pb-3 sm:px-4 sm:pb-4" : "px-4 pb-4"
+              }`}
+            >
+              Positions and schedule status are estimated.
+            </p>
           </div>
-
-          <p
-            className={`text-xs text-zinc-500 sm:text-sm dark:text-zinc-400 ${
-              visualMode === "loop" ? "px-3 pb-3 sm:px-4 sm:pb-4" : "px-4 pb-4"
-            }`}
-          >
-            Positions and schedule status are estimated.
-          </p>
-        </div>
+        ) : (
+          <div className="border-t border-zinc-200 px-4 py-3 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+            Tap this route header or open the ⋯ menu to expand the live loop,
+            stop list, and service details.
+          </div>
+        )}
       </article>
 
       {openSheet === "service" && serviceHealth ? (

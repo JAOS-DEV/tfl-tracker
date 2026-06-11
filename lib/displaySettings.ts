@@ -23,7 +23,6 @@ export interface GlobalAlertDefaults {
 
 export interface DisplaySettings {
   defaultVisualMode: DefaultVisualMode;
-  compactRouteCards: boolean;
   showServiceDetailsInline: boolean;
   showHistoryInline: boolean;
   showAdvancedDiagnostics: boolean;
@@ -34,7 +33,6 @@ const DEFAULT_ROUTE_ALERTS = createDefaultAlertPreferences("__defaults__");
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   defaultVisualMode: "loop",
-  compactRouteCards: true,
   showServiceDetailsInline: false,
   showHistoryInline: false,
   showAdvancedDiagnostics: false,
@@ -167,10 +165,6 @@ export function normalizeDisplaySettings(value: unknown): DisplaySettings {
     defaultVisualMode: isDefaultVisualMode(raw.defaultVisualMode)
       ? raw.defaultVisualMode
       : DEFAULT_DISPLAY_SETTINGS.defaultVisualMode,
-    compactRouteCards:
-      typeof raw.compactRouteCards === "boolean"
-        ? raw.compactRouteCards
-        : DEFAULT_DISPLAY_SETTINGS.compactRouteCards,
     showServiceDetailsInline: inlineToggles.showServiceDetailsInline,
     showHistoryInline: inlineToggles.showHistoryInline,
     showAdvancedDiagnostics: inlineToggles.showAdvancedDiagnostics,

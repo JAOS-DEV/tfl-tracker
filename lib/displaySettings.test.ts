@@ -6,9 +6,8 @@ import {
 } from "@/lib/displaySettings";
 
 describe("displaySettings", () => {
-  it("uses direct display toggles by default", () => {
+  it("uses a simple first-visit default display profile", () => {
     expect(DEFAULT_DISPLAY_SETTINGS.defaultVisualMode).toBe("loop");
-    expect(DEFAULT_DISPLAY_SETTINGS.compactRouteCards).toBe(true);
     expect(DEFAULT_DISPLAY_SETTINGS.showServiceDetailsInline).toBe(false);
     expect(DEFAULT_DISPLAY_SETTINGS.showHistoryInline).toBe(false);
     expect(DEFAULT_DISPLAY_SETTINGS.showAdvancedDiagnostics).toBe(false);
@@ -17,28 +16,37 @@ describe("displaySettings", () => {
   it("normalizes unknown values to defaults", () => {
     const settings = normalizeDisplaySettings({
       defaultVisualMode: "map",
-      compactRouteCards: "yes",
     });
 
     expect(settings.defaultVisualMode).toBe("loop");
-    expect(settings.compactRouteCards).toBe(true);
     expect(settings.showServiceDetailsInline).toBe(false);
+    expect(settings.showHistoryInline).toBe(false);
+    expect(settings.showAdvancedDiagnostics).toBe(false);
   });
 
   it("preserves direct toggles when stored", () => {
     const settings = normalizeDisplaySettings({
       defaultVisualMode: "list",
-      compactRouteCards: false,
       showServiceDetailsInline: true,
       showHistoryInline: true,
       showAdvancedDiagnostics: true,
     });
 
     expect(settings.defaultVisualMode).toBe("list");
-    expect(settings.compactRouteCards).toBe(false);
     expect(settings.showServiceDetailsInline).toBe(true);
     expect(settings.showHistoryInline).toBe(true);
     expect(settings.showAdvancedDiagnostics).toBe(true);
+  });
+
+  it("ignores removed compact route card setting from stored values", () => {
+    const settings = normalizeDisplaySettings({
+      compactRouteCards: false,
+    });
+
+    expect(settings.defaultVisualMode).toBe("loop");
+    expect(settings.showServiceDetailsInline).toBe(false);
+    expect(settings.showHistoryInline).toBe(false);
+    expect(settings.showAdvancedDiagnostics).toBe(false);
   });
 
   it("migrates legacy simple displayMode to direct toggles", () => {

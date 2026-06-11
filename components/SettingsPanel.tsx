@@ -116,21 +116,6 @@ export function SettingsPanel({
           </div>
 
           <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
-            <span>Compact route cards</span>
-            <input
-              type="checkbox"
-              checked={settings.compactRouteCards}
-              onChange={(event) =>
-                setSettings((current) => ({
-                  ...current,
-                  compactRouteCards: event.target.checked,
-                }))
-              }
-              className="h-5 w-5"
-            />
-          </label>
-
-          <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
             <span>Show service details inline</span>
             <input
               type="checkbox"

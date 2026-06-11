@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 
 interface RouteCardMoreMenuProps {
+  isExpanded: boolean;
+  onToggleExpanded: () => void;
   isFavourite: boolean;
   onToggleFavourite: () => void;
   onRemove: () => void;
@@ -12,6 +14,8 @@ interface RouteCardMoreMenuProps {
 }
 
 export function RouteCardMoreMenu({
+  isExpanded,
+  onToggleExpanded,
   isFavourite,
   onToggleFavourite,
   onRemove,
@@ -63,6 +67,14 @@ export function RouteCardMoreMenu({
           role="menu"
           className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
         >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => handleAction(onToggleExpanded)}
+            className="flex min-h-11 w-full items-center px-4 text-left text-sm text-zinc-700 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            {isExpanded ? "Collapse route" : "Expand route"}
+          </button>
           <button
             type="button"
             role="menuitem"

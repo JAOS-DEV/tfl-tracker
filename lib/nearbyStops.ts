@@ -1,5 +1,35 @@
 import { isIosDevice } from "@/lib/platform";
 
+export const NEARBY_STOPS_PAGE_SIZE = 10;
+
+export interface NearbyStopsPage<T> {
+  visible: T[];
+  hasMore: boolean;
+  total: number;
+}
+
+export function getVisibleNearbyStops<T>(
+  stops: T[],
+  visibleCount: number,
+): NearbyStopsPage<T> {
+  const total = stops.length;
+  const visible = stops.slice(0, visibleCount);
+
+  return {
+    visible,
+    hasMore: total > visible.length,
+    total,
+  };
+}
+
+export function getNextNearbyStopsVisibleCount(
+  currentCount: number,
+  total: number,
+  pageSize = NEARBY_STOPS_PAGE_SIZE,
+): number {
+  return Math.min(currentCount + pageSize, total);
+}
+
 export interface GeolocationErrorInfo {
   title: string;
   message: string;

@@ -10,7 +10,13 @@ import {
   normalizeDiscoveryQuery,
 } from "@/lib/discoverySearch";
 import { formatFriendlyError } from "@/lib/errors";
-import { getGeolocationErrorInfo, requestCurrentPosition } from "@/lib/nearbyStops";
+import {
+  getGeolocationErrorInfo,
+  getNextNearbyStopsVisibleCount,
+  getVisibleNearbyStops,
+  NEARBY_STOPS_PAGE_SIZE,
+  requestCurrentPosition,
+} from "@/lib/nearbyStops";
 import { buildRoutesSearchUrl } from "@/lib/routeUrl";
 import type { StopDetailTarget } from "@/lib/stopDetail";
 import type {
@@ -84,6 +90,9 @@ export function RouteSearch({
   const [results, setResults] = useState<DiscoveryResults>(EMPTY_RESULTS);
   const [activeTab, setActiveTab] = useState<DiscoveryTab>("routes");
   const [hasSearched, setHasSearched] = useState(false);
+  const [nearbyVisibleCount, setNearbyVisibleCount] = useState(
+    NEARBY_STOPS_PAGE_SIZE,
+  );
 
   const shareUrl =
     typeof window !== "undefined"
@@ -98,6 +107,11 @@ export function RouteSearch({
           activeRoutes.map((route) => route.routeId),
           defaultView,
         );
+
+  const nearbyPage = useMemo(
+    () => getVisibleNearbyStops(results.nearby, nearbyVisibleCount),
+    [results.nearby, nearbyVisibleCount],
+  );
 
   const defaultTab = useMemo<DiscoveryTab>(() => {
     const normalized = normalizeDiscoveryQuery(query);
@@ -229,6 +243,7 @@ export function RouteSearch({
         return;
       }
 
+      setNearbyVisibleCount(NEARBY_STOPS_PAGE_SIZE);
       setResults((current) => ({
         ...current,
         nearby: payload.results ?? [],
@@ -246,12 +261,29 @@ export function RouteSearch({
     }
   };
 
+  const handleClearNearby = () => {
+    setResults((current) => ({
+      ...current,
+      nearby: [],
+    }));
+    setNearbyVisibleCount(NEARBY_STOPS_PAGE_SIZE);
+    setError(null);
+    setErrorAction(null);
+  };
+
+  const handleLoadMoreNearby = () => {
+    setNearbyVisibleCount((current) =>
+      getNextNearbyStopsVisibleCount(current, results.nearby.length),
+    );
+  };
+
   const handleFindNearby = () => {
     setIsFindingNearby(true);
     setError(null);
     setErrorAction(null);
     setHasSearched(true);
     setActiveTab("nearby");
+    setNearbyVisibleCount(NEARBY_STOPS_PAGE_SIZE);
 
     requestCurrentPosition(
       (position) => {
@@ -489,50 +521,80 @@ export function RouteSearch({
                   Tap “Find stops near me” to search nearby bus stops.
                 </p>
               ) : (
-                results.nearby.map((stop) => (
-                  <div
-                    key={stop.stopPointId}
-                    className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                        {stop.name}
-                        {stop.stopLetter ? ` (${stop.stopLetter})` : ""}
-                      </p>
-                      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        {Math.round(stop.distanceMetres)} m away
-                        {stop.routesServed.length > 0
-                          ? ` · ${stop.routesServed.slice(0, 6).join(", ")}`
-                          : ""}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openStop(stop)}
-                        className="min-h-11 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white"
-                      >
-                        View arrivals
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onToggleFavouriteStop({
-                            stopPointId: stop.stopPointId,
-                            name: stop.name,
-                            stopLetter: stop.stopLetter,
-                            routesServed: stop.routesServed,
-                          })
-                        }
-                        className="min-h-11 rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
-                      >
-                        {isFavouriteStop(stop.stopPointId)
-                          ? "★ Favourited"
-                          : "☆ Favourite"}
-                      </button>
-                    </div>
+                <>
+                  <div className="flex flex-col gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700 dark:bg-zinc-950">
+                    <p className="text-sm text-zinc-600 dark:text-zinc-300">
+                      Showing {nearbyPage.visible.length} of {nearbyPage.total}{" "}
+                      nearby stop{nearbyPage.total === 1 ? "" : "s"}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleClearNearby}
+                      className="min-h-11 rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/40"
+                    >
+                      Clear list
+                    </button>
                   </div>
-                ))
+
+                  {nearbyPage.visible.map((stop) => (
+                    <div
+                      key={stop.stopPointId}
+                      className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                          {stop.name}
+                          {stop.stopLetter ? ` (${stop.stopLetter})` : ""}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                          {Math.round(stop.distanceMetres)} m away
+                          {stop.routesServed.length > 0
+                            ? ` · ${stop.routesServed.slice(0, 6).join(", ")}`
+                            : ""}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openStop(stop)}
+                          className="min-h-11 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white"
+                        >
+                          View arrivals
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onToggleFavouriteStop({
+                              stopPointId: stop.stopPointId,
+                              name: stop.name,
+                              stopLetter: stop.stopLetter,
+                              routesServed: stop.routesServed,
+                            })
+                          }
+                          className="min-h-11 rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+                        >
+                          {isFavouriteStop(stop.stopPointId)
+                            ? "★ Favourited"
+                            : "☆ Favourite"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {nearbyPage.hasMore ? (
+                    <button
+                      type="button"
+                      onClick={handleLoadMoreNearby}
+                      className="min-h-11 w-full rounded-xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    >
+                      Load next {Math.min(
+                        NEARBY_STOPS_PAGE_SIZE,
+                        nearbyPage.total - nearbyPage.visible.length,
+                      )}{" "}
+                      stops
+                    </button>
+                  ) : null}
+                </>
               )}
             </div>
           ) : null}
