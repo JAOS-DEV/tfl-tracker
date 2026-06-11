@@ -6,6 +6,8 @@ export type AppErrorKind =
   | "rate-limit"
   | "network-offline"
   | "invalid-shared-url"
+  | "timetable-unavailable"
+  | "schedule-uncertain"
   | "generic";
 
 export interface FriendlyError {
@@ -116,6 +118,31 @@ export function formatFriendlyError(
       message:
         "Could not reach the server. Live TfL data may be unavailable until connectivity returns.",
       action: "Check your connection and retry.",
+    };
+  }
+
+  if (
+    includesAny(message, [
+      "timetable unavailable",
+      "no timetable",
+      "timetable requires disambiguation",
+    ])
+  ) {
+    return {
+      kind: "timetable-unavailable",
+      title: "Timetable unavailable",
+      message:
+        "Live arrivals still work, but estimated schedule position cannot be compared with timetable data right now.",
+      action: "Schedule badges may show as uncertain until timetable data returns.",
+    };
+  }
+
+  if (includesAny(message, ["schedule match uncertain", "schedule uncertain"])) {
+    return {
+      kind: "schedule-uncertain",
+      title: "Schedule match uncertain",
+      message,
+      action: "This is an estimate only and may not match official running data.",
     };
   }
 

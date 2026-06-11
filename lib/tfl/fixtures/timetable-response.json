@@ -1,0 +1,36 @@
+{
+  "lineId": "337",
+  "lineName": "337",
+  "direction": "outbound",
+  "stations": [
+    { "id": "490000001A", "name": "Stop A", "lat": 51.5, "lon": -0.1 },
+    { "id": "490000002B", "name": "Stop B", "lat": 51.51, "lon": -0.11 },
+    { "id": "490000003C", "name": "Stop C", "lat": 51.52, "lon": -0.12 }
+  ],
+  "timetable": {
+    "departureStopId": "490000001A",
+    "routes": [
+      {
+        "stationIntervals": [
+          {
+            "id": "1",
+            "intervals": [
+              { "stopId": "490000001A", "timeToArrival": 0 },
+              { "stopId": "490000002B", "timeToArrival": 5 },
+              { "stopId": "490000003C", "timeToArrival": 12 }
+            ]
+          }
+        ],
+        "schedules": [
+          {
+            "name": "Monday-Friday",
+            "knownJourneys": [
+              { "hour": "08", "minute": "00", "intervalId": 1 },
+              { "hour": "08", "minute": "15", "intervalId": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

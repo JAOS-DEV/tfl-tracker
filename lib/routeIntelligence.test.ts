@@ -68,6 +68,15 @@ function buildMetrics(
     isDataStale: false,
     healthScore: 82,
     healthLabel: "Some gaps",
+    estimatedLateCount: 0,
+    estimatedEarlyCount: 0,
+    estimatedOnTimeCount: 0,
+    unknownScheduleMatchCount: 0,
+    averageScheduleDeviationMinutes: null,
+    possibleGhostCount: 0,
+    predictionDisappearedCount: 0,
+    missingLatestCount: 0,
+    reappearedCount: 0,
     outbound: {
       direction: "outbound",
       liveVehicleCount: 2,
@@ -106,6 +115,13 @@ describe("toRouteDashboardSummary", () => {
       disappearedPredictionCount: 0,
       missingFromRefreshCount: 0,
       stalePredictionCount: 0,
+      estimatedLateCount: 0,
+      estimatedEarlyCount: 0,
+      estimatedOnTimeCount: 0,
+      unknownScheduleMatchCount: 0,
+      possibleGhostCount: 0,
+      predictionDisappearedCount: 0,
+      missingLatestCount: 0,
     });
   });
 });
@@ -158,6 +174,7 @@ describe("buildRouteIntelligence", () => {
           missingRefreshCount: 2,
           lastSeenAt: now - 60_000,
           justReappeared: false,
+          wasDueSoon: false,
         },
       ],
     ]);

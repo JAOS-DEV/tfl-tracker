@@ -3,13 +3,27 @@ interface BusIconProps {
   size?: number;
   className?: string;
   isActive?: boolean;
+  variant?: "live" | "faded" | "ghost";
 }
+
+const bodyColors = {
+  live: "#DC2626",
+  faded: "#DC2626",
+  ghost: "#9CA3AF",
+} as const;
+
+const roofColors = {
+  live: "#B91C1C",
+  faded: "#B91C1C",
+  ghost: "#6B7280",
+} as const;
 
 export function BusIcon({
   routeNumber,
   size = 32,
   className = "",
   isActive = false,
+  variant = "live",
 }: BusIconProps): React.ReactElement {
   const label = routeNumber
     ? `Bus route ${routeNumber}`
@@ -26,12 +40,12 @@ export function BusIcon({
         isActive ? "scale-110" : "scale-100"
       } ${className}`}
     >
-      <rect x="4" y="8" width="24" height="16" rx="3" fill="#DC2626" />
-      <rect x="6" y="10" width="8" height="6" rx="1" fill="#FEE2E2" />
-      <rect x="18" y="10" width="8" height="6" rx="1" fill="#FEE2E2" />
+      <rect x="4" y="8" width="24" height="16" rx="3" fill={bodyColors[variant]} />
+      <rect x="6" y="10" width="8" height="6" rx="1" fill="#FEE2E2" opacity={variant === "ghost" ? 0.7 : 1} />
+      <rect x="18" y="10" width="8" height="6" rx="1" fill="#FEE2E2" opacity={variant === "ghost" ? 0.7 : 1} />
       <circle cx="10" cy="26" r="3" fill="#1F2937" />
       <circle cx="22" cy="26" r="3" fill="#1F2937" />
-      <rect x="14" y="6" width="4" height="3" rx="1" fill="#B91C1C" />
+      <rect x="14" y="6" width="4" height="3" rx="1" fill={roofColors[variant]} />
       {routeNumber && routeNumber.length <= 4 ? (
         <text
           x="16"

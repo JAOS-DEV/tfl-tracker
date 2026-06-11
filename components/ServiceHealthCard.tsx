@@ -58,8 +58,8 @@ export function ServiceHealthCard({
             </span>
           </p>
           <p className="mt-1 text-xs text-zinc-500">
-            Estimated from TfL live arrival data — not an official timetable
-            comparison.
+            Estimated from TfL live arrival data. Schedule position is estimated,
+            not official.
           </p>
         </div>
       </div>
@@ -73,6 +73,49 @@ export function ServiceHealthCard({
             {badge.label}
           </span>
         ))}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-zinc-500">
+            Est. on time
+          </p>
+          <p className="mt-1 text-lg font-semibold">
+            {metrics.estimatedOnTimeCount}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-zinc-500">
+            Est. late
+          </p>
+          <p className="mt-1 text-lg font-semibold">
+            {metrics.estimatedLateCount}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-zinc-500">
+            Est. early
+          </p>
+          <p className="mt-1 text-lg font-semibold">
+            {metrics.estimatedEarlyCount}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-zinc-500">
+            Schedule uncertain
+          </p>
+          <p className="mt-1 text-lg font-semibold">
+            {metrics.unknownScheduleMatchCount}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-zinc-500">
+            Possible ghosts
+          </p>
+          <p className="mt-1 text-lg font-semibold">
+            {metrics.possibleGhostCount}
+          </p>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

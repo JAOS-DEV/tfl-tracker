@@ -36,6 +36,16 @@ const baseVehicle: EstimatedVehiclePosition = {
   y: 130,
   matched: true,
   adherence: "onTime",
+  scheduleDeviationMinutes: null,
+  scheduleStatus: "unknown",
+  scheduleStatusLabel: "Schedule ?",
+  scheduleMatchConfidence: "unknown",
+  matchedScheduledTime: null,
+  matchedStopName: null,
+  scheduleDataAvailable: false,
+  ghostStatus: "normal",
+  missedRefreshCount: 0,
+  isSuspectedGhost: false,
 };
 
 describe("estimateScheduleAdherence", () => {

@@ -48,6 +48,16 @@ function formatDashboardStatus(summary: RouteDashboardSummary): string {
     );
   }
 
+  if (summary.possibleGhostCount > 0) {
+    parts.push(
+      `${summary.possibleGhostCount} possible ghost${summary.possibleGhostCount === 1 ? "" : "s"}`,
+    );
+  }
+
+  if (summary.estimatedLateCount > 0) {
+    parts.push(`${summary.estimatedLateCount} est. late`);
+  }
+
   if (summary.isDataStale) {
     parts.push("stale data");
   }

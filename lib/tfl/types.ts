@@ -123,6 +123,55 @@ export interface LoopStopsLayout {
 }
 
 export type ScheduleAdherence = "onTime" | "late" | "early";
+export type ScheduleStatus = "early" | "onTime" | "late" | "unknown";
+export type ScheduleMatchConfidence = "high" | "medium" | "low" | "unknown";
+export type GhostStatus =
+  | "normal"
+  | "missingLatest"
+  | "disappeared"
+  | "suspectedGhost"
+  | "reappeared"
+  | "stale";
+
+export interface ScheduledStopTime {
+  stopId: string;
+  naptanId: string;
+  stopName: string;
+  scheduledArrival: string;
+}
+
+export interface ScheduledJourney {
+  journeyId: string;
+  direction: RouteDirection;
+  destinationName?: string;
+  departureTime: string;
+  intervalId?: string;
+  stopTimes: ScheduledStopTime[];
+}
+
+export interface NormalizedTimetable {
+  routeId: string;
+  direction: RouteDirection;
+  fromStopPointId: string;
+  available: boolean;
+  unavailableReason?: string;
+  journeys: ScheduledJourney[];
+}
+
+export interface ScheduleDeviation {
+  deviationMinutes: number | null;
+  scheduleStatus: ScheduleStatus;
+  scheduleStatusLabel: string;
+  scheduleMatchConfidence: ScheduleMatchConfidence;
+  matchedScheduledTime: string | null;
+  matchedStopName: string | null;
+  scheduleDataAvailable: boolean;
+  scheduleExplanation?: string;
+}
+
+export interface VehicleScheduleMatch extends ScheduleDeviation {
+  matchedJourneyId?: string;
+}
 
 export interface EstimatedVehiclePosition {
   vehicleId: string;
@@ -141,6 +190,20 @@ export interface EstimatedVehiclePosition {
   matched: boolean;
   adherence: ScheduleAdherence;
   predictionConfidence?: PredictionConfidence;
+  scheduleDeviationMinutes: number | null;
+  scheduleStatus: ScheduleStatus;
+  scheduleStatusLabel: string;
+  scheduleMatchConfidence: ScheduleMatchConfidence;
+  matchedScheduledTime: string | null;
+  matchedStopName: string | null;
+  scheduleDataAvailable: boolean;
+  scheduleExplanation?: string;
+  ghostStatus: GhostStatus;
+  ghostReason?: string;
+  lastSeenAt?: number;
+  missedRefreshCount: number;
+  reappearedAt?: number;
+  isSuspectedGhost: boolean;
 }
 
 export interface RouteAlertBadge {
@@ -162,6 +225,13 @@ export interface PredictionTrackingState {
   missingRefreshCount: number;
   lastSeenAt: number;
   justReappeared: boolean;
+  lastTimeToStation?: number;
+  wasDueSoon: boolean;
+  reappearedAt?: number;
+  lastPrediction?: NormalizedVehiclePrediction;
+  lastProgress?: number;
+  lastX?: number;
+  lastY?: number;
 }
 
 export interface VehicleGap {
@@ -213,6 +283,15 @@ export interface ServiceHealthMetrics {
   isDataStale: boolean;
   healthScore: number;
   healthLabel: string;
+  estimatedLateCount: number;
+  estimatedEarlyCount: number;
+  estimatedOnTimeCount: number;
+  unknownScheduleMatchCount: number;
+  averageScheduleDeviationMinutes: number | null;
+  possibleGhostCount: number;
+  predictionDisappearedCount: number;
+  missingLatestCount: number;
+  reappearedCount: number;
   outbound: DirectionIntelligence;
   inbound: DirectionIntelligence;
 }
@@ -229,6 +308,13 @@ export interface RouteDashboardSummary {
   disappearedPredictionCount: number;
   missingFromRefreshCount: number;
   stalePredictionCount: number;
+  estimatedLateCount: number;
+  estimatedEarlyCount: number;
+  estimatedOnTimeCount: number;
+  unknownScheduleMatchCount: number;
+  possibleGhostCount: number;
+  predictionDisappearedCount: number;
+  missingLatestCount: number;
 }
 
 export interface RouteIntelligenceResult {

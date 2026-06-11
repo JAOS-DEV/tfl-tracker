@@ -1,8 +1,10 @@
 import { SERVICE_INTELLIGENCE_THRESHOLDS } from "@/lib/constants";
+import { countGhostStatuses } from "@/lib/ghostBusDetection";
 import {
   countPredictionConfidenceStates,
   isPredictionDataStale,
 } from "@/lib/predictionTracking";
+import { summarizeScheduleMatches } from "@/lib/scheduleDeviation";
 import type {
   BunchingCluster,
   DirectionIntelligence,
@@ -233,6 +235,7 @@ export interface ServiceHealthScoreInput {
   isDataStale: boolean;
   disappearedPredictionCount: number;
   missingFromRefreshCount: number;
+  possibleGhostCount: number;
 }
 
 export function calculateServiceHealthScore(
@@ -244,6 +247,7 @@ export function calculateServiceHealthScore(
   score -= Math.min(input.bunchingClusterCount * 10, 30);
   score -= Math.min(input.disappearedPredictionCount * 5, 20);
   score -= Math.min(input.missingFromRefreshCount * 3, 12);
+  score -= Math.min(input.possibleGhostCount * 8, 24);
 
   if (input.liveVehicleCount === 0) {
     score -= 40;
@@ -285,6 +289,9 @@ export function buildServiceHealthMetrics(
     options.now,
   );
 
+  const ghostCounts = countGhostStatuses(vehicles);
+  const scheduleSummary = summarizeScheduleMatches(vehicles);
+
   const healthScore = calculateServiceHealthScore({
     liveVehicleCount: vehicles.length,
     largeGapCount: largeGaps.length,
@@ -292,6 +299,7 @@ export function buildServiceHealthMetrics(
     isDataStale,
     disappearedPredictionCount: confidenceCounts.disappeared,
     missingFromRefreshCount: confidenceCounts.missing,
+    possibleGhostCount: ghostCounts.possibleGhostCount,
   });
 
   return {
@@ -307,6 +315,16 @@ export function buildServiceHealthMetrics(
     isDataStale,
     healthScore,
     healthLabel: getServiceHealthLabel(healthScore),
+    estimatedLateCount: scheduleSummary.estimatedLateCount,
+    estimatedEarlyCount: scheduleSummary.estimatedEarlyCount,
+    estimatedOnTimeCount: scheduleSummary.estimatedOnTimeCount,
+    unknownScheduleMatchCount: scheduleSummary.unknownScheduleMatchCount,
+    averageScheduleDeviationMinutes:
+      scheduleSummary.averageScheduleDeviationMinutes,
+    possibleGhostCount: ghostCounts.possibleGhostCount,
+    predictionDisappearedCount: ghostCounts.predictionDisappearedCount,
+    missingLatestCount: ghostCounts.missingLatestCount,
+    reappearedCount: ghostCounts.reappearedCount,
     outbound: calculateDirectionIntelligence(vehicles, "outbound"),
     inbound: calculateDirectionIntelligence(vehicles, "inbound"),
   };
@@ -382,6 +400,39 @@ export function buildServiceAlertBadges(
       id: "disappeared",
       label: `${metrics.disappearedPredictionCount} prediction${metrics.disappearedPredictionCount === 1 ? "" : "s"} disappeared`,
       tone: "danger",
+    });
+  }
+
+  if (metrics.possibleGhostCount > 0) {
+    badges.push({
+      id: "possible-ghost",
+      label:
+        metrics.possibleGhostCount === 1
+          ? "Possible ghost"
+          : `${metrics.possibleGhostCount} possible ghosts`,
+      tone: "warning",
+    });
+  }
+
+  if (metrics.estimatedLateCount > 0) {
+    badges.push({
+      id: "estimated-late",
+      label:
+        metrics.estimatedLateCount === 1
+          ? "1 estimated late"
+          : `${metrics.estimatedLateCount} estimated late`,
+      tone: "warning",
+    });
+  }
+
+  if (metrics.estimatedEarlyCount > 0) {
+    badges.push({
+      id: "estimated-early",
+      label:
+        metrics.estimatedEarlyCount === 1
+          ? "1 estimated early"
+          : `${metrics.estimatedEarlyCount} estimated early`,
+      tone: "info",
     });
   }
 

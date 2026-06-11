@@ -23,6 +23,15 @@ function metrics(
     disappearedPredictionCount: 0,
     missingFromRefreshCount: 0,
     isDataStale: false,
+    estimatedLateCount: 0,
+    estimatedEarlyCount: 0,
+    estimatedOnTimeCount: 0,
+    unknownScheduleMatchCount: 0,
+    averageScheduleDeviationMinutes: null,
+    possibleGhostCount: 0,
+    predictionDisappearedCount: 0,
+    missingLatestCount: 0,
+    reappearedCount: 0,
     healthScore: 90,
     healthLabel: "Good",
     outbound: {
@@ -87,6 +96,13 @@ describe("evaluateRouteAlerts", () => {
         label: "No live vehicles detected",
       }),
     ]);
+
+    expect(
+      evaluateRouteAlerts(
+        metrics({ possibleGhostCount: 1 }),
+        createDefaultAlertPreferences("337"),
+      ).map((alert) => alert.label),
+    ).toContain("Possible ghost");
   });
 
   it("respects disabled alert preferences", () => {

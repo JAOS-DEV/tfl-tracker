@@ -31,8 +31,28 @@ export interface RouteHistorySnapshot {
   missingFromRefreshCount: number;
   disappearedPredictionCount: number;
   isDataStale: boolean;
+  estimatedLateCount?: number;
+  estimatedEarlyCount?: number;
+  estimatedOnTimeCount?: number;
+  unknownScheduleMatchCount?: number;
+  possibleGhostCount?: number;
+  predictionDisappearedCount?: number;
   outbound: RouteHistoryDirectionSummary;
   inbound: RouteHistoryDirectionSummary;
+}
+
+export function normalizeRouteHistorySnapshot(
+  snapshot: RouteHistorySnapshot,
+): RouteHistorySnapshot {
+  return {
+    ...snapshot,
+    estimatedLateCount: snapshot.estimatedLateCount ?? 0,
+    estimatedEarlyCount: snapshot.estimatedEarlyCount ?? 0,
+    estimatedOnTimeCount: snapshot.estimatedOnTimeCount ?? 0,
+    unknownScheduleMatchCount: snapshot.unknownScheduleMatchCount ?? 0,
+    possibleGhostCount: snapshot.possibleGhostCount ?? 0,
+    predictionDisappearedCount: snapshot.predictionDisappearedCount ?? 0,
+  };
 }
 
 export interface RouteHistoryDailyStats {
@@ -81,6 +101,12 @@ export function createSnapshotFromIntelligence(
     missingFromRefreshCount: metrics.missingFromRefreshCount,
     disappearedPredictionCount: metrics.disappearedPredictionCount,
     isDataStale: metrics.isDataStale,
+    estimatedLateCount: metrics.estimatedLateCount,
+    estimatedEarlyCount: metrics.estimatedEarlyCount,
+    estimatedOnTimeCount: metrics.estimatedOnTimeCount,
+    unknownScheduleMatchCount: metrics.unknownScheduleMatchCount,
+    possibleGhostCount: metrics.possibleGhostCount,
+    predictionDisappearedCount: metrics.predictionDisappearedCount,
     outbound: {
       liveVehicleCount: metrics.outbound.liveVehicleCount,
       largestGapMinutes: metrics.outbound.largestGapMinutes,
@@ -385,7 +411,7 @@ function getRouteHistoryCache(): RouteHistoryCache {
       : readJsonStorage<RouteHistorySnapshot[]>(
           STORAGE_KEYS.routeHistory,
           EMPTY_SNAPSHOTS,
-        );
+        ).map(normalizeRouteHistorySnapshot);
 
   routeHistoryCache = buildRouteHistoryCache(raw, allSnapshots);
   return routeHistoryCache;

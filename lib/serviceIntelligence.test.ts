@@ -40,6 +40,16 @@ function vehicle(
       vehicleId: overrides.vehicleId,
     },
     nextStop: null,
+    scheduleDeviationMinutes: null,
+    scheduleStatus: "unknown",
+    scheduleStatusLabel: "Schedule ?",
+    scheduleMatchConfidence: "unknown",
+    matchedScheduledTime: null,
+    matchedStopName: null,
+    scheduleDataAvailable: false,
+    ghostStatus: "normal",
+    missedRefreshCount: 0,
+    isSuspectedGhost: false,
     ...overrides,
   };
 }
@@ -113,6 +123,7 @@ describe("service health score", () => {
       isDataStale: false,
       disappearedPredictionCount: 0,
       missingFromRefreshCount: 0,
+      possibleGhostCount: 0,
     });
 
     expect(score).toBeGreaterThanOrEqual(85);
@@ -127,6 +138,7 @@ describe("service health score", () => {
       isDataStale: true,
       disappearedPredictionCount: 2,
       missingFromRefreshCount: 1,
+      possibleGhostCount: 1,
     });
 
     expect(score).toBeLessThan(65);

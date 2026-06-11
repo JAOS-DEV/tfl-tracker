@@ -83,6 +83,7 @@ describe("prediction tracking", () => {
           missingRefreshCount: 1,
           lastSeenAt: 1000,
           justReappeared: false,
+          wasDueSoon: false,
         },
       ],
     ]);

@@ -37,6 +37,16 @@ export function HelpPanel(): React.ReactElement {
               predictions, not exact GPS.
             </li>
             <li>
+              Early/late status is estimated by comparing TfL live prediction
+              data with timetable data. This app does not have access to official
+              bus controller running boards or internal TfL operational decisions.
+            </li>
+            <li>
+              Ghost bus detection is inferred from repeated prediction
+              disappearance. TfL data can flicker, so ghost status is only
+              “possible”, not confirmed.
+            </li>
+            <li>
               Bus ring colours and service health scores are local heuristics
               based on live predictions — not official TfL timetable or
               performance scores.

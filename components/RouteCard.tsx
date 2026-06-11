@@ -375,6 +375,7 @@ export function RouteCard({
       <StopArrivalsModal
         stop={selectedStop}
         routeId={activeRoute.routeId}
+        vehicles={vehicles}
         onClose={() => setSelectedStop(null)}
       />
 

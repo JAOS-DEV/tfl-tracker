@@ -12,6 +12,13 @@ export const stopPointIdQuerySchema = z.object({
   stopPointId: z.string().trim().min(1).max(30),
 });
 
+export const timetableQuerySchema = z.object({
+  routeId: z.string().trim().min(1).max(20),
+  fromStopPointId: z.string().trim().min(1).max(30),
+  direction: z.enum(["inbound", "outbound"]),
+  toStopPointId: z.string().trim().min(1).max(30).optional(),
+});
+
 const rawStopPointSchema = z
   .object({
     id: z.string(),

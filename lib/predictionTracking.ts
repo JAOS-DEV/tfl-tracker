@@ -1,4 +1,8 @@
 import { SERVICE_INTELLIGENCE_THRESHOLDS } from "@/lib/constants";
+import {
+  enrichMissingPredictionTrackingState,
+  enrichPredictionTrackingState,
+} from "@/lib/ghostBusDetection";
 import type {
   NormalizedVehiclePrediction,
   PredictionConfidence,
@@ -35,7 +39,6 @@ export function updatePredictionTracking(
 
   for (const prediction of predictions) {
     const key = getPredictionKey(prediction);
-    const vehicleId = prediction.vehicleId ?? prediction.id;
     const previous = previousStates.get(key);
     const wasMissing = (previous?.missingRefreshCount ?? 0) > 0;
 
@@ -44,11 +47,13 @@ export function updatePredictionTracking(
     }
 
     nextStates.set(key, {
+      ...enrichPredictionTrackingState(
+        previous,
+        prediction,
+        refreshedAt,
+        wasMissing,
+      ),
       key,
-      vehicleId,
-      missingRefreshCount: 0,
-      lastSeenAt: refreshedAt,
-      justReappeared: wasMissing,
     });
   }
 
@@ -57,13 +62,8 @@ export function updatePredictionTracking(
       continue;
     }
 
-    const missingRefreshCount = previous.missingRefreshCount + 1;
     disappeared.push(key);
-    nextStates.set(key, {
-      ...previous,
-      missingRefreshCount,
-      justReappeared: false,
-    });
+    nextStates.set(key, enrichMissingPredictionTrackingState(previous));
   }
 
   return { states: nextStates, disappeared, reappeared };

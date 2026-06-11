@@ -8,17 +8,19 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { formatFriendlyError } from "@/lib/errors";
 import { formatLastUpdated } from "@/lib/format";
 import { analyzeStopPredictions } from "@/lib/serviceIntelligence";
-import type { NormalizedStop } from "@/lib/tfl/types";
+import type { EstimatedVehiclePosition, NormalizedStop } from "@/lib/tfl/types";
 
 interface StopArrivalsModalProps {
   stop: NormalizedStop | null;
   routeId: string;
+  vehicles?: EstimatedVehiclePosition[];
   onClose: () => void;
 }
 
 export function StopArrivalsModal({
   stop,
   routeId,
+  vehicles = [],
   onClose,
 }: StopArrivalsModalProps): React.ReactElement | null {
   const isOnline = useOnlineStatus();
@@ -29,6 +31,10 @@ export function StopArrivalsModal({
   if (!stop) {
     return null;
   }
+
+  const vehicleById = new Map(
+    vehicles.map((vehicle) => [vehicle.vehicleId, vehicle]),
+  );
 
   const routePredictions =
     data?.predictions.filter(
@@ -102,7 +108,15 @@ export function StopArrivalsModal({
               Route {routeId}
             </p>
             {stopAnalysis.sortedPredictions.map((prediction) => (
-              <BusChip key={prediction.id} prediction={prediction} />
+              <BusChip
+                key={prediction.id}
+                prediction={prediction}
+                vehicle={
+                  prediction.vehicleId
+                    ? vehicleById.get(prediction.vehicleId)
+                    : undefined
+                }
+              />
             ))}
           </div>
         </div>

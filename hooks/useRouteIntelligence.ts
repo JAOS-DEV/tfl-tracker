@@ -6,6 +6,7 @@ import { usePredictionTracking } from "@/hooks/usePredictionTracking";
 import { useRouteSequence } from "@/hooks/useRouteSequence";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { getLoopLayout } from "@/lib/constants";
+import { useRouteTimetable } from "@/hooks/useRouteTimetable";
 import { buildRouteIntelligence } from "@/lib/routeIntelligence";
 import type { RouteIntelligenceResult } from "@/lib/tfl/types";
 
@@ -23,6 +24,7 @@ export function useRouteIntelligence(routeId: string): UseRouteIntelligenceResul
   const sequenceQuery = useRouteSequence(routeId);
   const arrivalsQuery = useLineArrivals(routeId);
   const route = sequenceQuery.data;
+  const { timetables } = useRouteTimetable(routeId, route);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -60,6 +62,7 @@ export function useRouteIntelligence(routeId: string): UseRouteIntelligenceResul
       dataUpdatedAt: arrivalsQuery.dataUpdatedAt,
       now: now.getTime(),
       trackingStates: predictionTracking.states,
+      timetables,
     });
   }, [
     routeId,
@@ -69,6 +72,7 @@ export function useRouteIntelligence(routeId: string): UseRouteIntelligenceResul
     arrivalsQuery.dataUpdatedAt,
     now,
     predictionTracking.states,
+    timetables,
   ]);
 
   return {

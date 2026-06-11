@@ -4,7 +4,6 @@ import {
   type LoopLayoutConfig,
   VEHICLE_POSITIONING,
 } from "@/lib/constants";
-import { applyScheduleAdherence } from "@/lib/scheduleAdherence";
 import { groupPredictionsByVehicle } from "@/lib/tfl/normalizers";
 import type {
   EstimatedVehiclePosition,
@@ -269,6 +268,17 @@ export function buildVehiclePositions(
       y: coordinates.y,
       matched: estimate.matched,
       adherence: "onTime",
+      scheduleDeviationMinutes: null,
+      scheduleStatus: "unknown",
+      scheduleStatusLabel: "Schedule ?",
+      scheduleMatchConfidence: "unknown",
+      matchedScheduledTime: null,
+      matchedStopName: estimate.nextStop?.name ?? null,
+      scheduleDataAvailable: false,
+      scheduleExplanation: "Timetable unavailable",
+      ghostStatus: "normal",
+      missedRefreshCount: 0,
+      isSuspectedGhost: false,
     });
   }
 
@@ -276,7 +286,7 @@ export function buildVehiclePositions(
     positions.sort((a, b) => a.progress - b.progress),
     layout,
   );
-  return applyScheduleAdherence(sorted);
+  return sorted;
 }
 
 function spreadOverlappingMarkers(

@@ -16,10 +16,15 @@ export interface RouteAlertPreferences {
   warnBunching: boolean;
   warnNoLiveBuses: boolean;
   warnStaleData: boolean;
+  warnPossibleGhost: boolean;
+  warnPredictionDisappeared: boolean;
+  warnEstimatedLateBus: boolean;
+  estimatedLateMinutes: number;
 }
 
 export const DEFAULT_LARGE_GAP_MINUTES =
   SERVICE_INTELLIGENCE_THRESHOLDS.LARGE_GAP_THRESHOLD_MINUTES;
+export const DEFAULT_ESTIMATED_LATE_MINUTES = 4;
 
 export function createDefaultAlertPreferences(
   routeId: string,
@@ -31,6 +36,10 @@ export function createDefaultAlertPreferences(
     warnBunching: true,
     warnNoLiveBuses: true,
     warnStaleData: true,
+    warnPossibleGhost: true,
+    warnPredictionDisappeared: false,
+    warnEstimatedLateBus: false,
+    estimatedLateMinutes: DEFAULT_ESTIMATED_LATE_MINUTES,
   };
 }
 
@@ -49,16 +58,20 @@ export function normalizeAlertPreferencesMap(
     }
 
     const raw = prefs as Partial<RouteAlertPreferences>;
+    const defaults = createDefaultAlertPreferences(routeId);
     result[routeId] = {
+      ...defaults,
+      ...raw,
       routeId,
-      warnLargeGap: raw.warnLargeGap ?? true,
       largeGapMinutes:
         typeof raw.largeGapMinutes === "number" && raw.largeGapMinutes > 0
           ? raw.largeGapMinutes
-          : DEFAULT_LARGE_GAP_MINUTES,
-      warnBunching: raw.warnBunching ?? true,
-      warnNoLiveBuses: raw.warnNoLiveBuses ?? true,
-      warnStaleData: raw.warnStaleData ?? true,
+          : defaults.largeGapMinutes,
+      estimatedLateMinutes:
+        typeof raw.estimatedLateMinutes === "number" &&
+        raw.estimatedLateMinutes > 0
+          ? raw.estimatedLateMinutes
+          : defaults.estimatedLateMinutes,
     };
   }
 
@@ -124,6 +137,41 @@ export function evaluateRouteAlerts(
     alerts.push({
       id: "stale-data",
       label: "TfL data may be stale",
+      tone: "warning",
+    });
+  }
+
+  if (preferences.warnPossibleGhost && metrics.possibleGhostCount > 0) {
+    alerts.push({
+      id: "possible-ghost",
+      label:
+        metrics.possibleGhostCount === 1
+          ? "Possible ghost"
+          : `${metrics.possibleGhostCount} possible ghosts`,
+      tone: "warning",
+    });
+  }
+
+  if (
+    preferences.warnPredictionDisappeared &&
+    metrics.predictionDisappearedCount > 0
+  ) {
+    alerts.push({
+      id: "prediction-disappeared",
+      label: "Prediction disappeared",
+      tone: "warning",
+    });
+  }
+
+  if (
+    preferences.warnEstimatedLateBus &&
+    metrics.estimatedLateCount > 0 &&
+    metrics.averageScheduleDeviationMinutes !== null &&
+    metrics.averageScheduleDeviationMinutes >= preferences.estimatedLateMinutes
+  ) {
+    alerts.push({
+      id: "estimated-late",
+      label: "Estimated late bus",
       tone: "warning",
     });
   }
