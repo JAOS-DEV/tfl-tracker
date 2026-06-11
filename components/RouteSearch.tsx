@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import type { FavouriteRoute } from "@/lib/favouriteRoutes";
+import { formatFriendlyError } from "@/lib/errors";
 import type { ActiveRoute, LineSearchResult } from "@/lib/tfl/types";
 import {
   MAX_ACTIVE_ROUTES,
@@ -12,10 +14,10 @@ import {
 interface RouteSearchProps {
   activeRoutes: ActiveRoute[];
   recentRoutes: ActiveRoute[];
-  favouriteRoutes: string[];
+  favouriteRoutes: FavouriteRoute[];
   onActiveRoutesChange: (routes: ActiveRoute[]) => void;
   onRecentRoutesChange: (routes: ActiveRoute[]) => void;
-  onToggleFavourite: (routeId: string) => void;
+  onRemoveFavourite: (routeId: string) => void;
 }
 
 export function RouteSearch({
@@ -24,14 +26,16 @@ export function RouteSearch({
   favouriteRoutes,
   onActiveRoutesChange,
   onRecentRoutesChange,
-  onToggleFavourite,
+  onRemoveFavourite,
 }: RouteSearchProps): React.ReactElement {
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorAction, setErrorAction] = useState<string | null>(null);
 
   const handleAddRoute = async (routeId: string, routeName: string) => {
     setError(null);
+    setErrorAction(null);
 
     if (activeRoutes.some((route) => route.routeId === routeId)) {
       setError(`Route ${routeId} is already active.`);
@@ -62,6 +66,7 @@ export function RouteSearch({
 
     setIsSearching(true);
     setError(null);
+    setErrorAction(null);
 
     try {
       const response = await fetch(
@@ -70,13 +75,22 @@ export function RouteSearch({
 
       if (!response.ok) {
         const payload = (await response.json()) as { error?: string };
-        throw new Error(payload.error ?? "Route search failed");
+        const friendly = formatFriendlyError(
+          new Error(payload.error ?? "Route search failed"),
+        );
+        setError(friendly.message);
+        setErrorAction(friendly.action ?? null);
+        return;
       }
 
       const data = (await response.json()) as { results: LineSearchResult[] };
 
       if (data.results.length === 0) {
-        setError(`No bus route found for "${trimmed}".`);
+        const friendly = formatFriendlyError(
+          new Error(`No bus route found for "${trimmed}".`),
+        );
+        setError(friendly.message);
+        setErrorAction(friendly.action ?? null);
         return;
       }
 
@@ -87,25 +101,13 @@ export function RouteSearch({
 
       await handleAddRoute(selected.id, selected.name);
     } catch (searchError) {
-      setError(
-        searchError instanceof Error
-          ? searchError.message
-          : "Route search failed",
-      );
+      const friendly = formatFriendlyError(searchError);
+      setError(friendly.message);
+      setErrorAction(friendly.action ?? null);
     } finally {
       setIsSearching(false);
     }
   };
-
-  const favouriteRouteItems = favouriteRoutes
-    .map((routeId) =>
-      recentRoutes.find((route) => route.routeId === routeId) ?? {
-        routeId,
-        routeName: routeId,
-        addedAt: 0,
-      },
-    )
-    .filter(Boolean);
 
   return (
     <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -131,7 +133,7 @@ export function RouteSearch({
             }
           }}
           placeholder="e.g. 337"
-          className="min-h-11 flex-1 rounded-xl border border-zinc-300 bg-white px-4 text-zinc-900 outline-none ring-sky-500 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+          className="min-h-11 flex-1 rounded-xl border border-zinc-300 bg-white px-4 text-base text-zinc-900 outline-none ring-sky-500 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
         />
         <button
           type="button"
@@ -146,16 +148,23 @@ export function RouteSearch({
       </div>
 
       {error ? (
-        <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>
+        <div className="mt-3 text-sm text-red-600 dark:text-red-400">
+          <p>{error}</p>
+          {errorAction ? (
+            <p className="mt-1 text-red-500/80 dark:text-red-300/80">
+              {errorAction}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
-      {favouriteRouteItems.length > 0 ? (
+      {favouriteRoutes.length > 0 ? (
         <div className="mt-4">
           <p className="text-xs uppercase tracking-wide text-zinc-500">
             Favourites
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
-            {favouriteRouteItems.map((route) => (
+            {favouriteRoutes.map((route) => (
               <div
                 key={route.routeId}
                 className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-50 px-1 py-1 dark:bg-amber-950/30"
@@ -165,14 +174,14 @@ export function RouteSearch({
                   onClick={() => {
                     void handleAddRoute(route.routeId, route.routeName);
                   }}
-                  className="rounded-full px-2 py-1 text-sm hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                  className="min-h-11 rounded-full px-3 py-2 text-sm hover:bg-amber-100 dark:hover:bg-amber-900/40"
                 >
                   ★ {route.routeId} · {route.routeName}
                 </button>
                 <button
                   type="button"
-                  onClick={() => onToggleFavourite(route.routeId)}
-                  className="rounded-full px-2 text-xs text-amber-700 dark:text-amber-300"
+                  onClick={() => onRemoveFavourite(route.routeId)}
+                  className="min-h-11 min-w-11 rounded-full text-sm text-amber-700 dark:text-amber-300"
                   aria-label={`Remove ${route.routeId} from favourites`}
                 >
                   ×
@@ -199,7 +208,7 @@ export function RouteSearch({
                   onClick={() => {
                     void handleAddRoute(route.routeId, route.routeName);
                   }}
-                  className="rounded-full px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  className="min-h-11 rounded-full px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 >
                   {route.routeId} · {route.routeName}
                 </button>
@@ -210,7 +219,7 @@ export function RouteSearch({
                       removeRecentRoute(recentRoutes, route.routeId),
                     )
                   }
-                  className="rounded-full px-2 text-xs text-zinc-500"
+                  className="min-h-11 min-w-11 rounded-full text-sm text-zinc-500"
                   aria-label={`Remove ${route.routeId} from recent routes`}
                 >
                   ×

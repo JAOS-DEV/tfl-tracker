@@ -2,20 +2,27 @@
 
 import { RouteCard } from "@/components/RouteCard";
 import { MultiRouteDashboard } from "@/components/MultiRouteDashboard";
+import type { FavouriteRoute } from "@/lib/favouriteRoutes";
+import { isFavouriteRoute } from "@/lib/favouriteRoutes";
+import type { RouteAlertPreferences } from "@/lib/routeAlerts";
 import type { ActiveRoute } from "@/lib/tfl/types";
 
 interface ActiveRoutesProps {
   activeRoutes: ActiveRoute[];
-  favouriteRoutes: string[];
+  favouriteRoutes: FavouriteRoute[];
+  alertPreferences: Record<string, RouteAlertPreferences>;
   onActiveRoutesChange: (routes: ActiveRoute[]) => void;
-  onToggleFavourite: (routeId: string) => void;
+  onToggleFavourite: (route: Pick<ActiveRoute, "routeId" | "routeName">) => void;
+  onAlertPreferencesChange: (preferences: RouteAlertPreferences) => void;
 }
 
 export function ActiveRoutes({
   activeRoutes,
   favouriteRoutes,
+  alertPreferences,
   onActiveRoutesChange,
   onToggleFavourite,
+  onAlertPreferencesChange,
 }: ActiveRoutesProps): React.ReactElement {
   const handleRemove = (routeId: string) => {
     onActiveRoutesChange(
@@ -43,29 +50,35 @@ export function ActiveRoutes({
 
   return (
     <section className="space-y-4">
-      <MultiRouteDashboard activeRoutes={activeRoutes} />
+      <MultiRouteDashboard
+        activeRoutes={activeRoutes}
+        alertPreferences={alertPreferences}
+      />
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
           Active routes ({activeRoutes.length})
         </h2>
         <button
           type="button"
           onClick={handleClearAll}
-          className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="min-h-11 rounded-lg px-3 py-2 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
           Clear all
         </button>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-1">
-        {activeRoutes.map((route) => (
+      <div className="grid gap-4 xl:grid-cols-1">
+        {activeRoutes.map((route, index) => (
           <RouteCard
             key={route.routeId}
             activeRoute={route}
             onRemove={handleRemove}
-            isFavourite={favouriteRoutes.includes(route.routeId)}
+            isFavourite={isFavouriteRoute(favouriteRoutes, route.routeId)}
             onToggleFavourite={onToggleFavourite}
+            alertPreferences={alertPreferences[route.routeId]}
+            onAlertPreferencesChange={onAlertPreferencesChange}
+            defaultCollapsedOnMobile={activeRoutes.length > 1 && index > 0}
           />
         ))}
       </div>

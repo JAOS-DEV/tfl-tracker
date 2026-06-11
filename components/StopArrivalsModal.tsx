@@ -2,7 +2,10 @@
 
 import { BusChip } from "@/components/BusChip";
 import { ErrorState } from "@/components/ErrorState";
+import { MobileBottomSheet } from "@/components/MobileBottomSheet";
 import { useStopArrivals } from "@/hooks/useStopArrivals";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { formatFriendlyError } from "@/lib/errors";
 import { formatLastUpdated } from "@/lib/format";
 import { analyzeStopPredictions } from "@/lib/serviceIntelligence";
 import type { NormalizedStop } from "@/lib/tfl/types";
@@ -18,6 +21,7 @@ export function StopArrivalsModal({
   routeId,
   onClose,
 }: StopArrivalsModalProps): React.ReactElement | null {
+  const isOnline = useOnlineStatus();
   const stopPointId = stop?.naptanId ?? null;
   const { data, isLoading, isError, error, refetch, dataUpdatedAt } =
     useStopArrivals(stopPointId);
@@ -40,104 +44,84 @@ export function StopArrivalsModal({
     ) ?? [];
 
   const stopAnalysis = analyzeStopPredictions(routePredictions);
+  const friendlyError = isError
+    ? formatFriendlyError(error, { isOffline: !isOnline })
+    : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="stop-arrivals-title"
-        className="max-h-[85vh] w-full max-w-lg overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
-      >
-        <div className="flex items-start justify-between border-b border-zinc-200 px-4 py-4 dark:border-zinc-800">
-          <div>
-            <h2
-              id="stop-arrivals-title"
-              className="text-lg font-semibold text-zinc-900 dark:text-zinc-100"
-            >
-              {stop.name}
-            </h2>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              {stop.naptanId}
+    <MobileBottomSheet
+      title={stop.name}
+      titleId="stop-arrivals-title"
+      onClose={onClose}
+      footer={
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          {stop.naptanId} · Last updated{" "}
+          {formatLastUpdated(new Date(dataUpdatedAt))} · Estimated from TfL
+          live arrival data
+        </p>
+      }
+    >
+      {isLoading ? (
+        <p className="text-sm text-zinc-500">Loading arrivals…</p>
+      ) : null}
+
+      {friendlyError ? (
+        <ErrorState
+          title={friendlyError.title}
+          message={friendlyError.message}
+          action={friendlyError.action}
+          onRetry={() => {
+            void refetch();
+          }}
+        />
+      ) : null}
+
+      {!isLoading && !isError && routePredictions.length === 0 ? (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          No upcoming buses predicted for route {routeId} at this stop.
+        </p>
+      ) : null}
+
+      {!isLoading && !isError && routePredictions.length > 0 ? (
+        <div className="space-y-3">
+          {stopAnalysis.hasPossibleBunching ? (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              Possible bunching — multiple buses predicted within a few minutes
+              at this stop.
             </p>
+          ) : null}
+          {stopAnalysis.hasLargeGap ? (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              Large predicted gap — a longer wait may be likely between
+              arrivals.
+            </p>
+          ) : null}
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Route {routeId}
+            </p>
+            {stopAnalysis.sortedPredictions.map((prediction) => (
+              <BusChip key={prediction.id} prediction={prediction} />
+            ))}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            Close
-          </button>
         </div>
+      ) : null}
 
-        <div className="max-h-[60vh] overflow-y-auto px-4 py-4">
-          {isLoading ? (
-            <p className="text-sm text-zinc-500">Loading arrivals…</p>
-          ) : null}
-
-          {isError ? (
-            <ErrorState
-              title="Could not load stop arrivals"
-              message={error?.message ?? "Unknown error"}
-              onRetry={() => {
-                void refetch();
-              }}
+      {!isLoading && !isError && otherPredictions.length > 0 ? (
+        <div className="mt-4 space-y-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Other routes at this stop
+          </p>
+          {otherPredictions.map((prediction) => (
+            <BusChip
+              key={prediction.id}
+              prediction={prediction}
+              muted
             />
-          ) : null}
-
-          {!isLoading && !isError && routePredictions.length === 0 ? (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              No upcoming buses predicted for route {routeId} at this stop.
-            </p>
-          ) : null}
-
-          {!isLoading && !isError && routePredictions.length > 0 ? (
-            <div className="space-y-3">
-              {stopAnalysis.hasPossibleBunching ? (
-                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-                  Possible bunching — multiple buses predicted within a few
-                  minutes at this stop.
-                </p>
-              ) : null}
-              {stopAnalysis.hasLargeGap ? (
-                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-                  Large predicted gap — a longer wait may be likely between
-                  arrivals.
-                </p>
-              ) : null}
-
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                  Route {routeId}
-                </p>
-                {stopAnalysis.sortedPredictions.map((prediction) => (
-                  <BusChip key={prediction.id} prediction={prediction} />
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {!isLoading && !isError && otherPredictions.length > 0 ? (
-            <div className="mt-4 space-y-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Other routes at this stop
-              </p>
-              {otherPredictions.map((prediction) => (
-                <BusChip
-                  key={prediction.id}
-                  prediction={prediction}
-                  muted
-                />
-              ))}
-            </div>
-          ) : null}
+          ))}
         </div>
-
-        <div className="border-t border-zinc-200 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-          Last updated {formatLastUpdated(new Date(dataUpdatedAt))} · Estimated
-          from TfL live arrival data
-        </div>
-      </div>
-    </div>
+      ) : null}
+    </MobileBottomSheet>
   );
 }

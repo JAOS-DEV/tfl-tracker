@@ -324,7 +324,7 @@ export function buildServiceAlertBadges(
   if (metrics.liveVehicleCount === 0) {
     badges.push({
       id: "no-buses",
-      label: "No buses detected",
+      label: "No live vehicles detected",
       tone: "neutral",
     });
     return badges;
@@ -372,7 +372,7 @@ export function buildServiceAlertBadges(
   if (metrics.isDataStale) {
     badges.push({
       id: "stale",
-      label: "Data may be stale",
+      label: "TfL data may be stale",
       tone: "warning",
     });
   }

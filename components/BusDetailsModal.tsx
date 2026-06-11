@@ -1,5 +1,6 @@
 "use client";
 
+import { MobileBottomSheet } from "@/components/MobileBottomSheet";
 import { formatLocalTime, formatMinutes } from "@/lib/format";
 import { predictionConfidenceLabel } from "@/lib/predictionTracking";
 import { adherenceLabel } from "@/lib/scheduleAdherence";
@@ -48,42 +49,27 @@ export function BusDetailsModal({
     vehicle.predictionConfidence ?? predictionConfidence ?? "normal";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="bus-details-title"
-        className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-4 text-zinc-900 shadow-xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 id="bus-details-title" className="text-lg font-semibold">
-              Bus {vehicle.routeNumber}
-            </h2>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <span
-                className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${adherenceBadgeClasses[vehicle.adherence]}`}
-              >
-                {adherenceLabel(vehicle.adherence)}
-              </span>
-              <span
-                className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${confidenceBadgeClasses[confidence]}`}
-              >
-                {predictionConfidenceLabel(confidence)}
-              </span>
-            </div>
-            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-              Position is estimated from TfL arrival predictions, not live GPS.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+    <MobileBottomSheet
+      title={`Bus ${vehicle.routeNumber}`}
+      titleId="bus-details-title"
+      onClose={onClose}
+    >
+      <div className="text-zinc-900 dark:text-zinc-100">
+        <div className="flex flex-wrap gap-2">
+          <span
+            className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${adherenceBadgeClasses[vehicle.adherence]}`}
           >
-            Close
-          </button>
+            {adherenceLabel(vehicle.adherence)}
+          </span>
+          <span
+            className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${confidenceBadgeClasses[confidence]}`}
+          >
+            {predictionConfidenceLabel(confidence)}
+          </span>
         </div>
+        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+          Position is estimated from TfL arrival predictions, not live GPS.
+        </p>
 
         <dl className="mt-4 space-y-3 text-sm">
           <div>
@@ -139,6 +125,6 @@ export function BusDetailsModal({
           </p>
         ) : null}
       </div>
-    </div>
+    </MobileBottomSheet>
   );
 }

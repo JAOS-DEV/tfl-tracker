@@ -9,7 +9,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "generate:icons": "node scripts/generate-pwa-icons.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.0",
@@ -30,6 +31,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "jsdom": "^29.1.1",
+    "sharp": "^0.35.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.8"

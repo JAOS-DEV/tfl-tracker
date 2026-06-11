@@ -4,6 +4,7 @@ export const STORAGE_KEYS = {
   activeRoutes: "tfl-tracker:active-routes",
   recentRoutes: "tfl-tracker:recent-routes",
   favouriteRoutes: "tfl-tracker:favourite-routes",
+  routeAlertPreferences: "tfl-tracker:route-alert-preferences",
   theme: "tfl-tracker:theme",
   routeHistory: "tfl-tracker:route-history",
 } as const;
@@ -63,12 +64,3 @@ export function removeRecentRoute(
   return recentRoutes.filter((route) => route.routeId !== routeId);
 }
 
-export function toggleFavouriteRoute(
-  favourites: string[],
-  routeId: string,
-): string[] {
-  if (favourites.includes(routeId)) {
-    return favourites.filter((id) => id !== routeId);
-  }
-  return [...favourites, routeId];
-}

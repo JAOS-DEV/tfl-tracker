@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="London Bus Tracker">
+  <rect width="512" height="512" rx="96" fill="#0284c7"/>
+  <rect x="96" y="176" width="320" height="192" rx="28" fill="#ffffff"/>
+  <rect x="128" y="208" width="96" height="72" rx="8" fill="#bae6fd"/>
+  <rect x="240" y="208" width="96" height="72" rx="8" fill="#bae6fd"/>
+  <circle cx="160" cy="384" r="36" fill="#0f172a"/>
+  <circle cx="352" cy="384" r="36" fill="#0f172a"/>
+  <rect x="176" y="128" width="160" height="48" rx="12" fill="#dc2626"/>
+  <text x="256" y="162" text-anchor="middle" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#ffffff">BUS</text>
+</svg>

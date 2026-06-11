@@ -1,6 +1,7 @@
 "use client";
 
 import { MultiRouteHistoryComparison } from "@/components/MultiRouteHistoryComparison";
+import { RouteAlertBadges } from "@/components/RouteAlertBadges";
 import { useAllRouteHistory } from "@/hooks/useRouteHistory";
 import { useRouteIntelligence } from "@/hooks/useRouteIntelligence";
 import { formatLastUpdated } from "@/lib/format";
@@ -8,6 +9,11 @@ import {
   exportSnapshotsAsJson,
   loadAllSnapshots,
 } from "@/lib/localRouteHistory";
+import {
+  createDefaultAlertPreferences,
+  evaluateRouteAlerts,
+  type RouteAlertPreferences,
+} from "@/lib/routeAlerts";
 import type { ActiveRoute, RouteDashboardSummary } from "@/lib/tfl/types";
 
 function healthToneClass(score: number): string {
@@ -63,22 +69,30 @@ function formatDashboardStatus(summary: RouteDashboardSummary): string {
 
 interface DashboardRouteItemProps {
   route: ActiveRoute;
+  alertPreferences: RouteAlertPreferences;
   onSelect: (routeId: string) => void;
 }
 
 function DashboardRouteItem({
   route,
+  alertPreferences,
   onSelect,
 }: DashboardRouteItemProps): React.ReactElement {
   const { arrivalsQuery, intelligence } = useRouteIntelligence(route.routeId);
   const summary = intelligence?.dashboardSummary;
+  const metrics = intelligence?.metrics;
+
+  const userAlerts =
+    metrics !== undefined
+      ? evaluateRouteAlerts(metrics, alertPreferences)
+      : [];
 
   if (!summary) {
     return (
       <button
         type="button"
         onClick={() => onSelect(route.routeId)}
-        className="flex min-w-[220px] flex-col gap-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-left hover:border-sky-500/50"
+        className="flex min-w-0 flex-1 flex-col gap-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-left hover:border-sky-500/50 sm:min-w-[220px] sm:flex-none"
       >
         <div className="flex items-center gap-2">
           <span className="rounded-lg bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
@@ -94,7 +108,7 @@ function DashboardRouteItem({
     <button
       type="button"
       onClick={() => onSelect(route.routeId)}
-      className="flex min-w-[220px] flex-col gap-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-left hover:border-sky-500/50"
+      className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-left hover:border-sky-500/50 sm:min-w-[220px] sm:flex-none"
     >
       <div className="flex items-center gap-2">
         <span className="rounded-lg bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
@@ -108,7 +122,8 @@ function DashboardRouteItem({
         </span>
       </div>
       <p className="text-xs text-zinc-400">{formatDashboardStatus(summary)}</p>
-      <p className="text-[11px] text-zinc-500">
+      <RouteAlertBadges alerts={userAlerts} compact />
+      <p className="text-xs text-zinc-500">
         Updated{" "}
         {arrivalsQuery.dataUpdatedAt
           ? formatLastUpdated(new Date(arrivalsQuery.dataUpdatedAt))
@@ -121,6 +136,7 @@ function DashboardRouteItem({
 
 interface MultiRouteDashboardProps {
   activeRoutes: ActiveRoute[];
+  alertPreferences: Record<string, RouteAlertPreferences>;
 }
 
 function downloadTextFile(filename: string, content: string, mimeType: string): void {
@@ -135,6 +151,7 @@ function downloadTextFile(filename: string, content: string, mimeType: string): 
 
 export function MultiRouteDashboard({
   activeRoutes,
+  alertPreferences,
 }: MultiRouteDashboardProps): React.ReactElement | null {
   const { clearAll } = useAllRouteHistory();
 
@@ -149,7 +166,7 @@ export function MultiRouteDashboard({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
             Live route dashboard
@@ -164,7 +181,7 @@ export function MultiRouteDashboard({
                   "application/json",
                 )
               }
-              className="rounded-lg border border-zinc-300 px-2.5 py-1 text-[11px] font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="min-h-11 rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               Export all JSON
             </button>
@@ -179,7 +196,7 @@ export function MultiRouteDashboard({
                   clearAll();
                 }
               }}
-              className="rounded-lg border border-red-300 px-2.5 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+              className="min-h-11 rounded-lg border border-red-300 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
             >
               Clear all history
             </button>
@@ -192,11 +209,15 @@ export function MultiRouteDashboard({
             </span>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:overflow-x-auto">
           {activeRoutes.map((route) => (
             <DashboardRouteItem
               key={route.routeId}
               route={route}
+              alertPreferences={
+                alertPreferences[route.routeId] ??
+                createDefaultAlertPreferences(route.routeId)
+              }
               onSelect={handleSelect}
             />
           ))}

@@ -1,14 +1,21 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { ActiveRoute, LineSearchResult } from "@/lib/tfl/types";
+import {
+  getMissingRouteIds,
+  orderRoutesByUrl,
+} from "@/lib/sharedRouteRestore";
+import { parseRoutesParam, serializeRoutesParam } from "@/lib/routeUrl";
 import {
   MAX_ACTIVE_ROUTES,
   addActiveRoute,
   addRecentRoute,
 } from "@/lib/storage";
 
-async function resolveRoute(routeId: string): Promise<ActiveRoute | null> {
+export async function resolveRoute(
+  routeId: string,
+): Promise<ActiveRoute | null> {
   const response = await fetch(
     `/api/tfl/line-search?query=${encodeURIComponent(routeId)}`,
   );
@@ -34,6 +41,44 @@ async function resolveRoute(routeId: string): Promise<ActiveRoute | null> {
   };
 }
 
+export async function resolveRoutesFromIds(
+  routeIds: string[],
+  existingActive: ActiveRoute[],
+): Promise<{
+  activeRoutes: ActiveRoute[];
+  recentAdditions: ActiveRoute[];
+  invalidRouteIds: string[];
+}> {
+  let nextActive = [...existingActive];
+  const recentAdditions: ActiveRoute[] = [];
+  const invalidRouteIds: string[] = [];
+
+  for (const routeId of routeIds) {
+    if (
+      nextActive.some(
+        (route) => route.routeId.toLowerCase() === routeId.toLowerCase(),
+      )
+    ) {
+      continue;
+    }
+
+    if (nextActive.length >= MAX_ACTIVE_ROUTES) {
+      break;
+    }
+
+    const resolved = await resolveRoute(routeId);
+    if (!resolved) {
+      invalidRouteIds.push(routeId);
+      continue;
+    }
+
+    nextActive = addActiveRoute(nextActive, resolved);
+    recentAdditions.push(resolved);
+  }
+
+  return { activeRoutes: nextActive, recentAdditions, invalidRouteIds };
+}
+
 type RoutesUpdater = ActiveRoute[] | ((current: ActiveRoute[]) => ActiveRoute[]);
 
 interface UseRoutesFromUrlOptions {
@@ -41,6 +86,49 @@ interface UseRoutesFromUrlOptions {
   activeRoutes: ActiveRoute[];
   onActiveRoutesChange: (routes: RoutesUpdater) => void;
   onRecentRoutesChange: (routes: RoutesUpdater) => void;
+  onUrlLoadError?: (invalidRouteIds: string[]) => void;
+}
+
+interface RouteHistoryState {
+  activeRoutes?: ActiveRoute[];
+}
+
+function readRoutesFromLocation(): string[] {
+  return parseRoutesParam(
+    new URLSearchParams(window.location.search).get("routes"),
+  );
+}
+
+export function pushRoutesToUrl(activeRoutes: ActiveRoute[]): void {
+  const url = new URL(window.location.href);
+  const serialized = serializeRoutesParam(
+    activeRoutes.map((route) => route.routeId),
+  );
+
+  if (serialized) {
+    url.searchParams.set("routes", serialized);
+  } else {
+    url.searchParams.delete("routes");
+  }
+
+  const state: RouteHistoryState = { activeRoutes };
+  window.history.pushState(state, "", url.toString());
+}
+
+export function replaceRoutesInUrl(activeRoutes: ActiveRoute[]): void {
+  const url = new URL(window.location.href);
+  const serialized = serializeRoutesParam(
+    activeRoutes.map((route) => route.routeId),
+  );
+
+  if (serialized) {
+    url.searchParams.set("routes", serialized);
+  } else {
+    url.searchParams.delete("routes");
+  }
+
+  const state: RouteHistoryState = { activeRoutes };
+  window.history.replaceState(state, "", url.toString());
 }
 
 export function useRoutesFromUrl({
@@ -48,55 +136,95 @@ export function useRoutesFromUrl({
   activeRoutes,
   onActiveRoutesChange,
   onRecentRoutesChange,
+  onUrlLoadError,
 }: UseRoutesFromUrlOptions): void {
   const hasLoadedFromUrl = useRef(false);
+  const skipNextUrlSync = useRef(false);
+  const isInitialUrlSync = useRef(true);
+
+  const applyRoutesFromHistory = useCallback(
+    async (routeIds: string[], historyRoutes?: ActiveRoute[]) => {
+      skipNextUrlSync.current = true;
+
+      if (routeIds.length === 0) {
+        onActiveRoutesChange([]);
+        return;
+      }
+
+      const baseRoutes = historyRoutes ?? [];
+      const missingRouteIds = getMissingRouteIds(routeIds, baseRoutes);
+
+      if (missingRouteIds.length === 0 && baseRoutes.length > 0) {
+        onActiveRoutesChange(orderRoutesByUrl(routeIds, baseRoutes));
+        return;
+      }
+
+      const { activeRoutes: resolved, recentAdditions, invalidRouteIds } =
+        await resolveRoutesFromIds(
+          missingRouteIds.length > 0 ? missingRouteIds : routeIds,
+          baseRoutes,
+        );
+
+      if (recentAdditions.length > 0) {
+        onRecentRoutesChange((recent) => {
+          let next = recent;
+          for (const route of recentAdditions) {
+            next = addRecentRoute(next, route);
+          }
+          return next;
+        });
+      }
+
+      onActiveRoutesChange(orderRoutesByUrl(routeIds, resolved));
+
+      if (invalidRouteIds.length > 0) {
+        onUrlLoadError?.(invalidRouteIds);
+      }
+    },
+    [onActiveRoutesChange, onRecentRoutesChange, onUrlLoadError],
+  );
 
   useEffect(() => {
     if (!isHydrated || hasLoadedFromUrl.current) {
       return;
     }
 
-    const params = new URLSearchParams(window.location.search);
-    const routesParam = params.get("routes");
-
-    if (!routesParam) {
+    const routeIds = readRoutesFromLocation();
+    if (routeIds.length === 0) {
+      hasLoadedFromUrl.current = true;
       return;
     }
 
     hasLoadedFromUrl.current = true;
 
-    const routeIds = routesParam
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean)
-      .slice(0, MAX_ACTIVE_ROUTES);
-
-    if (routeIds.length === 0) {
-      return;
-    }
-
     void (async () => {
-      let nextActive = [...activeRoutes];
+      const { activeRoutes: resolved, recentAdditions, invalidRouteIds } =
+        await resolveRoutesFromIds(routeIds, activeRoutes);
 
-      for (const routeId of routeIds) {
-        if (nextActive.some((route) => route.routeId === routeId)) {
-          continue;
-        }
-        if (nextActive.length >= MAX_ACTIVE_ROUTES) {
-          break;
-        }
-
-        const resolved = await resolveRoute(routeId);
-        if (!resolved) {
-          continue;
-        }
-
-        nextActive = addActiveRoute(nextActive, resolved);
-        onRecentRoutesChange((recent) => addRecentRoute(recent, resolved));
+      if (recentAdditions.length > 0) {
+        onRecentRoutesChange((recent) => {
+          let next = recent;
+          for (const route of recentAdditions) {
+            next = addRecentRoute(next, route);
+          }
+          return next;
+        });
       }
 
-      if (nextActive.length !== activeRoutes.length) {
-        onActiveRoutesChange(nextActive);
+      if (
+        resolved.length !== activeRoutes.length ||
+        resolved.some(
+          (route, index) => route.routeId !== activeRoutes[index]?.routeId,
+        )
+      ) {
+        skipNextUrlSync.current = true;
+        onActiveRoutesChange(resolved);
+      }
+
+      replaceRoutesInUrl(resolved.length > 0 ? resolved : activeRoutes);
+
+      if (invalidRouteIds.length > 0) {
+        onUrlLoadError?.(invalidRouteIds);
       }
     })();
   }, [
@@ -104,18 +232,40 @@ export function useRoutesFromUrl({
     activeRoutes,
     onActiveRoutesChange,
     onRecentRoutesChange,
+    onUrlLoadError,
   ]);
-}
 
-export function syncRoutesToUrl(activeRoutes: ActiveRoute[]): void {
-  const url = new URL(window.location.href);
-  const routeIds = activeRoutes.map((route) => route.routeId).join(",");
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
 
-  if (routeIds) {
-    url.searchParams.set("routes", routeIds);
-  } else {
-    url.searchParams.delete("routes");
-  }
+    if (skipNextUrlSync.current) {
+      skipNextUrlSync.current = false;
+      return;
+    }
 
-  window.history.replaceState({}, "", url.toString());
+    if (isInitialUrlSync.current) {
+      isInitialUrlSync.current = false;
+      replaceRoutesInUrl(activeRoutes);
+      return;
+    }
+
+    pushRoutesToUrl(activeRoutes);
+  }, [activeRoutes, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    const handlePopState = (event: PopStateEvent) => {
+      const historyState = event.state as RouteHistoryState | null;
+      const routeIds = readRoutesFromLocation();
+      void applyRoutesFromHistory(routeIds, historyState?.activeRoutes);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [isHydrated, applyRoutesFromHistory]);
 }

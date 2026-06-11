@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { BusDetailsModal } from "@/components/BusDetailsModal";
 import { ErrorState } from "@/components/ErrorState";
 import { RouteCardSkeleton } from "@/components/LoadingSkeleton";
+import { RouteAlertBadges } from "@/components/RouteAlertBadges";
+import { RouteAlertSettings } from "@/components/RouteAlertSettings";
 import { RouteDiagram } from "@/components/RouteDiagram";
 import { RouteHistoryPanel } from "@/components/RouteHistoryPanel";
 import { ServiceHealthCard } from "@/components/ServiceHealthCard";
@@ -14,7 +16,15 @@ import { SchematicRouteLoop } from "@/components/SchematicRouteLoop";
 import { StatusBanner } from "@/components/StatusBanner";
 import { StopArrivalsModal } from "@/components/StopArrivalsModal";
 import { useLineStatus } from "@/hooks/useLineStatus";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { formatCountdown, formatLastUpdated } from "@/lib/format";
+import { formatFriendlyError } from "@/lib/errors";
+import {
+  createDefaultAlertPreferences,
+  evaluateRouteAlerts,
+  type RouteAlertPreferences,
+} from "@/lib/routeAlerts";
 import { getDestinationSummary } from "@/lib/tfl/normalizers";
 import { getDirectionLabel } from "@/lib/routePositioning";
 import type {
@@ -29,7 +39,10 @@ interface RouteCardProps {
   activeRoute: ActiveRoute;
   onRemove: (routeId: string) => void;
   isFavourite: boolean;
-  onToggleFavourite: (routeId: string) => void;
+  onToggleFavourite: (route: Pick<ActiveRoute, "routeId" | "routeName">) => void;
+  alertPreferences?: RouteAlertPreferences;
+  onAlertPreferencesChange: (preferences: RouteAlertPreferences) => void;
+  defaultCollapsedOnMobile?: boolean;
 }
 
 export function RouteCard({
@@ -37,11 +50,21 @@ export function RouteCard({
   onRemove,
   isFavourite,
   onToggleFavourite,
+  alertPreferences,
+  onAlertPreferencesChange,
+  defaultCollapsedOnMobile = false,
 }: RouteCardProps): React.ReactElement {
+  const isMobile = useMediaQuery("(max-width: 639px)");
+  const isOnline = useOnlineStatus();
   const [visualMode, setVisualMode] = useState<RouteVisualMode>("loop");
   const [selectedStop, setSelectedStop] = useState<NormalizedStop | null>(null);
   const [selectedVehicle, setSelectedVehicle] =
     useState<EstimatedVehiclePosition | null>(null);
+  const [showAlertSettings, setShowAlertSettings] = useState(false);
+  const [mobileExpanded, setMobileExpanded] = useState(
+    !defaultCollapsedOnMobile,
+  );
+  const isBodyVisible = !isMobile || mobileExpanded;
   const {
     route,
     sequenceQuery,
@@ -56,6 +79,16 @@ export function RouteCard({
     [intelligence?.vehicles],
   );
   const serviceHealth = intelligence?.metrics;
+
+  const preferences =
+    alertPreferences ?? createDefaultAlertPreferences(activeRoute.routeId);
+
+  const userAlerts = useMemo(() => {
+    if (!serviceHealth) {
+      return [];
+    }
+    return evaluateRouteAlerts(serviceHealth, preferences);
+  }, [serviceHealth, preferences]);
 
   useRouteHistoryRecorder(
     activeRoute.routeId,
@@ -87,13 +120,15 @@ export function RouteCard({
   }
 
   if (sequenceQuery.isError || !route) {
+    const friendly = formatFriendlyError(sequenceQuery.error, {
+      isOffline: !isOnline,
+    });
     return (
       <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <ErrorState
-          title={`Route ${activeRoute.routeId} unavailable`}
-          message={
-            sequenceQuery.error?.message ?? "Failed to load route sequence"
-          }
+          title={friendly.title}
+          message={friendly.message}
+          action={friendly.action}
           onRetry={() => {
             void sequenceQuery.refetch();
           }}
@@ -101,7 +136,7 @@ export function RouteCard({
         <button
           type="button"
           onClick={() => onRemove(activeRoute.routeId)}
-          className="mt-3 text-sm text-zinc-500 underline"
+          className="mt-3 min-h-11 text-sm text-zinc-500 underline"
         >
           Remove route
         </button>
@@ -111,6 +146,11 @@ export function RouteCard({
 
   const outboundSummary = getDestinationSummary(route, "outbound");
   const inboundSummary = getDestinationSummary(route, "inbound");
+  const routeDisplayName = route.routeName;
+
+  const toggleExpanded = () => {
+    setMobileExpanded((current) => !current);
+  };
 
   return (
     <>
@@ -126,8 +166,8 @@ export function RouteCard({
                   {activeRoute.routeId}
                 </span>
                 <div className="min-w-0">
-                  <h2 className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    {route.routeName}
+                  <h2 className="text-base font-semibold text-zinc-900 sm:text-lg dark:text-zinc-100">
+                    {routeDisplayName}
                   </h2>
                   <p className="text-sm text-zinc-500 dark:text-zinc-400">
                     {outboundSummary}
@@ -135,7 +175,9 @@ export function RouteCard({
                 </div>
               </div>
 
-              <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+              <RouteAlertBadges alerts={userAlerts} compact />
+
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:text-sm">
                 <span className="truncate rounded-full bg-sky-100 px-2.5 py-1.5 text-center text-sky-800 dark:bg-sky-950 dark:text-sky-200">
                   {getDirectionLabel(route, "outbound")}
                 </span>
@@ -145,11 +187,25 @@ export function RouteCard({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {isMobile ? (
+                <button
+                  type="button"
+                  onClick={toggleExpanded}
+                  className="min-h-11 rounded-lg px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  {mobileExpanded ? "Collapse" : "Expand"}
+                </button>
+              ) : null}
               <button
                 type="button"
-                onClick={() => onToggleFavourite(activeRoute.routeId)}
-                className={`rounded-lg px-3 py-1.5 text-sm ${
+                onClick={() =>
+                  onToggleFavourite({
+                    routeId: activeRoute.routeId,
+                    routeName: routeDisplayName,
+                  })
+                }
+                className={`min-h-11 rounded-lg px-3 py-2 text-sm ${
                   isFavourite
                     ? "text-amber-500"
                     : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
@@ -163,14 +219,14 @@ export function RouteCard({
               <button
                 type="button"
                 onClick={() => onRemove(activeRoute.routeId)}
-                className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                className="min-h-11 rounded-lg px-3 py-2 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               >
                 Remove
               </button>
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500 sm:text-sm dark:text-zinc-400">
             <span
               className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 ${
                 arrivalsQuery.isFetching
@@ -195,87 +251,125 @@ export function RouteCard({
             ) : null}
             <span className="text-zinc-400">· Estimated positions</span>
           </div>
-
         </header>
 
-        <div
-          className={
-            visualMode === "loop" ? "space-y-3 sm:space-y-4" : "space-y-4 p-4"
-          }
-        >
-          <div className={visualMode === "loop" ? "space-y-3 px-3 pt-3 sm:px-4 sm:pt-4" : ""}>
-            <StatusBanner status={statusQuery.data} />
-
-            {arrivalsQuery.isError ? (
-              <ErrorState
-                title="Live arrivals unavailable"
-                message={arrivalsQuery.error?.message ?? "Unknown error"}
-                onRetry={() => {
-                  void arrivalsQuery.refetch();
-                }}
-              />
-            ) : null}
-
-            {serviceHealth ? (
-              <ServiceHealthCard
-                route={route}
-                metrics={serviceHealth}
-                compact={visualMode === "loop"}
-              />
-            ) : null}
-
-            <RouteVisualModeToggle mode={visualMode} onChange={setVisualMode} />
-
-            <RouteHistoryPanel routeId={activeRoute.routeId} />
-          </div>
-
-          {visualMode === "loop" ? (
-            <SchematicRouteLoop
-              route={route}
-              vehicles={vehicles}
-              onStopSelect={setSelectedStop}
-              onBusSelect={setSelectedVehicle}
-              selectedStopId={selectedStop?.naptanId ?? null}
-              selectedVehicleId={selectedVehicle?.vehicleId ?? null}
-            />
-          ) : (
-            <div className="px-4">
-            <div className="space-y-4">
-              <div>
-                <h3 className="mb-2 text-sm font-semibold text-sky-700 dark:text-sky-300">
-                  {getDirectionLabel(route, "outbound")}
-                </h3>
-                <RouteDiagram
-                  route={route}
-                  direction="outbound"
-                  predictions={arrivalsQuery.data?.predictions ?? []}
-                  onStopSelect={setSelectedStop}
-                />
-              </div>
-              <div>
-                <h3 className="mb-2 text-sm font-semibold text-violet-700 dark:text-violet-300">
-                  {getDirectionLabel(route, "inbound")}
-                </h3>
-                <RouteDiagram
-                  route={route}
-                  direction="inbound"
-                  predictions={arrivalsQuery.data?.predictions ?? []}
-                  onStopSelect={setSelectedStop}
-                />
-              </div>
-            </div>
-            </div>
-          )}
-
-          <p
-            className={`text-xs text-zinc-500 dark:text-zinc-400 ${
-              visualMode === "loop" ? "px-3 pb-3 sm:px-4 sm:pb-4" : ""
-            }`}
+        {isBodyVisible ? (
+          <div
+            className={
+              visualMode === "loop" ? "space-y-3 sm:space-y-4" : "space-y-4 p-4"
+            }
           >
-            Inbound summary: {inboundSummary}. Bus positions are estimated from
-            TfL prediction data, not exact GPS.
-          </p>
-        </div>
+            <div
+              className={
+                visualMode === "loop" ? "space-y-3 px-3 pt-3 sm:px-4 sm:pt-4" : ""
+              }
+            >
+              <StatusBanner status={statusQuery.data} />
+
+              {arrivalsQuery.isError ? (
+                <ErrorState
+                  title={
+                    formatFriendlyError(arrivalsQuery.error, {
+                      isOffline: !isOnline,
+                    }).title
+                  }
+                  message={
+                    formatFriendlyError(arrivalsQuery.error, {
+                      isOffline: !isOnline,
+                    }).message
+                  }
+                  action={
+                    formatFriendlyError(arrivalsQuery.error, {
+                      isOffline: !isOnline,
+                    }).action
+                  }
+                  onRetry={() => {
+                    void arrivalsQuery.refetch();
+                  }}
+                />
+              ) : null}
+
+              {serviceHealth ? (
+                <ServiceHealthCard
+                  route={route}
+                  metrics={serviceHealth}
+                  compact={visualMode === "loop"}
+                />
+              ) : null}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <RouteVisualModeToggle mode={visualMode} onChange={setVisualMode} />
+                <button
+                  type="button"
+                  onClick={() => setShowAlertSettings((current) => !current)}
+                  className="min-h-11 rounded-xl border border-zinc-300 px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  {showAlertSettings ? "Hide alerts" : "Alert settings"}
+                </button>
+              </div>
+
+              {showAlertSettings ? (
+                <RouteAlertSettings
+                  preferences={preferences}
+                  onChange={(next) => onAlertPreferencesChange(next)}
+                />
+              ) : null}
+
+              <RouteHistoryPanel routeId={activeRoute.routeId} />
+            </div>
+
+            {visualMode === "loop" ? (
+              <SchematicRouteLoop
+                route={route}
+                vehicles={vehicles}
+                onStopSelect={setSelectedStop}
+                onBusSelect={setSelectedVehicle}
+                selectedStopId={selectedStop?.naptanId ?? null}
+                selectedVehicleId={selectedVehicle?.vehicleId ?? null}
+              />
+            ) : (
+              <div className="px-4">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="mb-2 text-sm font-semibold text-sky-700 dark:text-sky-300">
+                      {getDirectionLabel(route, "outbound")}
+                    </h3>
+                    <RouteDiagram
+                      route={route}
+                      direction="outbound"
+                      predictions={arrivalsQuery.data?.predictions ?? []}
+                      onStopSelect={setSelectedStop}
+                    />
+                  </div>
+                  <div>
+                    <h3 className="mb-2 text-sm font-semibold text-violet-700 dark:text-violet-300">
+                      {getDirectionLabel(route, "inbound")}
+                    </h3>
+                    <RouteDiagram
+                      route={route}
+                      direction="inbound"
+                      predictions={arrivalsQuery.data?.predictions ?? []}
+                      onStopSelect={setSelectedStop}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <p
+              className={`text-xs text-zinc-500 sm:text-sm dark:text-zinc-400 ${
+                visualMode === "loop" ? "px-3 pb-3 sm:px-4 sm:pb-4" : ""
+              }`}
+            >
+              Inbound summary: {inboundSummary}. Bus positions are estimated from
+              TfL prediction data, not exact GPS.
+            </p>
+          </div>
+        ) : (
+          <div className="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400">
+            Tap Expand to view the loop, service health, and stop details.
+          </div>
+        )}
       </article>
 
       <StopArrivalsModal
