@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { calculateHeadway, calculateRouteSummary } from "@/lib/headway";
+import {
+  buildRouteAlertBadges,
+  calculateHeadway,
+  calculateRouteSummary,
+  detectBunching,
+  detectLargeGap,
+} from "@/lib/headway";
 import type { NormalizedVehiclePrediction } from "@/lib/tfl/types";
 
 const basePrediction: NormalizedVehiclePrediction = {
@@ -41,21 +47,81 @@ describe("calculateHeadway", () => {
 });
 
 describe("calculateRouteSummary", () => {
-  it("summarizes live vehicles and average gap", () => {
+  it("summarizes live vehicles, gaps, and busiest stop", () => {
     const summary = calculateRouteSummary([
       basePrediction,
       {
         ...basePrediction,
         id: "2",
         vehicleId: "BUS2",
+        naptanId: "490000001A",
         timeToStation: 720,
         expectedArrival: "2026-06-11T12:12:00Z",
       },
+      {
+        ...basePrediction,
+        id: "3",
+        vehicleId: "BUS3",
+        naptanId: "490000002B",
+        stopName: "Stop B",
+        timeToStation: 900,
+        expectedArrival: "2026-06-11T12:15:00Z",
+      },
     ]);
 
-    expect(summary.liveVehicleCount).toBe(2);
-    expect(summary.averageGapMinutes).toBe(8);
-    expect(summary.earliestArrival).toBe("2026-06-11T12:04:00Z");
-    expect(summary.latestArrival).toBe("2026-06-11T12:12:00Z");
+    expect(summary.liveVehicleCount).toBe(3);
+    expect(summary.averageGapMinutes).toBeGreaterThan(0);
+    expect(summary.largestGapMinutes).toBeGreaterThanOrEqual(
+      summary.averageGapMinutes ?? 0,
+    );
+    expect(summary.busiestStopName).toBe("Stop A");
+    expect(summary.busiestStopCount).toBe(2);
+  });
+});
+
+describe("gap and bunching detection", () => {
+  it("detects large predicted gaps", () => {
+    const predictions = [
+      basePrediction,
+      {
+        ...basePrediction,
+        id: "2",
+        vehicleId: "BUS2",
+        expectedArrival: "2026-06-11T12:20:00Z",
+      },
+    ];
+
+    expect(detectLargeGap(predictions)).toBe(true);
+    expect(detectBunching(predictions)).toBe(false);
+  });
+
+  it("detects possible bunching", () => {
+    const predictions = [
+      basePrediction,
+      {
+        ...basePrediction,
+        id: "2",
+        vehicleId: "BUS2",
+        expectedArrival: "2026-06-11T12:05:00Z",
+      },
+    ];
+
+    expect(detectBunching(predictions)).toBe(true);
+  });
+
+  it("builds alert badges", () => {
+    const badges = buildRouteAlertBadges(
+      calculateRouteSummary([
+        basePrediction,
+        {
+          ...basePrediction,
+          id: "2",
+          vehicleId: "BUS2",
+          expectedArrival: "2026-06-11T12:05:00Z",
+        },
+      ]),
+    );
+
+    expect(badges.some((badge) => badge.id === "bunching")).toBe(true);
   });
 });

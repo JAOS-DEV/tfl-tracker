@@ -6,20 +6,25 @@ import {
   MAX_ACTIVE_ROUTES,
   addActiveRoute,
   addRecentRoute,
+  removeRecentRoute,
 } from "@/lib/storage";
 
 interface RouteSearchProps {
   activeRoutes: ActiveRoute[];
   recentRoutes: ActiveRoute[];
+  favouriteRoutes: string[];
   onActiveRoutesChange: (routes: ActiveRoute[]) => void;
   onRecentRoutesChange: (routes: ActiveRoute[]) => void;
+  onToggleFavourite: (routeId: string) => void;
 }
 
 export function RouteSearch({
   activeRoutes,
   recentRoutes,
+  favouriteRoutes,
   onActiveRoutesChange,
   onRecentRoutesChange,
+  onToggleFavourite,
 }: RouteSearchProps): React.ReactElement {
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -92,14 +97,27 @@ export function RouteSearch({
     }
   };
 
+  const favouriteRouteItems = favouriteRoutes
+    .map((routeId) =>
+      recentRoutes.find((route) => route.routeId === routeId) ?? {
+        routeId,
+        routeName: routeId,
+        addedAt: 0,
+      },
+    )
+    .filter(Boolean);
+
   return (
     <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
         Add a bus route
       </h2>
       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-        Enter a route number such as 337, 220, or N87. Up to{" "}
-        {MAX_ACTIVE_ROUTES} routes can be active.
+        Enter a route number such as 337, 220, or N87. Share routes with{" "}
+        <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
+          ?routes=337,220
+        </code>
+        . Up to {MAX_ACTIVE_ROUTES} routes can be active.
       </p>
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -131,6 +149,40 @@ export function RouteSearch({
         <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>
       ) : null}
 
+      {favouriteRouteItems.length > 0 ? (
+        <div className="mt-4">
+          <p className="text-xs uppercase tracking-wide text-zinc-500">
+            Favourites
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {favouriteRouteItems.map((route) => (
+              <div
+                key={route.routeId}
+                className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-50 px-1 py-1 dark:bg-amber-950/30"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleAddRoute(route.routeId, route.routeName);
+                  }}
+                  className="rounded-full px-2 py-1 text-sm hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                >
+                  ★ {route.routeId} · {route.routeName}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onToggleFavourite(route.routeId)}
+                  className="rounded-full px-2 text-xs text-amber-700 dark:text-amber-300"
+                  aria-label={`Remove ${route.routeId} from favourites`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {recentRoutes.length > 0 ? (
         <div className="mt-4">
           <p className="text-xs uppercase tracking-wide text-zinc-500">
@@ -138,16 +190,32 @@ export function RouteSearch({
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {recentRoutes.map((route) => (
-              <button
+              <div
                 key={route.routeId}
-                type="button"
-                onClick={() => {
-                  void handleAddRoute(route.routeId, route.routeName);
-                }}
-                className="rounded-full border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                className="inline-flex items-center gap-1 rounded-full border border-zinc-300 dark:border-zinc-700"
               >
-                {route.routeId}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleAddRoute(route.routeId, route.routeName);
+                  }}
+                  className="rounded-full px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  {route.routeId} · {route.routeName}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onRecentRoutesChange(
+                      removeRecentRoute(recentRoutes, route.routeId),
+                    )
+                  }
+                  className="rounded-full px-2 text-xs text-zinc-500"
+                  aria-label={`Remove ${route.routeId} from recent routes`}
+                >
+                  ×
+                </button>
+              </div>
             ))}
           </div>
         </div>

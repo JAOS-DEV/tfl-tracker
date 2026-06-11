@@ -93,12 +93,57 @@ export interface HeadwayInfo {
 export interface RouteSummaryStats {
   liveVehicleCount: number;
   averageGapMinutes: number | null;
-  earliestArrival: string | null;
-  latestArrival: string | null;
+  largestGapMinutes: number | null;
+  busiestStopName: string | null;
+  busiestStopCount: number;
+  hasLargeGap: boolean;
+  hasBunching: boolean;
 }
 
 export interface ActiveRoute {
   routeId: string;
   routeName: string;
   addedAt: number;
+}
+
+export type RouteVisualMode = "list" | "loop";
+
+export interface LoopStopNode {
+  stop: NormalizedStop;
+  direction: RouteDirection;
+  index: number;
+  progress: number;
+  isTerminal: boolean;
+  shouldLabel: boolean;
+}
+
+export interface LoopStopsLayout {
+  outbound: LoopStopNode[];
+  inbound: LoopStopNode[];
+}
+
+export type ScheduleAdherence = "onTime" | "late" | "early";
+
+export interface EstimatedVehiclePosition {
+  vehicleId: string;
+  routeNumber: string;
+  direction: RouteDirection;
+  destinationName: string;
+  currentLocation?: string;
+  expectedArrival: string;
+  timeToStation: number;
+  nextPrediction: NormalizedVehiclePrediction;
+  nextStop: NormalizedStop | null;
+  stopIndex: number;
+  progress: number;
+  x: number;
+  y: number;
+  matched: boolean;
+  adherence: ScheduleAdherence;
+}
+
+export interface RouteAlertBadge {
+  id: string;
+  label: string;
+  tone: "info" | "warning" | "neutral";
 }

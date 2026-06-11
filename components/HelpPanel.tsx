@@ -21,14 +21,30 @@ export function HelpPanel(): React.ReactElement {
       {isOpen ? (
         <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
           <li>Live bus data comes from TfL Open Data via the Unified API.</li>
-          <li>Predictions refresh roughly every 30 seconds.</li>
           <li>
-            Vehicle positioning is inferred from prediction data and may not
-            reflect exact GPS locations.
+            The loop view is a schematic diagram — it does not match real road
+            geography.
           </li>
           <li>
-            Early/late schedule status is not part of this MVP and may be added
-            later.
+            Bus positions on the loop are estimated from TfL arrival predictions,
+            not exact GPS.
+          </li>
+          <li>
+            Bus ring colours (green, yellow, red) are estimated from live
+            predictions compared with other vehicles on the route — not official
+            timetable early/late status.
+          </li>
+          <li>Predictions refresh roughly every 30 seconds.</li>
+          <li>
+            Gap and bunching badges are based on predicted arrivals, not
+            official schedule early/late status.
+          </li>
+          <li>
+            Share routes with a URL like{" "}
+            <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
+              ?routes=337,220
+            </code>
+            .
           </li>
           <li>
             This is an independent project and is not affiliated with or

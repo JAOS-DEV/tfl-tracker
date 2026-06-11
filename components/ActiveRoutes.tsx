@@ -1,16 +1,21 @@
 "use client";
 
 import { RouteCard } from "@/components/RouteCard";
+import { RouteOverviewBar } from "@/components/RouteOverviewBar";
 import type { ActiveRoute } from "@/lib/tfl/types";
 
 interface ActiveRoutesProps {
   activeRoutes: ActiveRoute[];
+  favouriteRoutes: string[];
   onActiveRoutesChange: (routes: ActiveRoute[]) => void;
+  onToggleFavourite: (routeId: string) => void;
 }
 
 export function ActiveRoutes({
   activeRoutes,
+  favouriteRoutes,
   onActiveRoutesChange,
+  onToggleFavourite,
 }: ActiveRoutesProps): React.ReactElement {
   const handleRemove = (routeId: string) => {
     onActiveRoutesChange(
@@ -29,8 +34,8 @@ export function ActiveRoutes({
           No active routes yet
         </h2>
         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-          Add a London bus route above to see its stop diagram and live
-          predictions.
+          Add a London bus route above to see the schematic loop or detailed
+          stop list.
         </p>
       </section>
     );
@@ -51,12 +56,16 @@ export function ActiveRoutes({
         </button>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <RouteOverviewBar activeRoutes={activeRoutes} />
+
+      <div className="grid gap-6 xl:grid-cols-1">
         {activeRoutes.map((route) => (
           <RouteCard
             key={route.routeId}
             activeRoute={route}
             onRemove={handleRemove}
+            isFavourite={favouriteRoutes.includes(route.routeId)}
+            onToggleFavourite={onToggleFavourite}
           />
         ))}
       </div>

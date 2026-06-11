@@ -3,6 +3,7 @@ import type { ActiveRoute } from "@/lib/tfl/types";
 export const STORAGE_KEYS = {
   activeRoutes: "tfl-tracker:active-routes",
   recentRoutes: "tfl-tracker:recent-routes",
+  favouriteRoutes: "tfl-tracker:favourite-routes",
   theme: "tfl-tracker:theme",
 } as const;
 
@@ -52,4 +53,21 @@ export function addActiveRoute(
     return activeRoutes;
   }
   return [...activeRoutes, route];
+}
+
+export function removeRecentRoute(
+  recentRoutes: ActiveRoute[],
+  routeId: string,
+): ActiveRoute[] {
+  return recentRoutes.filter((route) => route.routeId !== routeId);
+}
+
+export function toggleFavouriteRoute(
+  favourites: string[],
+  routeId: string,
+): string[] {
+  if (favourites.includes(routeId)) {
+    return favourites.filter((id) => id !== routeId);
+  }
+  return [...favourites, routeId];
 }
