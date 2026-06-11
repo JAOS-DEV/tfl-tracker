@@ -24,11 +24,13 @@ import type {
   LoopStopNode,
   NormalizedRoute,
   NormalizedStop,
+  StopDisruption,
 } from "@/lib/tfl/types";
 
 interface SchematicRouteLoopProps {
   route: NormalizedRoute;
   vehicles: EstimatedVehiclePosition[];
+  stopDisruptionsByNaptanId?: Map<string, StopDisruption>;
   onStopSelect: (stop: NormalizedStop) => void;
   onBusSelect: (vehicle: EstimatedVehiclePosition) => void;
   selectedStopId: string | null;
@@ -98,6 +100,7 @@ function terminalArrow(
 export function SchematicRouteLoop({
   route,
   vehicles,
+  stopDisruptionsByNaptanId,
   onStopSelect,
   onBusSelect,
   selectedStopId,
@@ -243,6 +246,9 @@ export function SchematicRouteLoop({
 
           {allNodes.map((node) => {
             const { x, y } = mapProgressToLoopCoordinates(node.progress, layout);
+            const stopDisruption = stopDisruptionsByNaptanId?.get(
+              node.stop.naptanId,
+            );
             return (
               <RouteLoopStopNode
                 key={`${node.direction}-${node.stop.naptanId}`}
@@ -253,6 +259,8 @@ export function SchematicRouteLoop({
                 orientation={layout.orientation}
                 isSelected={selectedStopId === node.stop.naptanId}
                 hasNearbyBus={nearbyStopIds.has(node.stop.naptanId)}
+                isClosed={Boolean(stopDisruption)}
+                stopDisruption={stopDisruption}
                 onSelect={() => onStopSelect(node.stop)}
               />
             );
@@ -303,6 +311,9 @@ export function SchematicRouteLoop({
       <p className="mt-3 px-3 pb-2 text-center text-xs text-zinc-500 sm:px-0 sm:pb-0 dark:text-zinc-400">
         Tap a bus or stop for details. Positions are estimated from live
         predictions.
+        {stopDisruptionsByNaptanId && stopDisruptionsByNaptanId.size > 0
+          ? " Red × marks a stop that TfL reports as closed."
+          : ""}
       </p>
     </section>
   );

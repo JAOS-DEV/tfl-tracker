@@ -5,12 +5,14 @@ import type {
   NormalizedStop,
   NormalizedVehiclePrediction,
   RouteDirection,
+  StopDisruption,
 } from "@/lib/tfl/types";
 
 interface RouteDiagramProps {
   route: NormalizedRoute;
   direction: RouteDirection;
   predictions: NormalizedVehiclePrediction[];
+  stopDisruptionsByNaptanId?: Map<string, StopDisruption>;
   onStopSelect: (stop: NormalizedStop) => void;
 }
 
@@ -18,6 +20,7 @@ export function RouteDiagram({
   route,
   direction,
   predictions,
+  stopDisruptionsByNaptanId,
   onStopSelect,
 }: RouteDiagramProps): React.ReactElement {
   const stops = direction === "inbound" ? route.inbound : route.outbound;
@@ -39,6 +42,7 @@ export function RouteDiagram({
           predictions={predictionsForStop(predictions, stop.naptanId)}
           isFirst={index === 0}
           isLast={index === stops.length - 1}
+          stopDisruption={stopDisruptionsByNaptanId?.get(stop.naptanId)}
           onSelect={onStopSelect}
         />
       ))}

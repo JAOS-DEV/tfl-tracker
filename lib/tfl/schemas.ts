@@ -109,11 +109,11 @@ export const rawLineSearchResponseSchema = z
   })
   .passthrough();
 
-const rawLineStatusItemSchema = z
+const rawValidityPeriodSchema = z
   .object({
-    statusSeverity: z.number(),
-    statusSeverityDescription: z.string(),
-    reason: z.string().optional(),
+    fromDate: z.string().optional(),
+    toDate: z.string().optional(),
+    isNow: z.boolean().optional(),
   })
   .passthrough();
 
@@ -122,6 +122,16 @@ const rawLineDisruptionSchema = z
     categoryDescription: z.string().optional(),
     description: z.string().optional(),
     summary: z.string().optional(),
+  })
+  .passthrough();
+
+const rawLineStatusItemSchema = z
+  .object({
+    statusSeverity: z.number(),
+    statusSeverityDescription: z.string(),
+    reason: z.string().optional(),
+    validityPeriods: z.array(rawValidityPeriodSchema).optional(),
+    disruption: rawLineDisruptionSchema.optional(),
   })
   .passthrough();
 
@@ -135,6 +145,35 @@ const rawLineObjectSchema = z
   .passthrough();
 
 export const rawLineStatusResponseSchema = z.array(rawLineObjectSchema);
+
+const rawDisruptedPointSchema = z
+  .object({
+    atcoCode: z.string(),
+    fromDate: z.string().optional(),
+    toDate: z.string().optional(),
+    description: z.string().optional(),
+    commonName: z.string().optional(),
+    type: z.string().optional(),
+    mode: z.string().optional(),
+    appearance: z.string().optional(),
+  })
+  .passthrough();
+
+export const rawStopDisruptionsResponseSchema = z.array(rawDisruptedPointSchema);
+
+export const stopDisruptionsQuerySchema = z.object({
+  stopPointIds: z
+    .string()
+    .trim()
+    .min(1)
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.string().min(1).max(30)).min(1).max(120)),
+});
 
 const rawStopSearchItemSchema = z
   .object({

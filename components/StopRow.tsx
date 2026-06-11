@@ -3,6 +3,7 @@ import { calculateHeadway } from "@/lib/headway";
 import type {
   NormalizedStop,
   NormalizedVehiclePrediction,
+  StopDisruption,
 } from "@/lib/tfl/types";
 
 interface StopRowProps {
@@ -10,6 +11,7 @@ interface StopRowProps {
   predictions: NormalizedVehiclePrediction[];
   isFirst: boolean;
   isLast: boolean;
+  stopDisruption?: StopDisruption;
   onSelect: (stop: NormalizedStop) => void;
 }
 
@@ -18,6 +20,7 @@ export function StopRow({
   predictions,
   isFirst,
   isLast,
+  stopDisruption,
   onSelect,
 }: StopRowProps): React.ReactElement {
   const headway = calculateHeadway(predictions);
@@ -36,12 +39,16 @@ export function StopRow({
           <span className="absolute bottom-0 top-1/2 w-0.5 bg-zinc-300 dark:bg-zinc-600" />
         ) : null}
         <span
-          className={`relative z-10 mt-1 h-3.5 w-3.5 rounded-full border-2 ${
-            stop.isTimingPoint
-              ? "border-amber-500 bg-amber-400"
-              : "border-zinc-400 bg-white dark:border-zinc-500 dark:bg-zinc-900"
+          className={`relative z-10 mt-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 ${
+            stopDisruption
+              ? "border-red-600 bg-red-100 text-[9px] font-bold text-red-700 dark:border-red-400 dark:bg-red-950 dark:text-red-200"
+              : stop.isTimingPoint
+                ? "border-amber-500 bg-amber-400"
+                : "border-zinc-400 bg-white dark:border-zinc-500 dark:bg-zinc-900"
           }`}
-        />
+        >
+          {stopDisruption ? "×" : null}
+        </span>
       </div>
 
       <div className="min-w-0">
@@ -58,6 +65,11 @@ export function StopRow({
             <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
               {stop.naptanId}
             </p>
+            {stopDisruption ? (
+              <p className="mt-1 text-xs font-medium text-red-700 dark:text-red-300">
+                Stop closed
+              </p>
+            ) : null}
           </div>
 
           <div className="text-right text-xs text-zinc-600 dark:text-zinc-300">

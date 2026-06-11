@@ -204,6 +204,47 @@ export function normalizeLineSearch(
     }));
 }
 
+function normalizeStatusNotice(
+  status: {
+    statusSeverity: number;
+    statusSeverityDescription: string;
+    reason?: string;
+    validityPeriods?: Array<{
+      fromDate?: string;
+      toDate?: string;
+      isNow?: boolean;
+    }>;
+    disruption?: {
+      categoryDescription?: string;
+      description?: string;
+      summary?: string;
+    };
+  },
+): {
+  statusSeverity: number;
+  statusSeverityDescription: string;
+  reason?: string;
+  disruption?: string;
+  validityPeriods: Array<{
+    fromDate?: string;
+    toDate?: string;
+    isNow?: boolean;
+  }>;
+} {
+  const disruptionText =
+    status.disruption?.summary ??
+    status.disruption?.description ??
+    status.disruption?.categoryDescription;
+
+  return {
+    statusSeverity: status.statusSeverity,
+    statusSeverityDescription: status.statusSeverityDescription,
+    reason: status.reason,
+    disruption: disruptionText,
+    validityPeriods: status.validityPeriods ?? [],
+  };
+}
+
 export function normalizeLineStatus(
   routeId: string,
   raw: Array<{
@@ -211,6 +252,16 @@ export function normalizeLineStatus(
       statusSeverity: number;
       statusSeverityDescription: string;
       reason?: string;
+      validityPeriods?: Array<{
+        fromDate?: string;
+        toDate?: string;
+        isNow?: boolean;
+      }>;
+      disruption?: {
+        categoryDescription?: string;
+        description?: string;
+        summary?: string;
+      };
     }>;
     disruptions?: Array<{
       categoryDescription?: string;
@@ -220,12 +271,22 @@ export function normalizeLineStatus(
   }>,
 ): RouteStatus {
   const line = raw[0];
-  const primary = line?.lineStatuses?.[0];
-  const disruption = line?.disruptions?.[0];
-  const disruptionText =
-    disruption?.summary ??
-    disruption?.description ??
-    disruption?.categoryDescription;
+  const statuses = line?.lineStatuses ?? [];
+  const notices = statuses
+    .filter(
+      (status) =>
+        status.statusSeverity < 10 ||
+        Boolean(status.reason) ||
+        Boolean(status.disruption?.description),
+    )
+    .map(normalizeStatusNotice);
+
+  const primary = notices[0] ?? (statuses[0] ? normalizeStatusNotice(statuses[0]) : null);
+  const lineDisruption = line?.disruptions?.[0];
+  const fallbackDisruptionText =
+    lineDisruption?.summary ??
+    lineDisruption?.description ??
+    lineDisruption?.categoryDescription;
 
   return {
     routeId,
@@ -233,7 +294,9 @@ export function normalizeLineStatus(
     statusSeverityDescription:
       primary?.statusSeverityDescription ?? "Unknown",
     reason: primary?.reason,
-    disruption: disruptionText,
+    disruption: primary?.disruption ?? fallbackDisruptionText,
+    validityPeriods: primary?.validityPeriods,
+    notices: notices.length > 0 ? notices : undefined,
   };
 }
 

@@ -2,9 +2,11 @@
 
 import { ErrorState } from "@/components/ErrorState";
 import { MobileBottomSheet } from "@/components/MobileBottomSheet";
+import { StopDisruptionBanner } from "@/components/StopDisruptionBanner";
 import { ShareLinkButton } from "@/components/ShareLinkButton";
 import { StopArrivalRow } from "@/components/StopArrivalRow";
 import { useStopArrivals } from "@/hooks/useStopArrivals";
+import { useStopDisruptions } from "@/hooks/useStopDisruptions";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { formatFriendlyError } from "@/lib/errors";
 import { formatLastUpdated } from "@/lib/format";
@@ -12,10 +14,11 @@ import { groupArrivalsByRoute } from "@/lib/stopArrivalsGrouping";
 import { buildStopSearchUrl } from "@/lib/routeUrl";
 import type { StopDetailTarget } from "@/lib/stopDetail";
 import { analyzeStopPredictions } from "@/lib/serviceIntelligence";
-import type { EstimatedVehiclePosition } from "@/lib/tfl/types";
+import type { EstimatedVehiclePosition, StopDisruption } from "@/lib/tfl/types";
 
 interface StopArrivalsModalProps {
   stop: StopDetailTarget | null;
+  stopDisruption?: StopDisruption;
   activeRouteIds?: string[];
   highlightRouteId?: string;
   vehicles?: EstimatedVehiclePosition[];
@@ -27,6 +30,7 @@ interface StopArrivalsModalProps {
 
 export function StopArrivalsModal({
   stop,
+  stopDisruption,
   activeRouteIds = [],
   highlightRouteId,
   vehicles = [],
@@ -39,6 +43,11 @@ export function StopArrivalsModal({
   const stopPointId = stop?.stopPointId ?? null;
   const { data, isLoading, isError, error, refetch, dataUpdatedAt, isFetching } =
     useStopArrivals(stopPointId);
+  const stopDisruptionsQuery = useStopDisruptions(
+    stopDisruption || !stopPointId ? [] : [stopPointId],
+  );
+  const resolvedStopDisruption =
+    stopDisruption ?? stopDisruptionsQuery.data?.[0];
 
   if (!stop) {
     return null;
@@ -89,6 +98,12 @@ export function StopArrivalsModal({
         </div>
       }
     >
+      {resolvedStopDisruption ? (
+        <div className="mb-4">
+          <StopDisruptionBanner disruption={resolvedStopDisruption} />
+        </div>
+      ) : null}
+
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {onToggleFavourite ? (
           <button

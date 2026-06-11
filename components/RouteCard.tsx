@@ -21,6 +21,8 @@ import { SchematicRouteLoop } from "@/components/SchematicRouteLoop";
 import { StatusBanner } from "@/components/StatusBanner";
 import { StopArrivalsModal } from "@/components/StopArrivalsModal";
 import { useLineStatus } from "@/hooks/useLineStatus";
+import { useStopDisruptions } from "@/hooks/useStopDisruptions";
+import { indexStopDisruptions } from "@/lib/tfl/disruptions";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useRouteHistory } from "@/hooks/useRouteHistory";
@@ -97,6 +99,29 @@ export function RouteCard({
     intelligence,
   } = useRouteIntelligence(activeRoute.routeId);
   const statusQuery = useLineStatus(activeRoute.routeId);
+  const routeStopIds = useMemo(() => {
+    if (!route) {
+      return [];
+    }
+
+    const seen = new Set<string>();
+    const ids: string[] = [];
+
+    for (const stop of [...route.inbound, ...route.outbound]) {
+      if (seen.has(stop.naptanId)) {
+        continue;
+      }
+      seen.add(stop.naptanId);
+      ids.push(stop.naptanId);
+    }
+
+    return ids;
+  }, [route]);
+  const stopDisruptionsQuery = useStopDisruptions(routeStopIds);
+  const stopDisruptionsByNaptanId = useMemo(
+    () => indexStopDisruptions(stopDisruptionsQuery.data ?? []),
+    [stopDisruptionsQuery.data],
+  );
   const { dailyStats, hydrated: historyHydrated } = useRouteHistory(
     activeRoute.routeId,
   );
@@ -361,6 +386,7 @@ export function RouteCard({
               <SchematicRouteLoop
                 route={route}
                 vehicles={vehicles}
+                stopDisruptionsByNaptanId={stopDisruptionsByNaptanId}
                 onStopSelect={setSelectedStop}
                 onBusSelect={setSelectedVehicle}
                 selectedStopId={selectedStop?.naptanId ?? null}
@@ -382,6 +408,7 @@ export function RouteCard({
                     route={route}
                     direction={selectedDirection}
                     predictions={arrivalsQuery.data?.predictions ?? []}
+                    stopDisruptionsByNaptanId={stopDisruptionsByNaptanId}
                     onStopSelect={setSelectedStop}
                   />
                 </div>
@@ -512,6 +539,11 @@ export function RouteCard({
 
       <StopArrivalsModal
         stop={selectedStop ? toStopDetailTarget(selectedStop) : null}
+        stopDisruption={
+          selectedStop
+            ? stopDisruptionsByNaptanId.get(selectedStop.naptanId)
+            : undefined
+        }
         activeRouteIds={allActiveRoutes.map((item) => item.routeId)}
         highlightRouteId={activeRoute.routeId}
         vehicles={vehicles}

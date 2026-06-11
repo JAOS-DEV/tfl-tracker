@@ -66,12 +66,38 @@ export interface NormalizedVehiclePrediction {
   currentLocation?: string;
 }
 
+export interface ValidityPeriod {
+  fromDate?: string;
+  toDate?: string;
+  isNow?: boolean;
+}
+
+export interface RouteStatusNotice {
+  statusSeverity: number;
+  statusSeverityDescription: string;
+  reason?: string;
+  disruption?: string;
+  validityPeriods: ValidityPeriod[];
+}
+
 export interface RouteStatus {
   routeId: string;
   statusSeverity: number;
   statusSeverityDescription: string;
   reason?: string;
   disruption?: string;
+  validityPeriods?: ValidityPeriod[];
+  notices?: RouteStatusNotice[];
+}
+
+export interface StopDisruption {
+  naptanId: string;
+  stopName: string;
+  type: string;
+  description: string;
+  fromDate?: string;
+  toDate?: string;
+  appearance?: string;
 }
 
 export interface LineSearchResult {

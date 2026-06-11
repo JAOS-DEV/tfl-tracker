@@ -1,6 +1,6 @@
 import type { LoopOrientation } from "@/lib/constants";
 import { wrapStopLabel } from "@/lib/format";
-import type { LoopStopNode } from "@/lib/tfl/types";
+import type { LoopStopNode, StopDisruption } from "@/lib/tfl/types";
 
 interface RouteLoopStopNodeProps {
   node: LoopStopNode;
@@ -8,6 +8,8 @@ interface RouteLoopStopNodeProps {
   y: number;
   isSelected: boolean;
   hasNearbyBus: boolean;
+  isClosed: boolean;
+  stopDisruption?: StopDisruption;
   compact: boolean;
   orientation: LoopOrientation;
   onSelect: () => void;
@@ -19,6 +21,8 @@ export function RouteLoopStopNode({
   y,
   isSelected,
   hasNearbyBus,
+  isClosed,
+  stopDisruption,
   compact,
   orientation,
   onSelect,
@@ -65,7 +69,7 @@ export function RouteLoopStopNode({
       }}
       role="button"
       tabIndex={0}
-      aria-label={`Stop ${node.stop.name}`}
+      aria-label={`Stop ${node.stop.name}${isClosed ? ", closed" : ""}`}
     >
       <circle cx={x} cy={y} r={hitRadius} className="fill-transparent" />
       <circle
@@ -73,17 +77,46 @@ export function RouteLoopStopNode({
         cy={y}
         r={radius}
         className={`transition-all duration-200 ${
-          node.isTerminal
-            ? "fill-sky-500"
-            : hasNearbyBus
-              ? "fill-amber-400"
-              : "fill-zinc-400 dark:fill-zinc-500"
+          isClosed
+            ? "fill-red-200 dark:fill-red-950/70"
+            : node.isTerminal
+              ? "fill-sky-500"
+              : hasNearbyBus
+                ? "fill-amber-400"
+                : "fill-zinc-400 dark:fill-zinc-500"
         } ${
           isSelected
             ? "stroke-zinc-900 stroke-[3] dark:stroke-white"
-            : "stroke-zinc-700 stroke-2 dark:stroke-zinc-300"
+            : isClosed
+              ? "stroke-red-600 stroke-2 dark:stroke-red-400"
+              : "stroke-zinc-700 stroke-2 dark:stroke-zinc-300"
         }`}
       />
+      {isClosed ? (
+        <g aria-hidden="true" style={{ pointerEvents: "none" }}>
+          <line
+            x1={x - radius - 1}
+            y1={y - radius - 1}
+            x2={x + radius + 1}
+            y2={y + radius + 1}
+            stroke="#DC2626"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+          />
+          <line
+            x1={x + radius + 1}
+            y1={y - radius - 1}
+            x2={x - radius - 1}
+            y2={y + radius + 1}
+            stroke="#DC2626"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+          />
+        </g>
+      ) : null}
+      {isClosed && stopDisruption ? (
+        <title>{stopDisruption.description}</title>
+      ) : null}
       {showLabel ? (
         <text
           x={labelX}

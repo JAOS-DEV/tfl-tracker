@@ -1,5 +1,6 @@
 import { handleApiErrorResponse, jsonResponse } from "@/lib/api";
 import { TIMETABLE_CACHE_TTL_MS } from "@/lib/constants";
+import { fetchStopDisruptionsForIds } from "@/lib/tfl/disruptions";
 import { tflFetch } from "@/lib/tfl/client";
 import { normalizeTimetable } from "@/lib/tfl/timetableNormalizers";
 import {
@@ -18,8 +19,10 @@ import {
   rawLineSearchResponseSchema,
   rawLineStatusResponseSchema,
   rawRouteSequenceResponseSchema,
+  rawStopDisruptionsResponseSchema,
   rawStopSearchResponseSchema,
   routeIdQuerySchema,
+  stopDisruptionsQuerySchema,
   stopPointIdQuerySchema,
   stopSearchQuerySchema,
   timetableQuerySchema,
@@ -149,6 +152,27 @@ async function handleStopArrivals(
   });
 }
 
+async function handleStopDisruptions(
+  searchParams: URLSearchParams,
+): Promise<Response> {
+  const { stopPointIds } = stopDisruptionsQuerySchema.parse({
+    stopPointIds: searchParams.get("stopPointIds"),
+  });
+
+  const disruptions = await fetchStopDisruptionsForIds(
+    stopPointIds,
+    async (ids) => {
+      const raw = await tflFetch(
+        `/StopPoint/${ids.map((id) => encodeURIComponent(id)).join(",")}/Disruption`,
+        { cacheTtlMs: 300_000 },
+      );
+      return rawStopDisruptionsResponseSchema.parse(raw);
+    },
+  );
+
+  return jsonResponse({ disruptions });
+}
+
 async function handleStopSearch(
   searchParams: URLSearchParams,
 ): Promise<Response> {
@@ -237,6 +261,8 @@ export async function handleTflApiRequest(
         return handleRouteSequence(searchParams);
       case "stop-arrivals":
         return handleStopArrivals(searchParams);
+      case "stop-disruptions":
+        return handleStopDisruptions(searchParams);
       case "stop-search":
         return handleStopSearch(searchParams);
       case "timetable":
