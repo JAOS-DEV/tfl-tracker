@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AboutDataContent } from "@/components/AboutDataContent";
 import { MobileBottomSheet } from "@/components/MobileBottomSheet";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThresholdMinutesInput } from "@/components/ThresholdMinutesInput";
 import { useAllRouteHistory } from "@/hooks/useRouteHistory";
 import { useDisplaySettings } from "@/hooks/useDisplaySettings";
 import {
@@ -14,7 +15,6 @@ import {
   exportSnapshotsAsJson,
   loadAllSnapshots,
 } from "@/lib/localRouteHistory";
-import { DEFAULT_LARGE_GAP_MINUTES } from "@/lib/routeAlerts";
 import type { FavouriteStop } from "@/lib/favouriteStops";
 
 interface SettingsPanelProps {
@@ -210,21 +210,12 @@ export function SettingsPanel({
 
           <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
             <span>Large gap threshold (minutes)</span>
-            <input
-              type="number"
+            <ThresholdMinutesInput
+              value={settings.globalAlertDefaults.largeGapMinutes}
               min={1}
               max={60}
-              value={settings.globalAlertDefaults.largeGapMinutes}
-              disabled={!settings.globalAlertDefaults.warnLargeGap}
-              onChange={(event) => {
-                const value = Number.parseInt(event.target.value, 10);
-                updateGlobalAlert({
-                  largeGapMinutes: Number.isFinite(value)
-                    ? value
-                    : DEFAULT_LARGE_GAP_MINUTES,
-                });
-              }}
-              className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-right dark:border-zinc-700 dark:bg-zinc-900"
+              ariaLabel="Default large gap threshold in minutes"
+              onChange={(largeGapMinutes) => updateGlobalAlert({ largeGapMinutes })}
             />
           </label>
 
