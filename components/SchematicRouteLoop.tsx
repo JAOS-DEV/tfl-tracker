@@ -55,6 +55,22 @@ function applyMobileLabels(
   };
 }
 
+function getRouteBadgeCenter(
+  layout: LoopLayoutConfig,
+): { x: number; y: number } {
+  if (layout.orientation === "portrait") {
+    return {
+      x: layout.viewBoxWidth / 2,
+      y: layout.topY,
+    };
+  }
+
+  return {
+    x: layout.viewBoxWidth / 2,
+    y: (layout.topY + layout.bottomY) / 2,
+  };
+}
+
 function terminalArrow(
   layout: LoopLayoutConfig,
   direction: "outbound" | "inbound",
@@ -119,7 +135,7 @@ export function SchematicRouteLoop({
       : built;
   }, [route, layout, isMobile, nearbyStopIds, selectedStopId]);
 
-  const { topY, bottomY, viewBoxWidth, viewBoxHeight } = layout;
+  const { viewBoxWidth, viewBoxHeight } = layout;
   const legEndpoints = useMemo(
     () => getLoopLegEndpoints(route, layout),
     [route, layout],
@@ -133,6 +149,11 @@ export function SchematicRouteLoop({
   }
 
   const allNodes: LoopStopNode[] = [...loopStops.outbound, ...loopStops.inbound];
+  const routeBadge = getRouteBadgeCenter(layout);
+  const routeBadgeWidth = isMobile ? 88 : 72;
+  const routeBadgeHeight = isMobile ? 48 : 40;
+  const routeBadgeFontSize = isMobile ? 24 : 20;
+
   return (
     <section className="w-full sm:rounded-2xl sm:border sm:border-zinc-200 sm:bg-zinc-50 sm:p-4 dark:sm:border-zinc-800 dark:sm:bg-zinc-950">
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs text-zinc-600 sm:px-0 sm:py-0 sm:pb-3 dark:text-zinc-400">
@@ -220,27 +241,6 @@ export function SchematicRouteLoop({
             className="fill-violet-600 dark:fill-violet-400"
           />
 
-          <g>
-            <rect
-              x={viewBoxWidth / 2 - (isMobile ? 44 : 36)}
-              y={(topY + bottomY) / 2 - (isMobile ? 24 : 20)}
-              width={isMobile ? 88 : 72}
-              height={isMobile ? 48 : 40}
-              rx={12}
-              className="fill-sky-600"
-            />
-            <text
-              x={viewBoxWidth / 2}
-              y={(topY + bottomY) / 2 + (isMobile ? 8 : 6)}
-              textAnchor="middle"
-              fontSize={isMobile ? 24 : 20}
-              fontWeight={700}
-              className="fill-white"
-            >
-              {route.routeId}
-            </text>
-          </g>
-
           {allNodes.map((node) => {
             const { x, y } = mapProgressToLoopCoordinates(node.progress, layout);
             return (
@@ -267,6 +267,30 @@ export function SchematicRouteLoop({
               onSelect={() => onBusSelect(vehicle)}
             />
           ))}
+
+          <g aria-hidden="true">
+            <rect
+              x={routeBadge.x - routeBadgeWidth / 2}
+              y={routeBadge.y - routeBadgeHeight / 2}
+              width={routeBadgeWidth}
+              height={routeBadgeHeight}
+              rx={12}
+              fill="#0284C7"
+              stroke="#0EA5E9"
+              strokeWidth={2}
+            />
+            <text
+              x={routeBadge.x}
+              y={routeBadge.y + routeBadgeFontSize / 3}
+              textAnchor="middle"
+              fontSize={routeBadgeFontSize}
+              fontWeight={700}
+              fill="#FFFFFF"
+              fontFamily="Arial, sans-serif"
+            >
+              {route.routeId}
+            </text>
+          </g>
         </svg>
       </div>
 

@@ -1,15 +1,17 @@
+import { isIosDevice } from "@/lib/platform";
+
 export interface GeolocationErrorInfo {
   title: string;
   message: string;
 }
 
-export function getGeolocationErrorInfo(error: GeolocationPositionError): GeolocationErrorInfo {
+export type GeolocationPermissionState = PermissionState | "unsupported";
+
+export function getGeolocationErrorInfo(
+  error: GeolocationPositionError,
+): GeolocationErrorInfo {
   if (error.code === error.PERMISSION_DENIED) {
-    return {
-      title: "Location permission denied",
-      message:
-        "Allow location access in your browser settings to find nearby bus stops.",
-    };
+    return getGeolocationDeniedInfo();
   }
 
   if (error.code === error.POSITION_UNAVAILABLE) {
@@ -25,17 +27,57 @@ export function getGeolocationErrorInfo(error: GeolocationPositionError): Geoloc
   };
 }
 
-export function requestCurrentPosition(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      reject(new Error("Geolocation is not supported on this device."));
-      return;
-    }
+export function getGeolocationDeniedInfo(): GeolocationErrorInfo {
+  if (isIosDevice()) {
+    return {
+      title: "Location access is blocked",
+      message:
+        "Safari only shows the location prompt the first time you tap this button. If you previously chose Don't Allow, open Settings → Safari → Location and choose Allow, or tap the AA icon in the address bar → Website Settings → Location → Allow, then try again.",
+    };
+  }
 
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: false,
-      timeout: 12_000,
-      maximumAge: 60_000,
-    });
+  return {
+    title: "Location access is blocked",
+    message:
+      "Allow location access for this site in your browser settings, then tap Find stops near me again.",
+  };
+}
+
+export async function queryGeolocationPermission(): Promise<GeolocationPermissionState> {
+  if (
+    typeof navigator === "undefined" ||
+    !navigator.permissions?.query
+  ) {
+    return "unsupported";
+  }
+
+  try {
+    const status = await navigator.permissions.query({ name: "geolocation" });
+    return status.state;
+  } catch {
+    return "unsupported";
+  }
+}
+
+export interface GeolocationRequestOptions {
+  enableHighAccuracy?: boolean;
+  timeout?: number;
+  maximumAge?: number;
+}
+
+export function requestCurrentPosition(
+  onSuccess: (position: GeolocationPosition) => void,
+  onError: (error: GeolocationPositionError | Error) => void,
+  options: GeolocationRequestOptions = {},
+): void {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    onError(new Error("Geolocation is not supported on this device."));
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(onSuccess, onError, {
+    enableHighAccuracy: options.enableHighAccuracy ?? false,
+    timeout: options.timeout ?? 12_000,
+    maximumAge: options.maximumAge ?? 60_000,
   });
 }

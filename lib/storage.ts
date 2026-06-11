@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
   theme: "tfl-tracker:theme",
   routeHistory: "tfl-tracker:route-history",
   displaySettings: "tfl-tracker:display-settings",
+  installBannerDismissed: "tfl-tracker:install-banner-dismissed",
 } as const;
 
 export const MAX_ACTIVE_ROUTES = 3;

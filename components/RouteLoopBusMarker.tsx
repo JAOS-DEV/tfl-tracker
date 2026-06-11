@@ -1,6 +1,6 @@
-import { BusIcon } from "@/components/BusIcon";
-import { GhostIcon } from "@/components/GhostIcon";
-import { ScheduleBadge } from "@/components/ScheduleBadge";
+import { EmbeddedBusIcon } from "@/components/BusIcon";
+import { EmbeddedGhostIcon } from "@/components/EmbeddedGhostIcon";
+import { LoopMarkerBadge } from "@/components/LoopMarkerBadge";
 import { ghostStatusLabel } from "@/lib/ghostBusDetection";
 import { scheduleAccessibleLabel } from "@/lib/scheduleDeviation";
 import type { EstimatedVehiclePosition } from "@/lib/tfl/types";
@@ -49,6 +49,11 @@ export function RouteLoopBusMarker({
     ? "fill-zinc-400/20 stroke-zinc-400 dark:fill-zinc-500/20 dark:stroke-zinc-400"
     : adherenceRingClasses[vehicle.adherence];
 
+  const badgeX = markerSize - 8;
+  const badgeY = -20;
+  const ghostX = badgeX + 34;
+  const ghostY = badgeY - 2;
+
   return (
     <g
       className="cursor-pointer"
@@ -73,34 +78,21 @@ export function RouteLoopBusMarker({
           isSelected ? "animate-pulse" : ""
         } ${vehicle.ghostStatus === "disappeared" ? "stroke-dashed" : ""}`}
       />
-      <foreignObject x={0} y={0} width={markerSize} height={markerSize}>
-        <BusIcon
-          routeNumber={vehicle.routeNumber}
-          size={markerSize}
-          isActive={isSelected}
-          variant={isGhost ? "ghost" : isFaded ? "faded" : "live"}
-          className="drop-shadow-md hover:scale-110"
-        />
-      </foreignObject>
-      <foreignObject
-        x={markerSize - 22}
-        y={-22}
-        width={60}
-        height={36}
-        className="overflow-visible"
-      >
-        <div className="flex items-center justify-end gap-1">
-          <ScheduleBadge vehicle={vehicle} context="loop" />
-          {isGhost ? (
-            <span
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-500 shadow-lg ring-2 ring-white dark:bg-violet-400 dark:ring-violet-100"
-              aria-hidden
-            >
-              <GhostIcon size={18} variant="marker" />
-            </span>
-          ) : null}
-        </div>
-      </foreignObject>
+      <EmbeddedBusIcon
+        routeNumber={vehicle.routeNumber}
+        size={markerSize}
+        isActive={isSelected}
+        variant={isGhost ? "ghost" : isFaded ? "faded" : "live"}
+        ariaLabel={label}
+      />
+      <g transform={`translate(${badgeX}, ${badgeY})`}>
+        <LoopMarkerBadge vehicle={vehicle} />
+      </g>
+      {isGhost ? (
+        <g transform={`translate(${ghostX}, ${ghostY})`}>
+          <EmbeddedGhostIcon size={18} />
+        </g>
+      ) : null}
     </g>
   );
 }

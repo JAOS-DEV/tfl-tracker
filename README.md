@@ -38,6 +38,16 @@ Vercel runs the Next.js app and the API routes in `app/api/tfl/*`. The browser c
 
 No extra `vercel.json` is required — Vercel’s Next.js defaults are sufficient.
 
+## Install on iPhone (PWA)
+
+The app is a Progressive Web App. On iPhone, Safari does not show an automatic install popup. To add it to your Home Screen:
+
+1. Open the site in Safari.
+2. Tap the **Share** button.
+3. Choose **Add to Home Screen**.
+
+After that, it opens like a standalone app. Location access still uses Safari’s normal permission prompt the first time you tap **Find stops near me**.
+
 ## CI
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main`:

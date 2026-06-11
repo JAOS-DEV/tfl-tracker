@@ -6,6 +6,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { SharedRouteWarningBanner } from "@/components/SharedRouteWarningBanner";
 import { Footer } from "@/components/Footer";
+import { InstallAppBanner } from "@/components/InstallAppBanner";
 import { RouteSearch } from "@/components/RouteSearch";
 import { StopArrivalsModal } from "@/components/StopArrivalsModal";
 import { useDisplaySettings } from "@/hooks/useDisplaySettings";
@@ -184,6 +185,7 @@ export default function HomePage(): React.ReactElement {
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 space-y-6 px-2 py-6 sm:px-4">
+        <InstallAppBanner />
         {isHydrated ? (
           <>
             {offlineError ? (

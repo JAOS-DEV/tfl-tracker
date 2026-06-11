@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { getGeolocationErrorInfo } from "@/lib/nearbyStops";
+import {
+  getGeolocationDeniedInfo,
+  getGeolocationErrorInfo,
+} from "@/lib/nearbyStops";
 
 describe("getGeolocationErrorInfo", () => {
   it("returns a friendly permission denied message", () => {
@@ -11,6 +14,16 @@ describe("getGeolocationErrorInfo", () => {
       message: "denied",
     } as GeolocationPositionError;
 
-    expect(getGeolocationErrorInfo(error).title).toMatch(/permission denied/i);
+    const info = getGeolocationErrorInfo(error);
+    expect(info.title).toMatch(/blocked/i);
+    expect(info.message.length).toBeGreaterThan(0);
+  });
+});
+
+describe("getGeolocationDeniedInfo", () => {
+  it("returns actionable guidance", () => {
+    const info = getGeolocationDeniedInfo();
+    expect(info.title).toMatch(/blocked/i);
+    expect(info.message).toMatch(/settings/i);
   });
 });

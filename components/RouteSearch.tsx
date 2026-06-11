@@ -196,15 +196,8 @@ export function RouteSearch({
     }
   };
 
-  const handleFindNearby = async () => {
-    setIsFindingNearby(true);
-    setError(null);
-    setErrorAction(null);
-    setHasSearched(true);
-    setActiveTab("nearby");
-
+  const fetchNearbyStops = async (position: GeolocationPosition) => {
     try {
-      const position = await requestCurrentPosition();
       const response = await fetch(
         `/api/tfl/nearby-stops?lat=${position.coords.latitude}&lon=${position.coords.longitude}&radius=1000`,
       );
@@ -229,18 +222,41 @@ export function RouteSearch({
         setError("No nearby bus stops found within about 1 km.");
       }
     } catch (nearbyError) {
-      if (nearbyError instanceof GeolocationPositionError) {
-        const info = getGeolocationErrorInfo(nearbyError);
-        setError(info.message);
-        setErrorAction(info.title);
-      } else {
-        const friendly = formatFriendlyError(nearbyError);
-        setError(friendly.message);
-        setErrorAction(friendly.action ?? null);
-      }
+      const friendly = formatFriendlyError(nearbyError);
+      setError(friendly.message);
+      setErrorAction(friendly.action ?? null);
     } finally {
       setIsFindingNearby(false);
     }
+  };
+
+  const handleFindNearby = () => {
+    setIsFindingNearby(true);
+    setError(null);
+    setErrorAction(null);
+    setHasSearched(true);
+    setActiveTab("nearby");
+
+    requestCurrentPosition(
+      (position) => {
+        void fetchNearbyStops(position);
+      },
+      (nearbyError) => {
+        setIsFindingNearby(false);
+
+        if (nearbyError instanceof GeolocationPositionError) {
+          const info = getGeolocationErrorInfo(nearbyError);
+          setError(info.message);
+          setErrorAction(info.title);
+          return;
+        }
+
+        const friendly = formatFriendlyError(nearbyError);
+        setError(friendly.message);
+        setErrorAction(friendly.action ?? null);
+      },
+      { maximumAge: 0 },
+    );
   };
 
   const openStop = (stop: StopSearchResult | NearbyStopResult | FavouriteStop) => {
@@ -299,9 +315,7 @@ export function RouteSearch({
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <button
           type="button"
-          onClick={() => {
-            void handleFindNearby();
-          }}
+          onClick={handleFindNearby}
           disabled={isFindingNearby}
           className="min-h-11 rounded-xl border border-zinc-300 px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
         >
@@ -313,13 +327,11 @@ export function RouteSearch({
       </div>
 
       {error ? (
-        <div className="mt-3 text-sm text-red-600 dark:text-red-400">
-          <p>{error}</p>
+        <div className="mt-3 text-sm text-red-600 dark:text-red-400" role="alert">
           {errorAction ? (
-            <p className="mt-1 text-red-500/80 dark:text-red-300/80">
-              {errorAction}
-            </p>
+            <p className="font-semibold">{errorAction}</p>
           ) : null}
+          <p className={errorAction ? "mt-1" : undefined}>{error}</p>
         </div>
       ) : null}
 
