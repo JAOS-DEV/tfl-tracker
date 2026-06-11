@@ -84,8 +84,8 @@ export function BusDetailsModal({
             {predictionConfidenceLabel(confidence)}
           </span>
           {vehicle.isSuspectedGhost ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-              <GhostIcon size={14} />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-900 dark:bg-violet-950 dark:text-violet-100">
+              <GhostIcon size={16} />
               Possible ghost
             </span>
           ) : null}

@@ -83,15 +83,22 @@ export function RouteLoopBusMarker({
         />
       </foreignObject>
       <foreignObject
-        x={markerSize - 14}
-        y={-14}
-        width={48}
-        height={24}
+        x={markerSize - 22}
+        y={-22}
+        width={60}
+        height={36}
         className="overflow-visible"
       >
-        <div className="flex items-center justify-end gap-0.5">
+        <div className="flex items-center justify-end gap-1">
           <ScheduleBadge vehicle={vehicle} context="loop" />
-          {isGhost ? <GhostIcon size={16} /> : null}
+          {isGhost ? (
+            <span
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-500 shadow-lg ring-2 ring-white dark:bg-violet-400 dark:ring-violet-100"
+              aria-hidden
+            >
+              <GhostIcon size={18} variant="marker" />
+            </span>
+          ) : null}
         </div>
       </foreignObject>
     </g>
