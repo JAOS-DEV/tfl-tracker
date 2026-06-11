@@ -3,11 +3,21 @@ import type { NormalizedVehiclePrediction } from "@/lib/tfl/types";
 
 interface BusChipProps {
   prediction: NormalizedVehiclePrediction;
+  muted?: boolean;
 }
 
-export function BusChip({ prediction }: BusChipProps): React.ReactElement {
+export function BusChip({
+  prediction,
+  muted = false,
+}: BusChipProps): React.ReactElement {
   return (
-    <div className="rounded-lg border border-emerald-300/60 bg-emerald-50 px-2.5 py-2 text-xs text-emerald-950 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-950/50 dark:text-emerald-100">
+    <div
+      className={`rounded-lg border px-2.5 py-2 text-xs shadow-sm ${
+        muted
+          ? "border-zinc-300/60 bg-zinc-100 text-zinc-700 dark:border-zinc-600/40 dark:bg-zinc-800/50 dark:text-zinc-300"
+          : "border-emerald-300/60 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-950/50 dark:text-emerald-100"
+      }`}
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="font-bold">{prediction.routeNumber}</span>
         <span className="font-semibold">

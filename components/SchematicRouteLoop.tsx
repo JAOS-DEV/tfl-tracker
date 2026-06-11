@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { LoopIntelligenceOverlay } from "@/components/LoopIntelligenceOverlay";
 import { RouteLoopBusMarker } from "@/components/RouteLoopBusMarker";
 import { RouteLoopDirectionChevrons } from "@/components/RouteLoopDirectionChevrons";
 import { RouteLoopDirectionGuide } from "@/components/RouteLoopDirectionGuide";
@@ -11,21 +12,23 @@ import { getLoopLayout } from "@/lib/constants";
 import {
   buildLoopPath,
   buildLoopStops,
-  buildVehiclePositions,
   getLoopLegEndpoints,
   mapProgressToLoopCoordinates,
 } from "@/lib/routePositioning";
+import {
+  detectBunchingClusters,
+  detectLargeGaps,
+} from "@/lib/serviceIntelligence";
 import type {
   EstimatedVehiclePosition,
   LoopStopNode,
   NormalizedRoute,
   NormalizedStop,
-  NormalizedVehiclePrediction,
 } from "@/lib/tfl/types";
 
 interface SchematicRouteLoopProps {
   route: NormalizedRoute;
-  predictions: NormalizedVehiclePrediction[];
+  vehicles: EstimatedVehiclePosition[];
   onStopSelect: (stop: NormalizedStop) => void;
   onBusSelect: (vehicle: EstimatedVehiclePosition) => void;
   selectedStopId: string | null;
@@ -78,7 +81,7 @@ function terminalArrow(
 
 export function SchematicRouteLoop({
   route,
-  predictions,
+  vehicles,
   onStopSelect,
   onBusSelect,
   selectedStopId,
@@ -90,10 +93,13 @@ export function SchematicRouteLoop({
     [isMobile, route],
   );
   const markerSize = isMobile ? 40 : 32;
-
-  const vehicles = useMemo(
-    () => buildVehiclePositions(predictions, route, layout),
-    [predictions, route, layout],
+  const bunchingClusters = useMemo(
+    () => detectBunchingClusters(vehicles),
+    [vehicles],
+  );
+  const largeGapSegments = useMemo(
+    () => detectLargeGaps(vehicles),
+    [vehicles],
   );
 
   const nearbyStopIds = useMemo(() => {
@@ -180,6 +186,12 @@ export function SchematicRouteLoop({
             strokeLinecap="round"
             strokeLinejoin="round"
             opacity={0.95}
+          />
+
+          <LoopIntelligenceOverlay
+            layout={layout}
+            bunchingClusters={bunchingClusters}
+            largeGapSegments={largeGapSegments}
           />
 
           <RouteLoopDirectionChevrons

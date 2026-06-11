@@ -9,6 +9,8 @@ const toneClasses = {
   info: "border-sky-500/40 bg-sky-950/40 text-sky-200",
   warning: "border-amber-500/40 bg-amber-950/40 text-amber-200",
   neutral: "border-zinc-600 bg-zinc-800/60 text-zinc-300",
+  success: "border-emerald-500/40 bg-emerald-950/40 text-emerald-200",
+  danger: "border-red-500/40 bg-red-950/40 text-red-200",
 } as const;
 
 export function RouteSummaryBadges({

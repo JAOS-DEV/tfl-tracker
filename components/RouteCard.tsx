@@ -1,23 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { BusDetailsModal } from "@/components/BusDetailsModal";
 import { ErrorState } from "@/components/ErrorState";
 import { RouteCardSkeleton } from "@/components/LoadingSkeleton";
 import { RouteDiagram } from "@/components/RouteDiagram";
-import { RouteSummary } from "@/components/RouteSummary";
+import { ServiceHealthCard } from "@/components/ServiceHealthCard";
+import { useRouteIntelligence } from "@/hooks/useRouteIntelligence";
 import { RouteVisualModeToggle } from "@/components/RouteVisualModeToggle";
 import { SchematicRouteLoop } from "@/components/SchematicRouteLoop";
 import { StatusBanner } from "@/components/StatusBanner";
 import { StopArrivalsModal } from "@/components/StopArrivalsModal";
-import { useLineArrivals } from "@/hooks/useLineArrivals";
 import { useLineStatus } from "@/hooks/useLineStatus";
-import { useRouteSequence } from "@/hooks/useRouteSequence";
 import { formatCountdown, formatLastUpdated } from "@/lib/format";
-import {
-  getDestinationSummary,
-  predictionsForDirection,
-} from "@/lib/tfl/normalizers";
+import { getDestinationSummary } from "@/lib/tfl/normalizers";
 import { getDirectionLabel } from "@/lib/routePositioning";
 import type {
   ActiveRoute,
@@ -44,34 +40,20 @@ export function RouteCard({
   const [selectedStop, setSelectedStop] = useState<NormalizedStop | null>(null);
   const [selectedVehicle, setSelectedVehicle] =
     useState<EstimatedVehiclePosition | null>(null);
-  const [now, setNow] = useState(() => new Date());
-
-  const sequenceQuery = useRouteSequence(activeRoute.routeId);
-  const arrivalsQuery = useLineArrivals(activeRoute.routeId);
+  const {
+    route,
+    sequenceQuery,
+    arrivalsQuery,
+    intelligence,
+    now,
+  } = useRouteIntelligence(activeRoute.routeId);
   const statusQuery = useLineStatus(activeRoute.routeId);
 
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setNow(new Date());
-    }, 1000);
-    return () => window.clearInterval(interval);
-  }, []);
-
-  const route = sequenceQuery.data;
-
-  const directionPredictions = useMemo(() => {
-    const predictions = arrivalsQuery.data?.predictions ?? [];
-    if (!route) {
-      return predictions;
-    }
-
-    const stopIds = [
-      ...route.outbound.map((stop) => stop.naptanId),
-      ...route.inbound.map((stop) => stop.naptanId),
-    ];
-
-    return predictionsForDirection(predictions, stopIds);
-  }, [route, arrivalsQuery.data?.predictions]);
+  const vehicles = useMemo(
+    () => intelligence?.vehicles ?? [],
+    [intelligence?.vehicles],
+  );
+  const serviceHealth = intelligence?.metrics;
 
   const nextRefreshAt = useMemo(() => {
     if (!arrivalsQuery.dataUpdatedAt) {
@@ -79,6 +61,17 @@ export function RouteCard({
     }
     return new Date(arrivalsQuery.dataUpdatedAt + POLL_INTERVAL_MS);
   }, [arrivalsQuery.dataUpdatedAt]);
+
+  const selectedVehicleWithConfidence = useMemo(() => {
+    if (!selectedVehicle) {
+      return null;
+    }
+    return (
+      vehicles.find(
+        (vehicle) => vehicle.vehicleId === selectedVehicle.vehicleId,
+      ) ?? selectedVehicle
+    );
+  }, [selectedVehicle, vehicles]);
 
   if (sequenceQuery.isLoading) {
     return <RouteCardSkeleton />;
@@ -214,10 +207,13 @@ export function RouteCard({
               />
             ) : null}
 
-            <RouteSummary
-              predictions={directionPredictions}
-              compact={visualMode === "loop"}
-            />
+            {serviceHealth ? (
+              <ServiceHealthCard
+                route={route}
+                metrics={serviceHealth}
+                compact={visualMode === "loop"}
+              />
+            ) : null}
 
             <RouteVisualModeToggle mode={visualMode} onChange={setVisualMode} />
           </div>
@@ -225,7 +221,7 @@ export function RouteCard({
           {visualMode === "loop" ? (
             <SchematicRouteLoop
               route={route}
-              predictions={arrivalsQuery.data?.predictions ?? []}
+              vehicles={vehicles}
               onStopSelect={setSelectedStop}
               onBusSelect={setSelectedVehicle}
               selectedStopId={selectedStop?.naptanId ?? null}
@@ -278,7 +274,7 @@ export function RouteCard({
       />
 
       <BusDetailsModal
-        vehicle={selectedVehicle}
+        vehicle={selectedVehicleWithConfidence}
         onClose={() => setSelectedVehicle(null)}
       />
     </>

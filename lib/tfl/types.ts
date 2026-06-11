@@ -140,10 +140,99 @@ export interface EstimatedVehiclePosition {
   y: number;
   matched: boolean;
   adherence: ScheduleAdherence;
+  predictionConfidence?: PredictionConfidence;
 }
 
 export interface RouteAlertBadge {
   id: string;
   label: string;
-  tone: "info" | "warning" | "neutral";
+  tone: "info" | "warning" | "neutral" | "success" | "danger";
+}
+
+export type PredictionConfidence =
+  | "normal"
+  | "stale"
+  | "missing"
+  | "disappeared"
+  | "reappeared";
+
+export interface PredictionTrackingState {
+  key: string;
+  vehicleId: string;
+  missingRefreshCount: number;
+  lastSeenAt: number;
+  justReappeared: boolean;
+}
+
+export interface VehicleGap {
+  fromVehicleId: string;
+  toVehicleId: string;
+  gapMinutes: number;
+  direction: RouteDirection;
+  fromProgress: number;
+  toProgress: number;
+}
+
+export interface BunchingCluster {
+  direction: RouteDirection;
+  vehicleIds: string[];
+  centerProgress: number;
+  centerX: number;
+  centerY: number;
+}
+
+export interface LargeGapSegment {
+  direction: RouteDirection;
+  fromProgress: number;
+  toProgress: number;
+  gapMinutes: number;
+  fromVehicleId: string;
+  toVehicleId: string;
+}
+
+export interface DirectionIntelligence {
+  direction: RouteDirection;
+  liveVehicleCount: number;
+  averageGapMinutes: number | null;
+  largestGapMinutes: number | null;
+  smallestGapMinutes: number | null;
+  bunchingClusterCount: number;
+  largeGapCount: number;
+}
+
+export interface ServiceHealthMetrics {
+  liveVehicleCount: number;
+  averageGapMinutes: number | null;
+  largestGapMinutes: number | null;
+  smallestGapMinutes: number | null;
+  bunchingClusterCount: number;
+  largeGapCount: number;
+  stalePredictionCount: number;
+  disappearedPredictionCount: number;
+  missingFromRefreshCount: number;
+  isDataStale: boolean;
+  healthScore: number;
+  healthLabel: string;
+  outbound: DirectionIntelligence;
+  inbound: DirectionIntelligence;
+}
+
+export interface RouteDashboardSummary {
+  routeId: string;
+  healthScore: number;
+  healthLabel: string;
+  liveVehicleCount: number;
+  largestGapMinutes: number | null;
+  largeGapCount: number;
+  bunchingClusterCount: number;
+  isDataStale: boolean;
+  disappearedPredictionCount: number;
+  missingFromRefreshCount: number;
+  stalePredictionCount: number;
+}
+
+export interface RouteIntelligenceResult {
+  vehicles: EstimatedVehiclePosition[];
+  metrics: ServiceHealthMetrics;
+  dashboardSummary: RouteDashboardSummary;
 }

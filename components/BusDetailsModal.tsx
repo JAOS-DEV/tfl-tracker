@@ -1,11 +1,16 @@
 "use client";
 
 import { formatLocalTime, formatMinutes } from "@/lib/format";
+import { predictionConfidenceLabel } from "@/lib/predictionTracking";
 import { adherenceLabel } from "@/lib/scheduleAdherence";
-import type { EstimatedVehiclePosition } from "@/lib/tfl/types";
+import type {
+  EstimatedVehiclePosition,
+  PredictionConfidence,
+} from "@/lib/tfl/types";
 
 interface BusDetailsModalProps {
   vehicle: EstimatedVehiclePosition | null;
+  predictionConfidence?: PredictionConfidence;
   onClose: () => void;
 }
 
@@ -17,13 +22,30 @@ const adherenceBadgeClasses = {
     "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
 } as const;
 
+const confidenceBadgeClasses = {
+  normal:
+    "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
+  stale:
+    "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
+  missing:
+    "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
+  disappeared:
+    "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+  reappeared:
+    "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200",
+} as const;
+
 export function BusDetailsModal({
   vehicle,
+  predictionConfidence = "normal",
   onClose,
 }: BusDetailsModalProps): React.ReactElement | null {
   if (!vehicle) {
     return null;
   }
+
+  const confidence =
+    vehicle.predictionConfidence ?? predictionConfidence ?? "normal";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
@@ -38,13 +60,20 @@ export function BusDetailsModal({
             <h2 id="bus-details-title" className="text-lg font-semibold">
               Bus {vehicle.routeNumber}
             </h2>
-            <span
-              className={`mt-2 inline-block rounded-full px-2.5 py-1 text-xs font-medium ${adherenceBadgeClasses[vehicle.adherence]}`}
-            >
-              {adherenceLabel(vehicle.adherence)}
-            </span>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <span
+                className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${adherenceBadgeClasses[vehicle.adherence]}`}
+              >
+                {adherenceLabel(vehicle.adherence)}
+              </span>
+              <span
+                className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${confidenceBadgeClasses[confidence]}`}
+              >
+                {predictionConfidenceLabel(confidence)}
+              </span>
+            </div>
             <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-              Estimated from TfL live arrival predictions
+              Position is estimated from TfL arrival predictions, not live GPS.
             </p>
           </div>
           <button
@@ -91,6 +120,15 @@ export function BusDetailsModal({
             <div>
               <dt className="text-zinc-500">Current location</dt>
               <dd className="font-medium">{vehicle.currentLocation}</dd>
+            </div>
+          ) : null}
+          {vehicle.matched ? (
+            <div>
+              <dt className="text-zinc-500">Estimated route position</dt>
+              <dd className="font-medium">
+                Stop {vehicle.stopIndex + 1}
+                {vehicle.nextStop ? ` · ${vehicle.nextStop.name}` : ""}
+              </dd>
             </div>
           ) : null}
         </dl>

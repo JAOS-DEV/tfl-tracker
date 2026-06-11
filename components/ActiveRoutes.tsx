@@ -1,7 +1,7 @@
 "use client";
 
 import { RouteCard } from "@/components/RouteCard";
-import { RouteOverviewBar } from "@/components/RouteOverviewBar";
+import { MultiRouteDashboard } from "@/components/MultiRouteDashboard";
 import type { ActiveRoute } from "@/lib/tfl/types";
 
 interface ActiveRoutesProps {
@@ -43,6 +43,8 @@ export function ActiveRoutes({
 
   return (
     <section className="space-y-4">
+      <MultiRouteDashboard activeRoutes={activeRoutes} />
+
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
           Active routes ({activeRoutes.length})
@@ -55,8 +57,6 @@ export function ActiveRoutes({
           Clear all
         </button>
       </div>
-
-      <RouteOverviewBar activeRoutes={activeRoutes} />
 
       <div className="grid gap-6 xl:grid-cols-1">
         {activeRoutes.map((route) => (
