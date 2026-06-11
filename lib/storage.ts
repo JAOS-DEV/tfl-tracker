@@ -5,6 +5,7 @@ export const STORAGE_KEYS = {
   recentRoutes: "tfl-tracker:recent-routes",
   favouriteRoutes: "tfl-tracker:favourite-routes",
   theme: "tfl-tracker:theme",
+  routeHistory: "tfl-tracker:route-history",
 } as const;
 
 export const MAX_ACTIVE_ROUTES = 3;

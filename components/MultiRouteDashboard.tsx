@@ -1,7 +1,13 @@
 "use client";
 
+import { MultiRouteHistoryComparison } from "@/components/MultiRouteHistoryComparison";
+import { useAllRouteHistory } from "@/hooks/useRouteHistory";
 import { useRouteIntelligence } from "@/hooks/useRouteIntelligence";
 import { formatLastUpdated } from "@/lib/format";
+import {
+  exportSnapshotsAsJson,
+  loadAllSnapshots,
+} from "@/lib/localRouteHistory";
 import type { ActiveRoute, RouteDashboardSummary } from "@/lib/tfl/types";
 
 function healthToneClass(score: number): string {
@@ -117,9 +123,21 @@ interface MultiRouteDashboardProps {
   activeRoutes: ActiveRoute[];
 }
 
+function downloadTextFile(filename: string, content: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export function MultiRouteDashboard({
   activeRoutes,
 }: MultiRouteDashboardProps): React.ReactElement | null {
+  const { clearAll } = useAllRouteHistory();
+
   if (activeRoutes.length < 2) {
     return null;
   }
@@ -130,28 +148,62 @@ export function MultiRouteDashboard({
   };
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Live route dashboard
-        </p>
-        <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-          </span>
-          Auto-refreshing
-        </span>
+    <div className="space-y-3">
+      <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Live route dashboard
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                downloadTextFile(
+                  "all-route-history.json",
+                  exportSnapshotsAsJson(loadAllSnapshots()),
+                  "application/json",
+                )
+              }
+              className="rounded-lg border border-zinc-300 px-2.5 py-1 text-[11px] font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              Export all JSON
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Clear all local route history on this device?",
+                  )
+                ) {
+                  clearAll();
+                }
+              }}
+              className="rounded-lg border border-red-300 px-2.5 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+            >
+              Clear all history
+            </button>
+            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              Auto-refreshing
+            </span>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {activeRoutes.map((route) => (
+            <DashboardRouteItem
+              key={route.routeId}
+              route={route}
+              onSelect={handleSelect}
+            />
+          ))}
+        </div>
       </div>
-      <div className="flex gap-2">
-        {activeRoutes.map((route) => (
-          <DashboardRouteItem
-            key={route.routeId}
-            route={route}
-            onSelect={handleSelect}
-          />
-        ))}
-      </div>
+
+      <MultiRouteHistoryComparison activeRoutes={activeRoutes} />
     </div>
   );
 }

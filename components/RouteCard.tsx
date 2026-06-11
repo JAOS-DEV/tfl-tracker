@@ -5,7 +5,9 @@ import { BusDetailsModal } from "@/components/BusDetailsModal";
 import { ErrorState } from "@/components/ErrorState";
 import { RouteCardSkeleton } from "@/components/LoadingSkeleton";
 import { RouteDiagram } from "@/components/RouteDiagram";
+import { RouteHistoryPanel } from "@/components/RouteHistoryPanel";
 import { ServiceHealthCard } from "@/components/ServiceHealthCard";
+import { useRouteHistoryRecorder } from "@/hooks/useRouteHistoryRecorder";
 import { useRouteIntelligence } from "@/hooks/useRouteIntelligence";
 import { RouteVisualModeToggle } from "@/components/RouteVisualModeToggle";
 import { SchematicRouteLoop } from "@/components/SchematicRouteLoop";
@@ -54,6 +56,13 @@ export function RouteCard({
     [intelligence?.vehicles],
   );
   const serviceHealth = intelligence?.metrics;
+
+  useRouteHistoryRecorder(
+    activeRoute.routeId,
+    route?.routeName ?? activeRoute.routeName,
+    intelligence,
+    arrivalsQuery.dataUpdatedAt,
+  );
 
   const nextRefreshAt = useMemo(() => {
     if (!arrivalsQuery.dataUpdatedAt) {
@@ -216,6 +225,8 @@ export function RouteCard({
             ) : null}
 
             <RouteVisualModeToggle mode={visualMode} onChange={setVisualMode} />
+
+            <RouteHistoryPanel routeId={activeRoute.routeId} />
           </div>
 
           {visualMode === "loop" ? (
