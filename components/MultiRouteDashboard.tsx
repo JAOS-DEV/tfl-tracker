@@ -1,115 +1,120 @@
 "use client";
 
 import { MultiRouteHistoryComparison } from "@/components/MultiRouteHistoryComparison";
-import { RouteAlertBadges } from "@/components/RouteAlertBadges";
-import { useAllRouteHistory } from "@/hooks/useRouteHistory";
+import { StatusPill } from "@/components/StatusPill";
 import { useRouteIntelligence } from "@/hooks/useRouteIntelligence";
-import { formatLastUpdated } from "@/lib/format";
 import {
-  exportSnapshotsAsJson,
-  loadAllSnapshots,
-} from "@/lib/localRouteHistory";
+  createRouteAlertPreferences,
+  type DisplaySettings,
+} from "@/lib/displaySettings";
 import {
-  createDefaultAlertPreferences,
   evaluateRouteAlerts,
   type RouteAlertPreferences,
 } from "@/lib/routeAlerts";
 import type { ActiveRoute, RouteDashboardSummary } from "@/lib/tfl/types";
 
-function healthToneClass(score: number): string {
+function healthVariant(score: number): "good" | "info" | "warning" | "danger" {
   if (score >= 85) {
-    return "text-emerald-300";
+    return "good";
   }
   if (score >= 65) {
-    return "text-sky-300";
+    return "info";
   }
   if (score >= 40) {
-    return "text-amber-300";
+    return "warning";
   }
-  return "text-red-300";
+  return "danger";
 }
 
-function formatDashboardStatus(summary: RouteDashboardSummary): string {
-  const parts = [`${summary.liveVehicleCount} live`];
-
-  if (summary.largestGapMinutes !== null) {
-    parts.push(`largest gap ${summary.largestGapMinutes} min`);
+function compactAlertLabel(summary: RouteDashboardSummary | undefined): string | null {
+  if (!summary) {
+    return null;
   }
-
-  if (summary.largeGapCount > 0) {
-    parts.push(
-      `${summary.largeGapCount} large gap${summary.largeGapCount === 1 ? "" : "s"}`,
-    );
-  }
-
-  if (summary.bunchingClusterCount > 0) {
-    parts.push(
-      `${summary.bunchingClusterCount} bunching`,
-    );
-  }
-
   if (summary.possibleGhostCount > 0) {
-    parts.push(
-      `${summary.possibleGhostCount} possible ghost${summary.possibleGhostCount === 1 ? "" : "s"}`,
-    );
+    return `${summary.possibleGhostCount} ghost`;
   }
-
   if (summary.estimatedLateCount > 0) {
-    parts.push(`${summary.estimatedLateCount} est. late`);
+    return `${summary.estimatedLateCount} late`;
   }
-
+  if (summary.largeGapCount > 0) {
+    return "Large gap";
+  }
   if (summary.isDataStale) {
-    parts.push("stale data");
+    return "Stale";
   }
-
-  if (summary.missingFromRefreshCount > 0) {
-    parts.push(
-      `${summary.missingFromRefreshCount} missing`,
-    );
-  }
-
-  if (summary.disappearedPredictionCount > 0) {
-    parts.push(
-      `${summary.disappearedPredictionCount} disappeared`,
-    );
-  }
-
-  return parts.join(" · ");
+  return null;
 }
 
 interface DashboardRouteItemProps {
   route: ActiveRoute;
-  alertPreferences: RouteAlertPreferences;
+  alertPreferences?: RouteAlertPreferences;
+  compact: boolean;
+  globalAlertDefaults: DisplaySettings["globalAlertDefaults"];
   onSelect: (routeId: string) => void;
 }
 
 function DashboardRouteItem({
   route,
   alertPreferences,
+  compact,
+  globalAlertDefaults,
   onSelect,
 }: DashboardRouteItemProps): React.ReactElement {
-  const { arrivalsQuery, intelligence } = useRouteIntelligence(route.routeId);
+  const { intelligence } = useRouteIntelligence(route.routeId);
   const summary = intelligence?.dashboardSummary;
   const metrics = intelligence?.metrics;
 
+  const resolvedPreferences =
+    alertPreferences ??
+    createRouteAlertPreferences(route.routeId, globalAlertDefaults);
+
   const userAlerts =
     metrics !== undefined
-      ? evaluateRouteAlerts(metrics, alertPreferences)
+      ? evaluateRouteAlerts(metrics, resolvedPreferences)
       : [];
+
+  const topAlert = userAlerts[0]?.label ?? compactAlertLabel(summary);
 
   if (!summary) {
     return (
       <button
         type="button"
         onClick={() => onSelect(route.routeId)}
-        className="flex min-w-0 flex-1 flex-col gap-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-left hover:border-sky-500/50 sm:min-w-[220px] sm:flex-none"
+        className="flex min-w-[140px] shrink-0 flex-col gap-1 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-left hover:border-sky-400 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-sky-500"
       >
         <div className="flex items-center gap-2">
           <span className="rounded-lg bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
             {route.routeId}
           </span>
-          <span className="text-xs text-zinc-500">Loading…</span>
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+            Loading…
+          </span>
         </div>
+      </button>
+    );
+  }
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={() => onSelect(route.routeId)}
+        className="flex min-w-[160px] shrink-0 flex-col gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-left hover:border-sky-400 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-sky-500"
+      >
+        <div className="flex items-center gap-2">
+          <span className="rounded-lg bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
+            {route.routeId}
+          </span>
+          <StatusPill
+            label={`${summary.healthLabel} ${summary.healthScore}`}
+            variant={healthVariant(summary.healthScore)}
+            size="sm"
+          />
+        </div>
+        <p className="text-xs text-zinc-600 dark:text-zinc-300">
+          {summary.liveVehicleCount} live
+          {topAlert ? ` · ${topAlert}` : ""}
+        </p>
       </button>
     );
   }
@@ -118,28 +123,33 @@ function DashboardRouteItem({
     <button
       type="button"
       onClick={() => onSelect(route.routeId)}
-      className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-left hover:border-sky-500/50 sm:min-w-[220px] sm:flex-none"
+      className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-left hover:border-sky-400 sm:min-w-[220px] sm:flex-none dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-sky-500"
     >
       <div className="flex items-center gap-2">
         <span className="rounded-lg bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
           {route.routeId}
         </span>
-        <span className={`text-xs font-semibold ${healthToneClass(summary.healthScore)}`}>
-          {summary.healthLabel}
-        </span>
-        <span className="ml-auto text-xs text-zinc-400">
-          {summary.healthScore}/100
-        </span>
+        <StatusPill
+          label={`${summary.healthLabel} ${summary.healthScore}/100`}
+          variant={healthVariant(summary.healthScore)}
+          size="sm"
+        />
       </div>
-      <p className="text-xs text-zinc-400">{formatDashboardStatus(summary)}</p>
-      <RouteAlertBadges alerts={userAlerts} compact />
-      <p className="text-xs text-zinc-500">
-        Updated{" "}
-        {arrivalsQuery.dataUpdatedAt
-          ? formatLastUpdated(new Date(arrivalsQuery.dataUpdatedAt))
-          : "—"}
-        {arrivalsQuery.isFetching ? " · refreshing…" : ""}
+      <p className="text-xs text-zinc-600 dark:text-zinc-300">
+        {summary.liveVehicleCount} live
+        {summary.largestGapMinutes !== null
+          ? ` · gap ${summary.largestGapMinutes} min`
+          : ""}
+        {summary.possibleGhostCount > 0
+          ? ` · ${summary.possibleGhostCount} ghost`
+          : ""}
+        {summary.estimatedLateCount > 0
+          ? ` · ${summary.estimatedLateCount} late`
+          : ""}
       </p>
+      {topAlert ? (
+        <StatusPill label={topAlert} variant="warning" size="sm" />
+      ) : null}
     </button>
   );
 }
@@ -147,23 +157,15 @@ function DashboardRouteItem({
 interface MultiRouteDashboardProps {
   activeRoutes: ActiveRoute[];
   alertPreferences: Record<string, RouteAlertPreferences>;
-}
-
-function downloadTextFile(filename: string, content: string, mimeType: string): void {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+  displaySettings: DisplaySettings;
 }
 
 export function MultiRouteDashboard({
   activeRoutes,
   alertPreferences,
+  displaySettings,
 }: MultiRouteDashboardProps): React.ReactElement | null {
-  const { clearAll } = useAllRouteHistory();
+  const showDiagnostics = displaySettings.showAdvancedDiagnostics;
 
   if (activeRoutes.length < 2) {
     return null;
@@ -176,65 +178,38 @@ export function MultiRouteDashboard({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            Live route dashboard
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            Active routes
           </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                downloadTextFile(
-                  "all-route-history.json",
-                  exportSnapshotsAsJson(loadAllSnapshots()),
-                  "application/json",
-                )
-              }
-              className="min-h-11 rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              Export all JSON
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    "Clear all local route history on this device?",
-                  )
-                ) {
-                  clearAll();
-                }
-              }}
-              className="min-h-11 rounded-lg border border-red-300 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
-            >
-              Clear all history
-            </button>
-            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500">
+          {showDiagnostics ? (
+            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
               </span>
               Auto-refreshing
             </span>
-          </div>
+          ) : null}
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:overflow-x-auto">
+        <div className="flex gap-2 overflow-x-auto pb-1">
           {activeRoutes.map((route) => (
             <DashboardRouteItem
               key={route.routeId}
               route={route}
-              alertPreferences={
-                alertPreferences[route.routeId] ??
-                createDefaultAlertPreferences(route.routeId)
-              }
+              alertPreferences={alertPreferences[route.routeId]}
+              globalAlertDefaults={displaySettings.globalAlertDefaults}
+              compact={!showDiagnostics}
               onSelect={handleSelect}
             />
           ))}
         </div>
       </div>
 
-      <MultiRouteHistoryComparison activeRoutes={activeRoutes} />
+      {showDiagnostics ? (
+        <MultiRouteHistoryComparison activeRoutes={activeRoutes} />
+      ) : null}
     </div>
   );
 }

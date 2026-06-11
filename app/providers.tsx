@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -21,6 +22,8 @@ export function Providers({ children }: ProvidersProps): React.ReactElement {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>{children}</ThemeProvider>
+    </QueryClientProvider>
   );
 }

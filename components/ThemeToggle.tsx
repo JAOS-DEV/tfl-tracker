@@ -1,28 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { STORAGE_KEYS } from "@/lib/storage";
-
-type ThemePreference = "light" | "dark" | "system";
+import type { ThemePreference } from "@/lib/theme";
 
 export function ThemeToggle(): React.ReactElement {
-  const [theme, setTheme, isHydrated] = useLocalStorage<ThemePreference>(
+  const [theme, setTheme] = useLocalStorage<ThemePreference>(
     STORAGE_KEYS.theme,
     "system",
   );
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    const root = document.documentElement;
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const isDark = theme === "dark" || (theme === "system" && prefersDark);
-
-    root.classList.toggle("dark", isDark);
-  }, [theme, isHydrated]);
 
   const cycleTheme = () => {
     const order: ThemePreference[] = ["system", "light", "dark"];

@@ -5,9 +5,24 @@ import {
   classifyScheduleDeviation,
   findNearestScheduledTime,
   scheduleBadgeLabel,
+  scheduleLoopBadgeLabel,
   scheduleStatusLabel,
 } from "@/lib/scheduleDeviation";
-import type { NormalizedTimetable } from "@/lib/tfl/types";
+import type { NormalizedRoute, NormalizedTimetable } from "@/lib/tfl/types";
+
+const route: NormalizedRoute = {
+  routeId: "337",
+  routeName: "337",
+  outbound: [
+    {
+      id: "1",
+      naptanId: "490000002B",
+      name: "Stop B",
+      isTimingPoint: true,
+    },
+  ],
+  inbound: [],
+};
 
 const timetable: NormalizedTimetable = {
   routeId: "337",
@@ -23,7 +38,7 @@ const timetable: NormalizedTimetable = {
         {
           stopId: "490000002B",
           naptanId: "490000002B",
-          stopName: "Stop B",
+          stopName: "490000002B",
           scheduledArrival: "2026-06-11T08:05:00.000Z",
         },
       ],
@@ -52,6 +67,10 @@ describe("schedule deviation helpers", () => {
     expect(scheduleStatusLabel("early", -2)).toBe("-2 early");
     expect(scheduleBadgeLabel("onTime", 0, "high")).toBe("OK");
     expect(scheduleBadgeLabel("unknown", null, "unknown")).toBe("?");
+    expect(scheduleLoopBadgeLabel("unknown", null, "unknown")).toBeNull();
+    expect(scheduleLoopBadgeLabel("onTime", 0, "high")).toBe("OK");
+    expect(scheduleLoopBadgeLabel("early", -2, "high")).toBe("-2");
+    expect(scheduleLoopBadgeLabel("late", 4, "medium")).toBe("+4");
   });
 
   it("builds a high-confidence late match", () => {
@@ -72,9 +91,11 @@ describe("schedule deviation helpers", () => {
       },
       timetable,
       2,
+      route,
     );
 
     expect(match.scheduleStatus).toBe("late");
+    expect(match.matchedStopName).toBe("Stop B");
     expect(match.scheduleMatchConfidence).toBe("medium");
     expect(
       calculateScheduleDeviationMinutes(

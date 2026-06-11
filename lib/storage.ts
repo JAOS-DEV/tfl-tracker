@@ -7,6 +7,7 @@ export const STORAGE_KEYS = {
   routeAlertPreferences: "tfl-tracker:route-alert-preferences",
   theme: "tfl-tracker:theme",
   routeHistory: "tfl-tracker:route-history",
+  displaySettings: "tfl-tracker:display-settings",
 } as const;
 
 export const MAX_ACTIVE_ROUTES = 3;

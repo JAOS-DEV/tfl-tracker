@@ -1,3 +1,4 @@
+import { StatusPill } from "@/components/StatusPill";
 import type { RouteAlert } from "@/lib/routeAlerts";
 
 interface RouteAlertBadgesProps {
@@ -5,11 +6,17 @@ interface RouteAlertBadgesProps {
   compact?: boolean;
 }
 
-const toneClasses = {
-  warning: "border-amber-500/40 bg-amber-950/40 text-amber-200",
-  danger: "border-red-500/40 bg-red-950/40 text-red-200",
-  neutral: "border-zinc-600 bg-zinc-800/60 text-zinc-300",
-} as const;
+function mapAlertTone(
+  tone: RouteAlert["tone"],
+): "warning" | "danger" | "muted" {
+  if (tone === "warning") {
+    return "warning";
+  }
+  if (tone === "danger") {
+    return "danger";
+  }
+  return "muted";
+}
 
 export function RouteAlertBadges({
   alerts,
@@ -20,14 +27,14 @@ export function RouteAlertBadges({
   }
 
   return (
-    <div className={`flex flex-wrap gap-2 ${compact ? "" : "mt-2"}`}>
+    <div className={`flex flex-wrap gap-1.5 ${compact ? "" : "mt-2"}`}>
       {alerts.map((alert) => (
-        <span
+        <StatusPill
           key={alert.id}
-          className={`rounded-full border px-2.5 py-1 text-xs font-medium ${toneClasses[alert.tone]}`}
-        >
-          {alert.label}
-        </span>
+          label={alert.label}
+          variant={mapAlertTone(alert.tone)}
+          size="sm"
+        />
       ))}
     </div>
   );

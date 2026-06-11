@@ -354,7 +354,8 @@ export function exportSnapshotsAsCsv(
   return [headers.join(","), ...rows].join("\n");
 }
 
-const EMPTY_SNAPSHOTS: RouteHistorySnapshot[] = [];
+export const EMPTY_ROUTE_HISTORY_SNAPSHOTS: RouteHistorySnapshot[] = [];
+const EMPTY_SNAPSHOTS = EMPTY_ROUTE_HISTORY_SNAPSHOTS;
 
 interface RouteHistoryCache {
   raw: string | null;

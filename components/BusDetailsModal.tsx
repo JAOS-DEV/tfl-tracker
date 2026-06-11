@@ -5,6 +5,7 @@ import { MobileBottomSheet } from "@/components/MobileBottomSheet";
 import { formatLastUpdated, formatLocalTime, formatMinutes } from "@/lib/format";
 import { ghostStatusLabel } from "@/lib/ghostBusDetection";
 import { predictionConfidenceLabel } from "@/lib/predictionTracking";
+import { isStopIdLike } from "@/lib/stopDisplayName";
 import type {
   EstimatedVehiclePosition,
   PredictionConfidence,
@@ -62,6 +63,12 @@ export function BusDetailsModal({
 
   const confidence =
     vehicle.predictionConfidence ?? predictionConfidence ?? "normal";
+
+  const matchedStopDisplay =
+    vehicle.matchedStopName &&
+    !isStopIdLike(vehicle.matchedStopName)
+      ? vehicle.matchedStopName
+      : vehicle.nextStop?.name ?? null;
 
   return (
     <MobileBottomSheet
@@ -163,10 +170,10 @@ export function BusDetailsModal({
                   : "Schedule match uncertain"}
               </dd>
             </div>
-            {vehicle.matchedStopName ? (
+            {matchedStopDisplay ? (
               <div>
                 <dt className="text-zinc-500">Matched stop</dt>
-                <dd className="font-medium">{vehicle.matchedStopName}</dd>
+                <dd className="font-medium">{matchedStopDisplay}</dd>
               </div>
             ) : null}
             {vehicle.matchedScheduledTime ? (

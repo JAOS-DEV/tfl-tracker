@@ -1,4 +1,5 @@
 import { SCHEDULE_DEVIATION_THRESHOLDS } from "@/lib/constants";
+import { formatMatchedStopDisplayName } from "@/lib/stopDisplayName";
 import type {
   EstimatedVehiclePosition,
   NormalizedRoute,
@@ -100,6 +101,26 @@ export function scheduleBadgeLabel(
   return `+${deviationMinutes}`;
 }
 
+export function scheduleLoopBadgeLabel(
+  status: ScheduleStatus,
+  deviationMinutes: number | null,
+  confidence: ScheduleMatchConfidence,
+): string | null {
+  if (confidence === "unknown" || confidence === "low") {
+    return null;
+  }
+  if (status === "unknown" || deviationMinutes === null) {
+    return null;
+  }
+  if (status === "onTime") {
+    return "OK";
+  }
+  if (status === "early") {
+    return `${deviationMinutes}`;
+  }
+  return `+${deviationMinutes}`;
+}
+
 export function scheduleAccessibleLabel(
   status: ScheduleStatus,
   deviationMinutes: number | null,
@@ -161,6 +182,26 @@ function scheduledTimesForStop(
   );
 }
 
+function resolveMatchedStopName(
+  vehicle: Pick<
+    EstimatedVehiclePosition,
+    "direction" | "nextStop"
+  >,
+  timetableStop: ScheduledStopTime | null,
+  route?: NormalizedRoute,
+): string | null {
+  if (timetableStop && route) {
+    return formatMatchedStopDisplayName(vehicle, timetableStop, route);
+  }
+  if (vehicle.nextStop?.name) {
+    return vehicle.nextStop.name;
+  }
+  if (timetableStop && !/^[0-9]{6,}[A-Z]?$/i.test(timetableStop.stopName)) {
+    return timetableStop.stopName;
+  }
+  return null;
+}
+
 export function buildVehicleScheduleMatch(
   vehicle: Pick<
     EstimatedVehiclePosition,
@@ -174,6 +215,7 @@ export function buildVehicleScheduleMatch(
   >,
   timetable: NormalizedTimetable | null | undefined,
   agreeingPredictions: number,
+  route?: NormalizedRoute,
 ): VehicleScheduleMatch {
   if (vehicle.ghostStatus === "suspectedGhost") {
     return {
@@ -195,7 +237,7 @@ export function buildVehicleScheduleMatch(
       scheduleStatusLabel: "Schedule ?",
       scheduleMatchConfidence: "unknown",
       matchedScheduledTime: null,
-      matchedStopName: vehicle.nextStop?.name ?? null,
+      matchedStopName: resolveMatchedStopName(vehicle, null, route),
       scheduleDataAvailable: Boolean(timetable?.available),
       scheduleExplanation: timetable?.available
         ? "Schedule match uncertain"
@@ -219,7 +261,7 @@ export function buildVehicleScheduleMatch(
       scheduleStatusLabel: "Schedule ?",
       scheduleMatchConfidence: "unknown",
       matchedScheduledTime: null,
-      matchedStopName: vehicle.nextStop.name,
+      matchedStopName: resolveMatchedStopName(vehicle, null, route),
       scheduleDataAvailable: true,
       scheduleExplanation: "Schedule match uncertain",
     };
@@ -242,7 +284,7 @@ export function buildVehicleScheduleMatch(
     scheduleStatusLabel: scheduleStatusLabel(scheduleStatus, deviationMinutes),
     scheduleMatchConfidence: confidence,
     matchedScheduledTime: nearest.scheduledArrival,
-    matchedStopName: nearest.stopName,
+    matchedStopName: resolveMatchedStopName(vehicle, nearest, route),
     scheduleDataAvailable: true,
     scheduleExplanation:
       "Estimated from TfL live predictions and timetable data",
@@ -255,8 +297,6 @@ export function matchVehicleToSchedule(
   predictions: NormalizedVehiclePrediction[],
   route: NormalizedRoute,
 ): EstimatedVehiclePosition[] {
-  void route;
-
   const predictionsByVehicle = new Map<string, NormalizedVehiclePrediction[]>();
   for (const prediction of predictions) {
     const vehicleId = prediction.vehicleId ?? prediction.id;
@@ -268,7 +308,12 @@ export function matchVehicleToSchedule(
   return vehicles.map((vehicle) => {
     const timetable = timetables[vehicle.direction] ?? null;
     const agreeingPredictions = predictionsByVehicle.get(vehicle.vehicleId)?.length ?? 1;
-    const match = buildVehicleScheduleMatch(vehicle, timetable, agreeingPredictions);
+    const match = buildVehicleScheduleMatch(
+      vehicle,
+      timetable,
+      agreeingPredictions,
+      route,
+    );
 
     return {
       ...vehicle,

@@ -2,6 +2,7 @@
 
 import { RouteCard } from "@/components/RouteCard";
 import { MultiRouteDashboard } from "@/components/MultiRouteDashboard";
+import type { DisplaySettings } from "@/lib/displaySettings";
 import type { FavouriteRoute } from "@/lib/favouriteRoutes";
 import { isFavouriteRoute } from "@/lib/favouriteRoutes";
 import type { RouteAlertPreferences } from "@/lib/routeAlerts";
@@ -11,6 +12,7 @@ interface ActiveRoutesProps {
   activeRoutes: ActiveRoute[];
   favouriteRoutes: FavouriteRoute[];
   alertPreferences: Record<string, RouteAlertPreferences>;
+  displaySettings: DisplaySettings;
   onActiveRoutesChange: (routes: ActiveRoute[]) => void;
   onToggleFavourite: (route: Pick<ActiveRoute, "routeId" | "routeName">) => void;
   onAlertPreferencesChange: (preferences: RouteAlertPreferences) => void;
@@ -20,6 +22,7 @@ export function ActiveRoutes({
   activeRoutes,
   favouriteRoutes,
   alertPreferences,
+  displaySettings,
   onActiveRoutesChange,
   onToggleFavourite,
   onAlertPreferencesChange,
@@ -53,6 +56,7 @@ export function ActiveRoutes({
       <MultiRouteDashboard
         activeRoutes={activeRoutes}
         alertPreferences={alertPreferences}
+        displaySettings={displaySettings}
       />
 
       <div className="flex items-center justify-between gap-3">
@@ -69,16 +73,17 @@ export function ActiveRoutes({
       </div>
 
       <div className="grid gap-4 xl:grid-cols-1">
-        {activeRoutes.map((route, index) => (
+        {activeRoutes.map((route) => (
           <RouteCard
             key={route.routeId}
             activeRoute={route}
+            allActiveRoutes={activeRoutes}
+            displaySettings={displaySettings}
             onRemove={handleRemove}
             isFavourite={isFavouriteRoute(favouriteRoutes, route.routeId)}
             onToggleFavourite={onToggleFavourite}
             alertPreferences={alertPreferences[route.routeId]}
             onAlertPreferencesChange={onAlertPreferencesChange}
-            defaultCollapsedOnMobile={activeRoutes.length > 1 && index > 0}
           />
         ))}
       </div>

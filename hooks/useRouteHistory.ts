@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import {
+  EMPTY_ROUTE_HISTORY_SNAPSHOTS,
   ROUTE_HISTORY_EVENT,
   calculateDailyStats,
   clearAllRouteHistory,
@@ -40,7 +41,7 @@ export function useRouteHistory(routeId: string): UseRouteHistoryResult {
   const snapshots = useSyncExternalStore(
     subscribeToRouteHistory,
     getSnapshotForRoute,
-    () => [],
+    () => EMPTY_ROUTE_HISTORY_SNAPSHOTS,
   );
 
   const dailyStats = useMemo(
@@ -88,7 +89,7 @@ export function useAllRouteHistory(): UseAllRouteHistoryResult {
   const snapshots = useSyncExternalStore(
     subscribeToRouteHistory,
     getAllSnapshots,
-    () => [],
+    () => EMPTY_ROUTE_HISTORY_SNAPSHOTS,
   );
 
   const refresh = useCallback(() => {
