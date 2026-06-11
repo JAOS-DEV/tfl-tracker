@@ -1,7 +1,17 @@
 import { z } from "zod";
 
 export const lineSearchQuerySchema = z.object({
-  query: z.string().trim().min(1).max(20),
+  query: z.string().trim().min(1).max(40),
+});
+
+export const stopSearchQuerySchema = z.object({
+  query: z.string().trim().min(2).max(60),
+});
+
+export const nearbyStopsQuerySchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lon: z.coerce.number().min(-180).max(180),
+  radius: z.coerce.number().min(100).max(2000).default(1000),
 });
 
 export const routeIdQuerySchema = z.object({
@@ -125,3 +135,21 @@ const rawLineObjectSchema = z
   .passthrough();
 
 export const rawLineStatusResponseSchema = z.array(rawLineObjectSchema);
+
+const rawStopSearchItemSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    indicator: z.string().optional(),
+    stopLetter: z.string().optional(),
+    towards: z.string().optional(),
+    modes: z.array(z.string()).optional(),
+    lines: z.array(z.union([z.string(), z.object({ id: z.string().optional() }).passthrough()])).optional(),
+    children: z.array(z.unknown()).optional(),
+    lat: z.number().optional(),
+    lon: z.number().optional(),
+    distance: z.number().optional(),
+  })
+  .passthrough();
+
+export const rawStopSearchResponseSchema = z.array(rawStopSearchItemSchema);

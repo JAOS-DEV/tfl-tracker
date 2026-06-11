@@ -40,6 +40,7 @@ import {
 } from "@/lib/routeAlerts";
 import { buildServiceHealthSummary } from "@/lib/serviceHealthSummary";
 import { getDirectionLabel } from "@/lib/routePositioning";
+import { toStopDetailTarget } from "@/lib/stopDetail";
 import { buildRoutesSearchUrl } from "@/lib/routeUrl";
 import type {
   ActiveRoute,
@@ -53,6 +54,7 @@ interface RouteCardProps {
   activeRoute: ActiveRoute;
   allActiveRoutes: ActiveRoute[];
   displaySettings: DisplaySettings;
+  initialVisualMode?: RouteVisualMode;
   onRemove: (routeId: string) => void;
   isFavourite: boolean;
   onToggleFavourite: (route: Pick<ActiveRoute, "routeId" | "routeName">) => void;
@@ -66,6 +68,7 @@ export function RouteCard({
   activeRoute,
   allActiveRoutes,
   displaySettings,
+  initialVisualMode,
   onRemove,
   isFavourite,
   onToggleFavourite,
@@ -75,7 +78,7 @@ export function RouteCard({
   const isMobile = useMediaQuery("(max-width: 639px)");
   const isOnline = useOnlineStatus();
   const [visualMode, setVisualMode] = useState<RouteVisualMode>(
-    displaySettings.defaultVisualMode,
+    initialVisualMode ?? displaySettings.defaultVisualMode,
   );
   const [selectedDirection, setSelectedDirection] =
     useState<RouteDirection>("outbound");
@@ -153,15 +156,25 @@ export function RouteCard({
       ? `${dailyStats.snapshotCount} today`
       : undefined;
 
+  const shareUrl =
+    typeof window !== "undefined"
+      ? new URL(
+          buildRoutesSearchUrl(
+            allActiveRoutes.map((item) => item.routeId),
+            visualMode,
+          ),
+          window.location.origin,
+        ).toString()
+      : buildRoutesSearchUrl(
+          allActiveRoutes.map((item) => item.routeId),
+          visualMode,
+        );
+
   const handleShare = async () => {
-    const url = new URL(
-      buildRoutesSearchUrl(allActiveRoutes.map((item) => item.routeId)),
-      window.location.origin,
-    );
     try {
-      await navigator.clipboard.writeText(url.toString());
+      await navigator.clipboard.writeText(shareUrl);
     } catch {
-      window.prompt("Copy this route URL:", url.toString());
+      window.prompt("Copy this link:", shareUrl);
     }
   };
 
@@ -464,8 +477,9 @@ export function RouteCard({
       ) : null}
 
       <StopArrivalsModal
-        stop={selectedStop}
-        routeId={activeRoute.routeId}
+        stop={selectedStop ? toStopDetailTarget(selectedStop) : null}
+        activeRouteIds={allActiveRoutes.map((item) => item.routeId)}
+        highlightRouteId={activeRoute.routeId}
         vehicles={vehicles}
         onClose={() => setSelectedStop(null)}
       />

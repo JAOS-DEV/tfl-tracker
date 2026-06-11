@@ -31,7 +31,7 @@ export function stopProgress(
     return LOOP_EDGE_PADDING + ratio * span;
   }
 
-  return 0.5 + LOOP_EDGE_PADDING + (1 - ratio) * span;
+  return 0.5 + LOOP_EDGE_PADDING + ratio * span;
 }
 
 export function mapProgressToLoopCoordinates(
@@ -220,10 +220,7 @@ export function estimateVehiclePositionOnRoute(
 
   let progress = baseProgress;
   if (prediction.timeToStation > VEHICLE_POSITIONING.nearStopSeconds) {
-    progress =
-      direction === "outbound"
-        ? baseProgress - offsetRatio
-        : baseProgress + offsetRatio;
+    progress = baseProgress - offsetRatio;
   }
 
   return {
@@ -378,7 +375,7 @@ export function buildLoopPath(
     inboundEnd,
   } = getLoopLegEndpoints(route, layout);
 
-  return `M ${outboundStart.x} ${outboundStart.y} L ${outboundEnd.x} ${outboundEnd.y} L ${inboundEnd.x} ${inboundEnd.y} L ${inboundStart.x} ${inboundStart.y} Z`;
+  return `M ${outboundStart.x} ${outboundStart.y} L ${outboundEnd.x} ${outboundEnd.y} L ${inboundStart.x} ${inboundStart.y} L ${inboundEnd.x} ${inboundEnd.y} Z`;
 }
 
 export function getDirectionLabel(

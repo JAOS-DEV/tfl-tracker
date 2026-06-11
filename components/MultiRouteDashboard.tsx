@@ -1,5 +1,6 @@
 "use client";
 
+import { ActiveRouteComparison } from "@/components/ActiveRouteComparison";
 import { MultiRouteHistoryComparison } from "@/components/MultiRouteHistoryComparison";
 import { StatusPill } from "@/components/StatusPill";
 import { useRouteIntelligence } from "@/hooks/useRouteIntelligence";
@@ -178,6 +179,8 @@ export function MultiRouteDashboard({
 
   return (
     <div className="space-y-3">
+      <ActiveRouteComparison activeRoutes={activeRoutes} />
+
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">

@@ -6,13 +6,14 @@ import type { DisplaySettings } from "@/lib/displaySettings";
 import type { FavouriteRoute } from "@/lib/favouriteRoutes";
 import { isFavouriteRoute } from "@/lib/favouriteRoutes";
 import type { RouteAlertPreferences } from "@/lib/routeAlerts";
-import type { ActiveRoute } from "@/lib/tfl/types";
+import type { ActiveRoute, RouteVisualMode } from "@/lib/tfl/types";
 
 interface ActiveRoutesProps {
   activeRoutes: ActiveRoute[];
   favouriteRoutes: FavouriteRoute[];
   alertPreferences: Record<string, RouteAlertPreferences>;
   displaySettings: DisplaySettings;
+  urlVisualMode?: RouteVisualMode;
   onActiveRoutesChange: (routes: ActiveRoute[]) => void;
   onToggleFavourite: (route: Pick<ActiveRoute, "routeId" | "routeName">) => void;
   onAlertPreferencesChange: (preferences: RouteAlertPreferences) => void;
@@ -23,6 +24,7 @@ export function ActiveRoutes({
   favouriteRoutes,
   alertPreferences,
   displaySettings,
+  urlVisualMode,
   onActiveRoutesChange,
   onToggleFavourite,
   onAlertPreferencesChange,
@@ -79,6 +81,7 @@ export function ActiveRoutes({
             activeRoute={route}
             allActiveRoutes={activeRoutes}
             displaySettings={displaySettings}
+            initialVisualMode={urlVisualMode}
             onRemove={handleRemove}
             isFavourite={isFavouriteRoute(favouriteRoutes, route.routeId)}
             onToggleFavourite={onToggleFavourite}

@@ -54,7 +54,7 @@ export function StatusPill({
 }: StatusPillProps): React.ReactElement {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full font-semibold leading-none ${variantClasses[variant]} ${sizeClasses[size]}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full font-semibold leading-none ${variantClasses[variant]} ${sizeClasses[size]}`}
       aria-label={ariaLabel}
     >
       {showLiveDot ? (

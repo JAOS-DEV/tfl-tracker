@@ -33,11 +33,11 @@ export function RouteLoopDirectionGuide({
             Inbound ↑
           </p>
           <p className="mt-1 text-sm font-semibold leading-snug text-zinc-900 dark:text-zinc-100">
-            {inbound.from}
+            {inbound.to}
           </p>
           <p className="text-xs text-violet-600 dark:text-violet-400">↑ travels up ↑</p>
           <p className="mt-1 text-sm font-semibold leading-snug text-zinc-900 dark:text-zinc-100">
-            {inbound.to}
+            {inbound.from}
           </p>
         </div>
       </div>

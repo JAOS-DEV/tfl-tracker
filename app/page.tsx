@@ -1,28 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ActiveRoutes } from "@/components/ActiveRoutes";
 import { ErrorState } from "@/components/ErrorState";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { SharedRouteWarningBanner } from "@/components/SharedRouteWarningBanner";
 import { Footer } from "@/components/Footer";
 import { RouteSearch } from "@/components/RouteSearch";
+import { StopArrivalsModal } from "@/components/StopArrivalsModal";
 import { useDisplaySettings } from "@/hooks/useDisplaySettings";
+import { useFavouriteStops } from "@/hooks/useFavouriteStops";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useRoutesFromUrl } from "@/hooks/useRoutesFromUrl";
+import { useStopFromUrl } from "@/hooks/useStopFromUrl";
+import { useViewFromUrl } from "@/hooks/useViewFromUrl";
 import { normalizeDisplaySettings } from "@/lib/displaySettings";
 import {
   migrateFavouriteRoutes,
   removeFavouriteRoute,
   toggleFavouriteRoute,
+  isFavouriteRoute,
   type FavouriteRoute,
 } from "@/lib/favouriteRoutes";
+import { isFavouriteStop as checkFavouriteStop } from "@/lib/favouriteStops";
 import { formatFriendlyError } from "@/lib/errors";
 import {
   normalizeAlertPreferencesMap,
   type RouteAlertPreferences,
 } from "@/lib/routeAlerts";
+import type { StopDetailTarget } from "@/lib/stopDetail";
+import {
+  MAX_ACTIVE_ROUTES,
+  addActiveRoute,
+  addRecentRoute,
+  createActiveRoute,
+} from "@/lib/storage";
 import type { ActiveRoute } from "@/lib/tfl/types";
 import { STORAGE_KEYS } from "@/lib/storage";
 
@@ -48,7 +61,15 @@ export default function HomePage(): React.ReactElement {
       EMPTY_ALERT_PREFERENCES,
     );
   const [displaySettings, , displayHydrated] = useDisplaySettings();
+  const {
+    favouriteStops,
+    isHydrated: favouriteStopsHydrated,
+    toggleFavourite: toggleFavouriteStop,
+    removeFavourite: removeFavouriteStop,
+    clearFavourites: clearFavouriteStops,
+  } = useFavouriteStops();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [selectedStop, setSelectedStop] = useState<StopDetailTarget | null>(null);
   const [urlLoadWarning, setUrlLoadWarning] = useState<{
     title: string;
     message: string;
@@ -61,7 +82,10 @@ export default function HomePage(): React.ReactElement {
     recentHydrated &&
     favouritesHydrated &&
     alertsHydrated &&
-    displayHydrated;
+    displayHydrated &&
+    favouriteStopsHydrated;
+
+  const urlVisualMode = useViewFromUrl(isHydrated);
 
   useEffect(() => {
     if (!favouritesHydrated) {
@@ -85,16 +109,43 @@ export default function HomePage(): React.ReactElement {
     },
   });
 
-  const handleToggleFavourite = (route: Pick<ActiveRoute, "routeId" | "routeName">) => {
+  const handleOpenStop = useCallback((stop: StopDetailTarget) => {
+    setSelectedStop(stop);
+  }, []);
+
+  useStopFromUrl({
+    isHydrated,
+    favouriteStops,
+    onOpenStop: handleOpenStop,
+  });
+
+  const migratedFavourites = migrateFavouriteRoutes(favouriteRoutes);
+
+  const handleToggleFavouriteRoute = (
+    route: Pick<ActiveRoute, "routeId" | "routeName">,
+  ) => {
     setFavouriteRoutes((current) =>
       toggleFavouriteRoute(migrateFavouriteRoutes(current), route),
     );
   };
 
-  const handleRemoveFavourite = (routeId: string) => {
+  const handleRemoveFavouriteRoute = (routeId: string) => {
     setFavouriteRoutes((current) =>
       removeFavouriteRoute(migrateFavouriteRoutes(current), routeId),
     );
+  };
+
+  const handleAddRouteFromStop = (routeId: string, routeName: string) => {
+    if (activeRoutes.some((route) => route.routeId === routeId)) {
+      return;
+    }
+    if (activeRoutes.length >= MAX_ACTIVE_ROUTES) {
+      return;
+    }
+
+    const route = createActiveRoute(routeId, routeName);
+    setActiveRoutes(addActiveRoute(activeRoutes, route));
+    setRecentRoutes(addRecentRoute(recentRoutes, route));
   };
 
   const handleAlertPreferencesChange = (preferences: RouteAlertPreferences) => {
@@ -155,18 +206,31 @@ export default function HomePage(): React.ReactElement {
             <RouteSearch
               activeRoutes={activeRoutes}
               recentRoutes={recentRoutes}
-              favouriteRoutes={migrateFavouriteRoutes(favouriteRoutes)}
+              favouriteRoutes={migratedFavourites}
+              favouriteStops={favouriteStops}
+              defaultView={normalizedDisplaySettings.defaultVisualMode}
               onActiveRoutesChange={setActiveRoutes}
               onRecentRoutesChange={setRecentRoutes}
-              onRemoveFavourite={handleRemoveFavourite}
+              onRemoveFavouriteRoute={handleRemoveFavouriteRoute}
+              onToggleFavouriteRoute={handleToggleFavouriteRoute}
+              onToggleFavouriteStop={toggleFavouriteStop}
+              onRemoveFavouriteStop={removeFavouriteStop}
+              onOpenStop={handleOpenStop}
+              isFavouriteRoute={(routeId) =>
+                isFavouriteRoute(migratedFavourites, routeId)
+              }
+              isFavouriteStop={(stopPointId) =>
+                checkFavouriteStop(favouriteStops, stopPointId)
+              }
             />
             <ActiveRoutes
               activeRoutes={activeRoutes}
-              favouriteRoutes={migrateFavouriteRoutes(favouriteRoutes)}
+              favouriteRoutes={migratedFavourites}
               alertPreferences={normalizeAlertPreferencesMap(alertPreferences)}
               displaySettings={normalizedDisplaySettings}
+              urlVisualMode={urlVisualMode}
               onActiveRoutesChange={setActiveRoutes}
-              onToggleFavourite={handleToggleFavourite}
+              onToggleFavourite={handleToggleFavouriteRoute}
               onAlertPreferencesChange={handleAlertPreferencesChange}
             />
           </>
@@ -178,10 +242,36 @@ export default function HomePage(): React.ReactElement {
       </main>
 
       <Footer />
+
+      <StopArrivalsModal
+        stop={selectedStop}
+        activeRouteIds={activeRoutes.map((route) => route.routeId)}
+        isFavourite={
+          selectedStop
+            ? checkFavouriteStop(favouriteStops, selectedStop.stopPointId)
+            : false
+        }
+        onToggleFavourite={
+          selectedStop
+            ? () =>
+                toggleFavouriteStop({
+                  stopPointId: selectedStop.stopPointId,
+                  name: selectedStop.name,
+                  stopLetter: selectedStop.stopLetter,
+                  routesServed: selectedStop.routesServed,
+                })
+            : undefined
+        }
+        onAddRoute={handleAddRouteFromStop}
+        onClose={() => setSelectedStop(null)}
+      />
+
       {settingsOpen ? (
         <SettingsPanel
           isOpen={settingsOpen}
           onClose={() => setSettingsOpen(false)}
+          favouriteStops={favouriteStops}
+          onClearFavouriteStops={clearFavouriteStops}
         />
       ) : null}
     </div>

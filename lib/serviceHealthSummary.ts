@@ -53,7 +53,7 @@ export function buildServiceHealthSummary(
 
   chips.push({
     id: "health",
-    label: `${metrics.healthLabel} ${metrics.healthScore}/100`,
+    label: `${metrics.healthScore} · ${metrics.healthLabel}`,
     variant: healthVariant(metrics.healthScore),
   });
 
@@ -93,8 +93,8 @@ export function buildServiceHealthSummary(
       id: "ghost",
       label:
         metrics.possibleGhostCount === 1
-          ? "1 possible ghost"
-          : `${metrics.possibleGhostCount} possible ghosts`,
+          ? "1 ghost"
+          : `${metrics.possibleGhostCount} ghosts`,
       variant: "ghost",
     });
   }
@@ -105,7 +105,7 @@ export function buildServiceHealthSummary(
   ) {
     chips.push({
       id: "gap",
-      label: `Gap ${metrics.largestGapMinutes} min`,
+      label: `${metrics.largestGapMinutes} min gap`,
       variant: "warning",
     });
   }

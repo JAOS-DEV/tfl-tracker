@@ -4,6 +4,7 @@ export const STORAGE_KEYS = {
   activeRoutes: "tfl-tracker:active-routes",
   recentRoutes: "tfl-tracker:recent-routes",
   favouriteRoutes: "tfl-tracker:favourite-routes",
+  favouriteStops: "tfl-tracker:favourite-stops",
   routeAlertPreferences: "tfl-tracker:route-alert-preferences",
   theme: "tfl-tracker:theme",
   routeHistory: "tfl-tracker:route-history",
@@ -43,6 +44,17 @@ export function addRecentRoute(
 ): ActiveRoute[] {
   const filtered = recentRoutes.filter((item) => item.routeId !== route.routeId);
   return [route, ...filtered].slice(0, MAX_RECENT_ROUTES);
+}
+
+export function createActiveRoute(
+  routeId: string,
+  routeName: string,
+): ActiveRoute {
+  return {
+    routeId,
+    routeName,
+    addedAt: Date.now(),
+  };
 }
 
 export function addActiveRoute(

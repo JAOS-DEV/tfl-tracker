@@ -1,37 +1,111 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { FavouritesSection } from "@/components/FavouritesSection";
+import { ShareLinkButton } from "@/components/ShareLinkButton";
 import type { FavouriteRoute } from "@/lib/favouriteRoutes";
+import type { FavouriteStop } from "@/lib/favouriteStops";
+import {
+  looksLikeRouteNumber,
+  normalizeDiscoveryQuery,
+} from "@/lib/discoverySearch";
 import { formatFriendlyError } from "@/lib/errors";
-import type { ActiveRoute, LineSearchResult } from "@/lib/tfl/types";
+import { getGeolocationErrorInfo, requestCurrentPosition } from "@/lib/nearbyStops";
+import { buildRoutesSearchUrl } from "@/lib/routeUrl";
+import type { StopDetailTarget } from "@/lib/stopDetail";
+import type {
+  ActiveRoute,
+  LineSearchResult,
+  NearbyStopResult,
+  StopSearchResult,
+} from "@/lib/tfl/types";
 import {
   MAX_ACTIVE_ROUTES,
   addActiveRoute,
   addRecentRoute,
+  createActiveRoute,
   removeRecentRoute,
 } from "@/lib/storage";
+
+type DiscoveryTab = "routes" | "stops" | "nearby";
 
 interface RouteSearchProps {
   activeRoutes: ActiveRoute[];
   recentRoutes: ActiveRoute[];
   favouriteRoutes: FavouriteRoute[];
+  favouriteStops: FavouriteStop[];
+  defaultView?: "loop" | "list";
   onActiveRoutesChange: (routes: ActiveRoute[]) => void;
   onRecentRoutesChange: (routes: ActiveRoute[]) => void;
-  onRemoveFavourite: (routeId: string) => void;
+  onRemoveFavouriteRoute: (routeId: string) => void;
+  onToggleFavouriteRoute: (
+    route: Pick<ActiveRoute, "routeId" | "routeName">,
+  ) => void;
+  onToggleFavouriteStop: (stop: Omit<FavouriteStop, "favouritedAt">) => void;
+  onRemoveFavouriteStop: (stopPointId: string) => void;
+  onOpenStop: (stop: StopDetailTarget) => void;
+  isFavouriteRoute: (routeId: string) => boolean;
+  isFavouriteStop: (stopPointId: string) => boolean;
 }
+
+interface DiscoveryResults {
+  routes: LineSearchResult[];
+  stops: StopSearchResult[];
+  nearby: NearbyStopResult[];
+}
+
+const EMPTY_RESULTS: DiscoveryResults = {
+  routes: [],
+  stops: [],
+  nearby: [],
+};
 
 export function RouteSearch({
   activeRoutes,
   recentRoutes,
   favouriteRoutes,
+  favouriteStops,
+  defaultView,
   onActiveRoutesChange,
   onRecentRoutesChange,
-  onRemoveFavourite,
+  onRemoveFavouriteRoute,
+  onToggleFavouriteRoute,
+  onToggleFavouriteStop,
+  onRemoveFavouriteStop,
+  onOpenStop,
+  isFavouriteRoute,
+  isFavouriteStop,
 }: RouteSearchProps): React.ReactElement {
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [isFindingNearby, setIsFindingNearby] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorAction, setErrorAction] = useState<string | null>(null);
+  const [results, setResults] = useState<DiscoveryResults>(EMPTY_RESULTS);
+  const [activeTab, setActiveTab] = useState<DiscoveryTab>("routes");
+  const [hasSearched, setHasSearched] = useState(false);
+
+  const shareUrl =
+    typeof window !== "undefined"
+      ? new URL(
+          buildRoutesSearchUrl(
+            activeRoutes.map((route) => route.routeId),
+            defaultView,
+          ),
+          window.location.origin,
+        ).toString()
+      : buildRoutesSearchUrl(
+          activeRoutes.map((route) => route.routeId),
+          defaultView,
+        );
+
+  const defaultTab = useMemo<DiscoveryTab>(() => {
+    const normalized = normalizeDiscoveryQuery(query);
+    if (!normalized) {
+      return "routes";
+    }
+    return looksLikeRouteNumber(normalized) ? "routes" : "stops";
+  }, [query]);
 
   const handleAddRoute = async (routeId: string, routeName: string) => {
     setError(null);
@@ -47,19 +121,17 @@ export function RouteSearch({
       return;
     }
 
-    const route: ActiveRoute = {
-      routeId,
-      routeName,
-      addedAt: Date.now(),
-    };
+    const route = createActiveRoute(routeId, routeName);
 
     onActiveRoutesChange(addActiveRoute(activeRoutes, route));
     onRecentRoutesChange(addRecentRoute(recentRoutes, route));
     setQuery("");
+    setResults(EMPTY_RESULTS);
+    setHasSearched(false);
   };
 
   const handleSearch = async () => {
-    const trimmed = query.trim();
+    const trimmed = normalizeDiscoveryQuery(query);
     if (!trimmed) {
       return;
     }
@@ -67,64 +139,141 @@ export function RouteSearch({
     setIsSearching(true);
     setError(null);
     setErrorAction(null);
+    setHasSearched(true);
+    setActiveTab(looksLikeRouteNumber(trimmed) ? "routes" : "stops");
 
     try {
-      const response = await fetch(
-        `/api/tfl/line-search?query=${encodeURIComponent(trimmed)}`,
-      );
+      const [routeResponse, stopResponse] = await Promise.all([
+        fetch(`/api/tfl/line-search?query=${encodeURIComponent(trimmed)}`),
+        fetch(`/api/tfl/stop-search?query=${encodeURIComponent(trimmed)}`),
+      ]);
 
-      if (!response.ok) {
-        const payload = (await response.json()) as { error?: string };
-        const friendly = formatFriendlyError(
-          new Error(payload.error ?? "Route search failed"),
-        );
+      let routeResults: LineSearchResult[] = [];
+      let stopResults: StopSearchResult[] = [];
+
+      if (routeResponse.ok) {
+        const routeData = (await routeResponse.json()) as {
+          results: LineSearchResult[];
+        };
+        routeResults = routeData.results;
+      }
+
+      if (stopResponse.ok) {
+        const stopData = (await stopResponse.json()) as {
+          results: StopSearchResult[];
+        };
+        stopResults = stopData.results;
+      }
+
+      if (!routeResponse.ok && !stopResponse.ok) {
+        const friendly = formatFriendlyError(new Error("Search failed"));
         setError(friendly.message);
         setErrorAction(friendly.action ?? null);
+        setResults(EMPTY_RESULTS);
         return;
       }
 
-      const data = (await response.json()) as { results: LineSearchResult[] };
+      setResults({
+        routes: routeResults,
+        stops: stopResults,
+        nearby: [],
+      });
 
-      if (data.results.length === 0) {
+      if (routeResults.length === 0 && stopResults.length === 0) {
         const friendly = formatFriendlyError(
-          new Error(`No bus route found for "${trimmed}".`),
+          new Error(`No routes or stops found for "${trimmed}".`),
         );
         setError(friendly.message);
         setErrorAction(friendly.action ?? null);
-        return;
       }
-
-      const exact = data.results.find(
-        (result) => result.id.toLowerCase() === trimmed.toLowerCase(),
-      );
-      const selected = exact ?? data.results[0];
-
-      await handleAddRoute(selected.id, selected.name);
     } catch (searchError) {
       const friendly = formatFriendlyError(searchError);
       setError(friendly.message);
       setErrorAction(friendly.action ?? null);
+      setResults(EMPTY_RESULTS);
     } finally {
       setIsSearching(false);
     }
   };
 
+  const handleFindNearby = async () => {
+    setIsFindingNearby(true);
+    setError(null);
+    setErrorAction(null);
+    setHasSearched(true);
+    setActiveTab("nearby");
+
+    try {
+      const position = await requestCurrentPosition();
+      const response = await fetch(
+        `/api/tfl/nearby-stops?lat=${position.coords.latitude}&lon=${position.coords.longitude}&radius=1000`,
+      );
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        const friendly = formatFriendlyError(
+          new Error(payload.error ?? "Nearby stop lookup failed"),
+        );
+        setError(friendly.message);
+        setErrorAction(friendly.action ?? null);
+        return;
+      }
+
+      const data = (await response.json()) as { results: NearbyStopResult[] };
+      setResults((current) => ({
+        ...current,
+        nearby: data.results,
+      }));
+
+      if (data.results.length === 0) {
+        setError("No nearby bus stops found within about 1 km.");
+      }
+    } catch (nearbyError) {
+      if (nearbyError instanceof GeolocationPositionError) {
+        const info = getGeolocationErrorInfo(nearbyError);
+        setError(info.message);
+        setErrorAction(info.title);
+      } else {
+        const friendly = formatFriendlyError(nearbyError);
+        setError(friendly.message);
+        setErrorAction(friendly.action ?? null);
+      }
+    } finally {
+      setIsFindingNearby(false);
+    }
+  };
+
+  const openStop = (stop: StopSearchResult | NearbyStopResult | FavouriteStop) => {
+    onOpenStop({
+      stopPointId: stop.stopPointId,
+      name: stop.name,
+      stopLetter: stop.stopLetter,
+      routesServed: stop.routesServed,
+    });
+  };
+
+  const visibleTab = hasSearched ? activeTab : defaultTab;
+
   return (
     <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-        Add a bus route
-      </h2>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-        Enter a route number such as 337, 220, or N87. Share routes with{" "}
-        <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
-          ?routes=337,220
-        </code>
-        . Up to {MAX_ACTIVE_ROUTES} routes can be active.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            Discover routes &amp; stops
+          </h2>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            Search by route number, destination area, or stop name. Up to{" "}
+            {MAX_ACTIVE_ROUTES} active routes.
+          </p>
+        </div>
+        {activeRoutes.length > 0 ? (
+          <ShareLinkButton url={shareUrl} label="Share active routes" />
+        ) : null}
+      </div>
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <input
-          type="text"
+          type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
@@ -132,7 +281,7 @@ export function RouteSearch({
               void handleSearch();
             }
           }}
-          placeholder="e.g. 337"
+          placeholder="e.g. 337, Richmond, Clapham Junction"
           className="min-h-11 flex-1 rounded-xl border border-zinc-300 bg-white px-4 text-base text-zinc-900 outline-none ring-sky-500 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
         />
         <button
@@ -143,8 +292,24 @@ export function RouteSearch({
           disabled={isSearching || !query.trim()}
           className="min-h-11 rounded-xl bg-sky-600 px-5 font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isSearching ? "Searching…" : "Add Route"}
+          {isSearching ? "Searching…" : "Search"}
         </button>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <button
+          type="button"
+          onClick={() => {
+            void handleFindNearby();
+          }}
+          disabled={isFindingNearby}
+          className="min-h-11 rounded-xl border border-zinc-300 px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+        >
+          {isFindingNearby ? "Finding nearby stops…" : "Find stops near me"}
+        </button>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          Location is only used to find nearby stops.
+        </p>
       </div>
 
       {error ? (
@@ -158,39 +323,204 @@ export function RouteSearch({
         </div>
       ) : null}
 
-      {favouriteRoutes.length > 0 ? (
+      {hasSearched ? (
         <div className="mt-4">
-          <p className="text-xs uppercase tracking-wide text-zinc-500">
-            Favourites
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {favouriteRoutes.map((route) => (
-              <div
-                key={route.routeId}
-                className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-50 px-1 py-1 dark:bg-amber-950/30"
+          <div className="inline-flex w-full rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800">
+            {(["routes", "stops", "nearby"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                aria-pressed={visibleTab === tab}
+                className={`min-h-10 flex-1 rounded-md px-3 py-2 text-sm font-medium capitalize ${
+                  visibleTab === tab
+                    ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100"
+                    : "text-zinc-600 dark:text-zinc-300"
+                }`}
               >
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleAddRoute(route.routeId, route.routeName);
-                  }}
-                  className="min-h-11 rounded-full px-3 py-2 text-sm hover:bg-amber-100 dark:hover:bg-amber-900/40"
-                >
-                  ★ {route.routeId} · {route.routeName}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onRemoveFavourite(route.routeId)}
-                  className="min-h-11 min-w-11 rounded-full text-sm text-amber-700 dark:text-amber-300"
-                  aria-label={`Remove ${route.routeId} from favourites`}
-                >
-                  ×
-                </button>
-              </div>
+                {tab}
+                {tab === "routes" && results.routes.length > 0
+                  ? ` (${results.routes.length})`
+                  : ""}
+                {tab === "stops" && results.stops.length > 0
+                  ? ` (${results.stops.length})`
+                  : ""}
+                {tab === "nearby" && results.nearby.length > 0
+                  ? ` (${results.nearby.length})`
+                  : ""}
+              </button>
             ))}
           </div>
+
+          {visibleTab === "routes" ? (
+            <div className="mt-3 space-y-2">
+              {results.routes.length === 0 ? (
+                <p className="text-sm text-zinc-500">No matching routes.</p>
+              ) : (
+                results.routes.map((route) => (
+                  <div
+                    key={route.id}
+                    className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-lg bg-red-600 px-2 py-0.5 text-sm font-bold text-white">
+                          {route.id}
+                        </span>
+                        <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                          {route.name}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleAddRoute(route.id, route.name);
+                        }}
+                        className="min-h-11 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white"
+                      >
+                        Add route
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onToggleFavouriteRoute({
+                            routeId: route.id,
+                            routeName: route.name,
+                          })
+                        }
+                        className="min-h-11 rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+                      >
+                        {isFavouriteRoute(route.id) ? "★ Favourited" : "☆ Favourite"}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : null}
+
+          {visibleTab === "stops" ? (
+            <div className="mt-3 space-y-2">
+              {results.stops.length === 0 ? (
+                <p className="text-sm text-zinc-500">No matching stops.</p>
+              ) : (
+                results.stops.map((stop) => (
+                  <div
+                    key={stop.stopPointId}
+                    className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                        {stop.name}
+                        {stop.stopLetter ? ` (${stop.stopLetter})` : ""}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        {stop.stopPointId}
+                        {stop.routesServed.length > 0
+                          ? ` · ${stop.routesServed.slice(0, 6).join(", ")}`
+                          : ""}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openStop(stop)}
+                        className="min-h-11 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white"
+                      >
+                        View arrivals
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onToggleFavouriteStop({
+                            stopPointId: stop.stopPointId,
+                            name: stop.name,
+                            stopLetter: stop.stopLetter,
+                            routesServed: stop.routesServed,
+                          })
+                        }
+                        className="min-h-11 rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+                      >
+                        {isFavouriteStop(stop.stopPointId)
+                          ? "★ Favourited"
+                          : "☆ Favourite"}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : null}
+
+          {visibleTab === "nearby" ? (
+            <div className="mt-3 space-y-2">
+              {results.nearby.length === 0 ? (
+                <p className="text-sm text-zinc-500">
+                  Tap “Find stops near me” to search nearby bus stops.
+                </p>
+              ) : (
+                results.nearby.map((stop) => (
+                  <div
+                    key={stop.stopPointId}
+                    className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                        {stop.name}
+                        {stop.stopLetter ? ` (${stop.stopLetter})` : ""}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        {Math.round(stop.distanceMetres)} m away
+                        {stop.routesServed.length > 0
+                          ? ` · ${stop.routesServed.slice(0, 6).join(", ")}`
+                          : ""}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openStop(stop)}
+                        className="min-h-11 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white"
+                      >
+                        View arrivals
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onToggleFavouriteStop({
+                            stopPointId: stop.stopPointId,
+                            name: stop.name,
+                            stopLetter: stop.stopLetter,
+                            routesServed: stop.routesServed,
+                          })
+                        }
+                        className="min-h-11 rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+                      >
+                        {isFavouriteStop(stop.stopPointId)
+                          ? "★ Favourited"
+                          : "☆ Favourite"}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : null}
         </div>
       ) : null}
+
+      <FavouritesSection
+        favouriteRoutes={favouriteRoutes}
+        favouriteStops={favouriteStops}
+        onAddRoute={(routeId, routeName) => {
+          void handleAddRoute(routeId, routeName);
+        }}
+        onRemoveRoute={onRemoveFavouriteRoute}
+        onOpenStop={openStop}
+        onRemoveStop={onRemoveFavouriteStop}
+      />
 
       {recentRoutes.length > 0 ? (
         <div className="mt-4">

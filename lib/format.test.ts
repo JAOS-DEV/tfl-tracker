@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { wrapStopLabel } from "@/lib/format";
+import { formatDueLabel, wrapStopLabel } from "@/lib/format";
+
+describe("formatDueLabel", () => {
+  it("formats due-now and minute labels", () => {
+    expect(formatDueLabel(0)).toBe("Due");
+    expect(formatDueLabel(60)).toBe("1 min");
+    expect(formatDueLabel(180)).toBe("3 min");
+  });
+});
 
 describe("wrapStopLabel", () => {
   it("returns a single line for short names", () => {

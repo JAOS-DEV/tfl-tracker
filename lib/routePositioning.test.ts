@@ -76,8 +76,8 @@ describe("stopProgress", () => {
     expect(stopProgress("outbound", 2, 3)).toBeLessThan(0.5);
   });
 
-  it("maps inbound stops from right to left along the bottom half", () => {
-    expect(stopProgress("inbound", 0, 2)).toBeGreaterThan(
+  it("maps inbound stops from bottom to top along the return leg", () => {
+    expect(stopProgress("inbound", 0, 2)).toBeLessThan(
       stopProgress("inbound", 1, 2),
     );
     expect(stopProgress("inbound", 0, 2)).toBeGreaterThan(0.5);
@@ -114,6 +114,40 @@ describe("estimateVehiclePositionOnRoute", () => {
     expect(estimate.nextStop?.name).toBe("Stop B");
     expect(estimate.progress).toBeGreaterThan(0);
     expect(estimate.progress).toBeLessThan(0.5);
+  });
+
+  it("places inbound buses upstream of the predicted stop while still approaching", () => {
+    const inboundPrediction: NormalizedVehiclePrediction = {
+      ...samplePrediction,
+      naptanId: "490000005E",
+      stopName: "Stop E",
+      direction: "inbound",
+      timeToStation: 180,
+    };
+
+    const estimate = estimateVehiclePositionOnRoute(
+      inboundPrediction,
+      sampleRoute,
+    );
+    const stopProgressAtPrediction = stopProgress(
+      "inbound",
+      estimate.stopIndex,
+      sampleRoute.inbound.length,
+    );
+
+    expect(estimate.direction).toBe("inbound");
+    expect(estimate.progress).toBeLessThan(stopProgressAtPrediction);
+  });
+
+  it("places outbound buses upstream of the predicted stop while still approaching", () => {
+    const estimate = estimateVehiclePositionOnRoute(samplePrediction, sampleRoute);
+    const stopProgressAtPrediction = stopProgress(
+      "outbound",
+      estimate.stopIndex,
+      sampleRoute.outbound.length,
+    );
+
+    expect(estimate.progress).toBeLessThan(stopProgressAtPrediction);
   });
 });
 
@@ -166,14 +200,14 @@ describe("buildLoopPath", () => {
     const endpoints = getLoopLegEndpoints(sampleRoute, mobileLayout);
 
     expect(endpoints.outboundStart.y).toBeLessThan(endpoints.outboundEnd.y);
-    expect(endpoints.inboundStart.y).toBeLessThan(endpoints.inboundEnd.y);
+    expect(endpoints.inboundStart.y).toBeGreaterThan(endpoints.inboundEnd.y);
 
     const path = buildLoopPath(sampleRoute, mobileLayout);
     expect(path).toContain(
-      `${endpoints.outboundEnd.x} ${endpoints.outboundEnd.y} L ${endpoints.inboundEnd.x} ${endpoints.inboundEnd.y}`,
-    );
-    expect(path).not.toContain(
       `${endpoints.outboundEnd.x} ${endpoints.outboundEnd.y} L ${endpoints.inboundStart.x} ${endpoints.inboundStart.y}`,
+    );
+    expect(path).toContain(
+      `${endpoints.inboundStart.x} ${endpoints.inboundStart.y} L ${endpoints.inboundEnd.x} ${endpoints.inboundEnd.y}`,
     );
   });
 });

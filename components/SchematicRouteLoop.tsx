@@ -161,6 +161,10 @@ export function SchematicRouteLoop({
           <span className="h-3 w-3 rounded-full bg-red-500" />
           Late
         </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="h-3 w-3 rounded-full border-2 border-zinc-400 bg-zinc-400/25 dark:border-zinc-400 dark:bg-zinc-500/25" />
+          Possible ghost
+        </span>
       </div>
 
       <div className="mb-3">
@@ -203,8 +207,8 @@ export function SchematicRouteLoop({
           <RouteLoopDirectionChevrons
             layout={layout}
             direction="inbound"
-            legStart={legEndpoints.inboundEnd}
-            legEnd={legEndpoints.inboundStart}
+            legStart={legEndpoints.inboundStart}
+            legEnd={legEndpoints.inboundEnd}
           />
 
           <polygon

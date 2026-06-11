@@ -15,10 +15,13 @@ import {
   loadAllSnapshots,
 } from "@/lib/localRouteHistory";
 import { DEFAULT_LARGE_GAP_MINUTES } from "@/lib/routeAlerts";
+import type { FavouriteStop } from "@/lib/favouriteStops";
 
 interface SettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  favouriteStops?: FavouriteStop[];
+  onClearFavouriteStops?: () => void;
 }
 
 function downloadTextFile(filename: string, content: string, mimeType: string): void {
@@ -61,6 +64,8 @@ function SegmentedOption<T extends string>({
 export function SettingsPanel({
   isOpen,
   onClose,
+  favouriteStops = [],
+  onClearFavouriteStops,
 }: SettingsPanelProps): React.ReactElement | null {
   const [settings, setSettings] = useDisplaySettings();
   const { clearAll } = useAllRouteHistory();
@@ -283,6 +288,63 @@ export function SettingsPanel({
           >
             Reset alert defaults
           </button>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Favourite stops
+          </h3>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Favourite stops are stored locally on this device only.
+          </p>
+          {favouriteStops.length > 0 ? (
+            <p className="text-sm text-zinc-700 dark:text-zinc-300">
+              {favouriteStops.length} saved stop
+              {favouriteStops.length === 1 ? "" : "s"}
+            </p>
+          ) : (
+            <p className="text-sm text-zinc-500">No favourite stops saved yet.</p>
+          )}
+          {onClearFavouriteStops ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Clear all favourite stops on this device?",
+                  )
+                ) {
+                  onClearFavouriteStops();
+                }
+              }}
+              disabled={favouriteStops.length === 0}
+              className="min-h-11 rounded-lg border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+            >
+              Clear favourite stops
+            </button>
+          ) : null}
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Sharing &amp; privacy
+          </h3>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Share links copy your active routes to the URL, for example{" "}
+            <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
+              ?routes=337,220&amp;view=loop
+            </code>
+            . Stop links use{" "}
+            <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
+              ?stop=490000001A
+            </code>
+            . Nothing is stored on a server.
+          </p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Nearby stops uses your browser location only when you tap “Find
+            stops near me”. Location is not saved or sent anywhere except the
+            TfL nearby stop lookup.
+          </p>
         </section>
 
         <section className="space-y-3">

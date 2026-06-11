@@ -1,10 +1,12 @@
 import type {
   LineSearchResult,
+  NearbyStopResult,
   NormalizedRoute,
   NormalizedStop,
   NormalizedVehiclePrediction,
   RouteDirection,
   RouteStatus,
+  StopSearchResult,
   TflPrediction,
   TflRouteSequence,
   TflStopPoint,
@@ -233,6 +235,102 @@ export function normalizeLineStatus(
     reason: primary?.reason,
     disruption: disruptionText,
   };
+}
+
+interface RawStopSearchItem {
+  id: string;
+  name: string;
+  indicator?: string;
+  stopLetter?: string;
+  towards?: string;
+  modes?: string[];
+  lines?: Array<string | { id?: string; name?: string }>;
+  distance?: number;
+}
+
+function extractRoutesServed(lines: RawStopSearchItem["lines"]): string[] {
+  if (!lines) {
+    return [];
+  }
+
+  const routes: string[] = [];
+  const seen = new Set<string>();
+
+  for (const line of lines) {
+    const value =
+      typeof line === "string"
+        ? line
+        : line.name ?? line.id;
+    if (!value) {
+      continue;
+    }
+    const normalized = value.trim();
+    if (!normalized || seen.has(normalized.toLowerCase())) {
+      continue;
+    }
+    seen.add(normalized.toLowerCase());
+    routes.push(normalized);
+  }
+
+  return routes.slice(0, 8);
+}
+
+function normalizeStopSearchItem(stop: RawStopSearchItem): StopSearchResult {
+  return {
+    stopPointId: stop.id,
+    name: stop.name,
+    stopLetter: stop.stopLetter ?? stop.indicator,
+    towards: stop.towards,
+    modes: stop.modes ?? [],
+    routesServed: extractRoutesServed(stop.lines),
+  };
+}
+
+function isBusStop(stop: RawStopSearchItem): boolean {
+  return (stop.modes ?? []).some((mode) => mode.toLowerCase() === "bus");
+}
+
+export function normalizeStopSearch(
+  raw: RawStopSearchItem[],
+): StopSearchResult[] {
+  const seen = new Set<string>();
+
+  return raw
+    .filter(isBusStop)
+    .map(normalizeStopSearchItem)
+    .filter((stop) => {
+      if (seen.has(stop.stopPointId)) {
+        return false;
+      }
+      seen.add(stop.stopPointId);
+      return true;
+    });
+}
+
+export function normalizeNearbyStops(
+  raw: RawStopSearchItem[],
+): NearbyStopResult[] {
+  const seen = new Set<string>();
+  const results: NearbyStopResult[] = [];
+
+  for (const item of raw) {
+    if (!isBusStop(item)) {
+      continue;
+    }
+
+    const stop = normalizeStopSearchItem(item);
+    if (seen.has(stop.stopPointId)) {
+      continue;
+    }
+
+    seen.add(stop.stopPointId);
+    results.push({
+      ...stop,
+      distanceMetres: item.distance ?? 0,
+    });
+  }
+
+  return results.sort((left, right) => left.distanceMetres - right.distanceMetres);
 }
 
 export function getDestinationSummary(

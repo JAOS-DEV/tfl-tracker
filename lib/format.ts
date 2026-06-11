@@ -3,6 +3,17 @@ export function formatMinutes(seconds: number): string {
   return `${minutes} min`;
 }
 
+export function formatDueLabel(seconds: number): string {
+  const minutes = Math.max(0, Math.round(seconds / 60));
+  if (minutes <= 0) {
+    return "Due";
+  }
+  if (minutes === 1) {
+    return "1 min";
+  }
+  return `${minutes} min`;
+}
+
 export function formatLocalTime(isoDate: string): string {
   const date = new Date(isoDate);
   if (Number.isNaN(date.getTime())) {

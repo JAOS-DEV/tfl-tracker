@@ -85,6 +85,19 @@ export interface LineSearchResult {
   }>;
 }
 
+export interface StopSearchResult {
+  stopPointId: string;
+  name: string;
+  stopLetter?: string;
+  towards?: string;
+  modes: string[];
+  routesServed: string[];
+}
+
+export interface NearbyStopResult extends StopSearchResult {
+  distanceMetres: number;
+}
+
 export interface HeadwayInfo {
   nextMinutes: number | null;
   gapMinutes: number | null;

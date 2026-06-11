@@ -8,25 +8,31 @@ interface RouteLoopDirectionChevronsProps {
   legEnd: { x: number; y: number };
 }
 
-function chevronPoints(
+function chevronPointsAlongLeg(
   x: number,
   y: number,
-  direction: RouteDirection,
-  layout: LoopLayoutConfig,
+  legStart: { x: number; y: number },
+  legEnd: { x: number; y: number },
+  size: number,
 ): string {
-  const size = 10;
+  const dx = legEnd.x - legStart.x;
+  const dy = legEnd.y - legStart.y;
+  const length = Math.hypot(dx, dy) || 1;
+  const unitX = dx / length;
+  const unitY = dy / length;
+  const perpX = -unitY;
+  const perpY = unitX;
 
-  if (layout.orientation === "portrait") {
-    if (direction === "outbound") {
-      return `${x - size},${y - size} ${x + size},${y - size} ${x},${y + size}`;
-    }
-    return `${x - size},${y + size} ${x + size},${y + size} ${x},${y - size}`;
-  }
+  const tipX = x + unitX * size;
+  const tipY = y + unitY * size;
+  const backX = x - unitX * size * 0.35;
+  const backY = y - unitY * size * 0.35;
+  const leftX = backX + perpX * size * 0.85;
+  const leftY = backY + perpY * size * 0.85;
+  const rightX = backX - perpX * size * 0.85;
+  const rightY = backY - perpY * size * 0.85;
 
-  if (direction === "outbound") {
-    return `${x - size},${y - size} ${x + size},${y} ${x - size},${y + size}`;
-  }
-  return `${x + size},${y - size} ${x - size},${y} ${x + size},${y + size}`;
+  return `${tipX},${tipY} ${leftX},${leftY} ${rightX},${rightY}`;
 }
 
 export function RouteLoopDirectionChevrons({
@@ -42,6 +48,7 @@ export function RouteLoopDirectionChevrons({
       : Math.abs(legEnd.x - legStart.x);
   const count = Math.min(6, Math.max(3, Math.round(legLength / 90)));
   const chevrons: Array<{ x: number; y: number }> = [];
+  const laneOffset = direction === "outbound" ? 22 : -22;
 
   for (let index = 1; index <= count; index += 1) {
     const t = index / (count + 1);
@@ -49,14 +56,14 @@ export function RouteLoopDirectionChevrons({
     if (orientation === "portrait") {
       const y = legStart.y + (legEnd.y - legStart.y) * t;
       chevrons.push({
-        x: legStart.x + (direction === "outbound" ? 22 : -22),
+        x: legStart.x + laneOffset,
         y,
       });
     } else {
       const x = legStart.x + (legEnd.x - legStart.x) * t;
       chevrons.push({
         x,
-        y: legStart.y + (direction === "outbound" ? -22 : 22),
+        y: legStart.y + laneOffset,
       });
     }
   }
@@ -71,7 +78,13 @@ export function RouteLoopDirectionChevrons({
       {chevrons.map((point, index) => (
         <polygon
           key={`${direction}-chevron-${index}`}
-          points={chevronPoints(point.x, point.y, direction, layout)}
+          points={chevronPointsAlongLeg(
+            point.x,
+            point.y,
+            legStart,
+            legEnd,
+            10,
+          )}
           className={fillClass}
           opacity={0.85}
         />

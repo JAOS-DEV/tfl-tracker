@@ -17,7 +17,7 @@ export function StatusChipRow({ chips }: StatusChipRowProps): React.ReactElement
   }
 
   return (
-    <div className="-mx-1 flex flex-nowrap gap-1.5 overflow-x-auto px-1 pb-0.5 sm:flex-wrap sm:overflow-visible">
+    <div className="-mx-1 flex flex-wrap gap-1.5 px-1 pb-0.5">
       {chips.map((chip) => (
         <StatusPill
           key={chip.id}

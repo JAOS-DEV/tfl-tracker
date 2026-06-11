@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeLineSearch,
+  normalizeNearbyStops,
   normalizePredictions,
   normalizeRouteSequence,
+  normalizeStopSearch,
   predictionsForStop,
 } from "@/lib/tfl/normalizers";
 import type { TflPrediction } from "@/lib/tfl/types";
@@ -126,5 +128,56 @@ describe("normalizeLineSearch", () => {
     expect(results).toHaveLength(1);
     expect(results[0]?.id).toBe("337");
     expect(results[0]?.modeName).toBe("bus");
+  });
+});
+
+describe("normalizeStopSearch", () => {
+  it("filters to bus stops and normalizes route labels", () => {
+    const results = normalizeStopSearch([
+      {
+        id: "490000001A",
+        name: "Clapham Junction Station",
+        stopLetter: "A",
+        modes: ["bus"],
+        lines: ["37", { id: "337", name: "337" }],
+      },
+      {
+        id: "940GZZLUACT",
+        name: "Acton Town",
+        modes: ["tube"],
+      },
+    ]);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toEqual({
+      stopPointId: "490000001A",
+      name: "Clapham Junction Station",
+      stopLetter: "A",
+      towards: undefined,
+      modes: ["bus"],
+      routesServed: ["37", "337"],
+    });
+  });
+});
+
+describe("normalizeNearbyStops", () => {
+  it("sorts nearby bus stops by distance", () => {
+    const results = normalizeNearbyStops([
+      {
+        id: "far",
+        name: "Far Stop",
+        modes: ["bus"],
+        distance: 500,
+      },
+      {
+        id: "near",
+        name: "Near Stop",
+        modes: ["bus"],
+        distance: 50,
+      },
+    ]);
+
+    expect(results.map((stop) => stop.stopPointId)).toEqual(["near", "far"]);
+    expect(results[0]?.distanceMetres).toBe(50);
   });
 });
