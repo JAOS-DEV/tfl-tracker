@@ -33,7 +33,6 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(event.request.url);
 
-  // Never intercept or cache live TfL proxy routes.
   if (requestUrl.pathname.startsWith("/api/")) {
     return;
   }

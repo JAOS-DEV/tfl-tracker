@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# London Bus Tracker
 
-## Getting Started
+Monitor London bus routes with live TfL Open Data predictions, schematic loop views, stop arrivals, favourites, and local service alerts.
 
-First, run the development server:
+## Local development
+
+1. Copy `.env.local.example` to `.env.local` and add your [TfL API key](https://api-portal.tfl.gov.uk/).
+2. Install dependencies and start the dev server:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The app uses Next.js API routes under `/api/tfl/*` to proxy TfL requests and keep your API key on the server.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the Next.js dev server |
+| `npm run build` | Production build |
+| `npm test` | Run unit tests |
+| `npm run typecheck` | TypeScript check |
+| `npm run lint` | ESLint |
 
-To learn more about Next.js, take a look at the following resources:
+## Deploy to Vercel
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Push this repository to GitHub.
+2. Import the project in [Vercel](https://vercel.com/new).
+3. In Vercel Project Settings → Environment Variables, add:
+   - `TFL_API_KEY` — your TfL Open Data API key
+4. Deploy.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Vercel runs the Next.js app and the API routes in `app/api/tfl/*`. The browser calls relative paths like `/api/tfl/line-arrivals`; the TfL API key stays server-side and is never sent to the client.
 
-## Deploy on Vercel
+No extra `vercel.json` is required — Vercel’s Next.js defaults are sufficient.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## CI
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`.github/workflows/ci.yml` runs on pull requests and pushes to `main`:
+
+- typecheck
+- lint
+- tests
+- `npm run build`
+
+Deployment is handled by Vercel’s GitHub integration.
+
+## Environment variables
+
+| Variable | Where used | Description |
+| --- | --- | --- |
+| `TFL_API_KEY` | Server only | TfL Open Data API key (local `.env.local` or Vercel project settings) |

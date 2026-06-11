@@ -49,7 +49,6 @@ export async function tflFetch<T>(
   const request = (async () => {
     const response = await fetch(buildUrl(path), {
       headers: { Accept: "application/json" },
-      next: { revalidate: 0 },
     });
 
     if (!response.ok) {
