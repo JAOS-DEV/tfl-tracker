@@ -1,7 +1,5 @@
 import type { StopDisruption, ValidityPeriod } from "@/lib/tfl/types";
 
-const STOP_DISRUPTION_CHUNK_SIZE = 25;
-
 interface RawDisruptedPoint {
   atcoCode?: string;
   fromDate?: string;
@@ -115,26 +113,17 @@ export function indexStopDisruptions(
   return new Map(disruptions.map((disruption) => [disruption.naptanId, disruption]));
 }
 
-export function chunkStopPointIds(stopPointIds: string[]): string[][] {
-  const uniqueIds = [...new Set(stopPointIds.map((id) => id.trim()).filter(Boolean))];
-  const chunks: string[][] = [];
-
-  for (let index = 0; index < uniqueIds.length; index += STOP_DISRUPTION_CHUNK_SIZE) {
-    chunks.push(uniqueIds.slice(index, index + STOP_DISRUPTION_CHUNK_SIZE));
-  }
-
-  return chunks;
-}
-
-export async function fetchStopDisruptionsForIds(
+export function filterStopDisruptionsForIds(
+  disruptions: StopDisruption[],
   stopPointIds: string[],
-  fetchChunk: (ids: string[]) => Promise<unknown>,
-): Promise<StopDisruption[]> {
-  const chunks = chunkStopPointIds(stopPointIds);
-  if (chunks.length === 0) {
+): StopDisruption[] {
+  const stopIdSet = new Set(
+    stopPointIds.map((id) => id.trim()).filter(Boolean),
+  );
+
+  if (stopIdSet.size === 0) {
     return [];
   }
 
-  const responses = await Promise.all(chunks.map((chunk) => fetchChunk(chunk)));
-  return normalizeStopDisruptions(responses.flat());
+  return disruptions.filter((disruption) => stopIdSet.has(disruption.naptanId));
 }

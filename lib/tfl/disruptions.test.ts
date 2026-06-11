@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  chunkStopPointIds,
   cleanDisruptionText,
+  filterStopDisruptionsForIds,
   formatDisruptionPeriod,
   normalizeStopDisruptions,
 } from "@/lib/tfl/disruptions";
@@ -53,13 +53,29 @@ describe("normalizeStopDisruptions", () => {
   });
 });
 
-describe("chunkStopPointIds", () => {
-  it("deduplicates and chunks stop ids", () => {
-    const ids = Array.from({ length: 30 }, (_, index) => `49000000${index}A`);
-    const chunks = chunkStopPointIds([ids[0], ids[0], ...ids]);
+describe("filterStopDisruptionsForIds", () => {
+  it("returns only disruptions for the requested route stops", () => {
+    const disruptions = normalizeStopDisruptions([
+      {
+        atcoCode: "490014247W",
+        commonName: "Warspite Road",
+        type: "Closure",
+        description: "Bus Stop Closed",
+      },
+      {
+        atcoCode: "490099999Z",
+        commonName: "Other Stop",
+        type: "Closure",
+        description: "Closed",
+      },
+    ]);
 
-    expect(chunks).toHaveLength(2);
-    expect(chunks[0]).toHaveLength(25);
-    expect(chunks[1]).toHaveLength(5);
+    const filtered = filterStopDisruptionsForIds(disruptions, [
+      "490014247W",
+      "490000001A",
+    ]);
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.naptanId).toBe("490014247W");
   });
 });

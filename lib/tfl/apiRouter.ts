@@ -1,6 +1,9 @@
 import { handleApiErrorResponse, jsonResponse } from "@/lib/api";
 import { TIMETABLE_CACHE_TTL_MS } from "@/lib/constants";
-import { fetchStopDisruptionsForIds } from "@/lib/tfl/disruptions";
+import {
+  filterStopDisruptionsForIds,
+  normalizeStopDisruptions,
+} from "@/lib/tfl/disruptions";
 import { tflFetch } from "@/lib/tfl/client";
 import { normalizeTimetable } from "@/lib/tfl/timetableNormalizers";
 import {
@@ -159,15 +162,13 @@ async function handleStopDisruptions(
     stopPointIds: searchParams.get("stopPointIds"),
   });
 
-  const disruptions = await fetchStopDisruptionsForIds(
+  const raw = await tflFetch("/StopPoint/Mode/bus/Disruption", {
+    cacheTtlMs: 300_000,
+  });
+  const parsed = rawStopDisruptionsResponseSchema.parse(raw);
+  const disruptions = filterStopDisruptionsForIds(
+    normalizeStopDisruptions(parsed),
     stopPointIds,
-    async (ids) => {
-      const raw = await tflFetch(
-        `/StopPoint/${ids.map((id) => encodeURIComponent(id)).join(",")}/Disruption`,
-        { cacheTtlMs: 300_000 },
-      );
-      return rawStopDisruptionsResponseSchema.parse(raw);
-    },
   );
 
   return jsonResponse({ disruptions });
