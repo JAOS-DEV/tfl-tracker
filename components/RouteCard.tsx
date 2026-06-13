@@ -250,16 +250,14 @@ export function RouteCard({
   const showHistoryInline = displaySettings.showHistoryInline;
   const showServiceInline = displaySettings.showServiceDetailsInline;
 
-  const handleCollapsedHeaderActivate = () => {
-    if (!isExpanded) {
-      onExpandedChange(true);
-    }
+  const handleHeaderActivate = () => {
+    onExpandedChange(!isExpanded);
   };
 
-  const handleCollapsedHeaderKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (!isExpanded && (event.key === "Enter" || event.key === " ")) {
+  const handleHeaderKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      onExpandedChange(true);
+      onExpandedChange(!isExpanded);
     }
   };
 
@@ -267,16 +265,14 @@ export function RouteCard({
     <>
       <article
         id={`route-card-${activeRoute.routeId}`}
-        className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+        className="min-w-0 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
       >
         <header
-          className={`sticky top-0 z-10 border-b border-zinc-200 bg-white/95 px-4 py-4 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95 ${
-            isExpanded ? "" : "cursor-pointer"
-          }`}
-          onClick={handleCollapsedHeaderActivate}
-          onKeyDown={handleCollapsedHeaderKeyDown}
-          role={isExpanded ? undefined : "button"}
-          tabIndex={isExpanded ? undefined : 0}
+          className="sticky top-0 z-20 cursor-pointer border-b border-zinc-200 bg-white/95 px-4 py-4 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95"
+          onClick={handleHeaderActivate}
+          onKeyDown={handleHeaderKeyDown}
+          role="button"
+          tabIndex={0}
           aria-expanded={isExpanded}
         >
           <div
@@ -388,15 +384,17 @@ export function RouteCard({
             </div>
 
             {visualMode === "loop" ? (
-              <SchematicRouteLoop
-                route={route}
-                vehicles={vehicles}
-                stopDisruptionsByNaptanId={stopDisruptionsByNaptanId}
-                onStopSelect={setSelectedStop}
-                onBusSelect={setSelectedVehicle}
-                selectedStopId={selectedStop?.naptanId ?? null}
-                selectedVehicleId={selectedVehicle?.vehicleId ?? null}
-              />
+              <div className="loop-diagram-surface">
+                <SchematicRouteLoop
+                  route={route}
+                  vehicles={vehicles}
+                  stopDisruptionsByNaptanId={stopDisruptionsByNaptanId}
+                  onStopSelect={setSelectedStop}
+                  onBusSelect={setSelectedVehicle}
+                  selectedStopId={selectedStop?.naptanId ?? null}
+                  selectedVehicleId={selectedVehicle?.vehicleId ?? null}
+                />
+              </div>
             ) : (
               <div className="px-4">
                 <DirectionSegmentedControl
@@ -458,8 +456,8 @@ export function RouteCard({
           </div>
         ) : (
           <div className="border-t border-zinc-200 px-4 py-3 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-            Tap this route header or open the ⋯ menu to expand the live loop,
-            stop list, and service details.
+            Tap this route header to expand or collapse the live loop, stop
+            list, and service details. You can also use the ⋯ menu.
           </div>
         )}
       </article>

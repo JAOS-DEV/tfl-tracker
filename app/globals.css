@@ -24,3 +24,14 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+.loop-diagram-surface {
+  background: var(--background);
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.loop-diagram-svg {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}

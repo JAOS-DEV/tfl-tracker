@@ -125,7 +125,7 @@ export function ActiveRoutes({
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-1">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-1">
         {activeRoutes.map((route, index) => (
           <RouteCard
             key={route.routeId}

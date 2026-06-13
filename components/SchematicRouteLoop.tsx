@@ -158,7 +158,7 @@ export function SchematicRouteLoop({
   const routeBadgeFontSize = isMobile ? 24 : 20;
 
   return (
-    <section className="w-full sm:rounded-2xl sm:border sm:border-zinc-200 sm:bg-zinc-50 sm:p-4 dark:sm:border-zinc-800 dark:sm:bg-zinc-950">
+    <section className="w-full min-w-0 overflow-x-hidden sm:rounded-2xl sm:border sm:border-zinc-200 sm:bg-zinc-50 sm:p-4 dark:sm:border-zinc-800 dark:sm:bg-zinc-950">
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs text-zinc-600 sm:px-0 sm:py-0 sm:pb-3 dark:text-zinc-400">
         <span className="inline-flex items-center gap-2 text-sm font-medium text-zinc-800 dark:text-zinc-200">
           <span className="relative flex h-2.5 w-2.5">
@@ -172,37 +172,53 @@ export function SchematicRouteLoop({
         </span>
       </div>
 
-      <div className="mb-3 flex flex-wrap gap-4 px-3 text-sm text-zinc-700 sm:px-0 dark:text-zinc-300">
-        <span className="inline-flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full bg-emerald-500" />
-          On time
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full bg-amber-400" />
-          Early
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full bg-red-500" />
-          Late
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full border-2 border-zinc-400 bg-zinc-400/25 dark:border-zinc-400 dark:bg-zinc-500/25" />
-          Possible ghost
-        </span>
+      <div className="mb-2 space-y-2 px-3 text-sm text-zinc-700 sm:px-0 dark:text-zinc-300">
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <span className="inline-flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full border-2 border-zinc-600 bg-zinc-400 dark:border-zinc-300 dark:bg-zinc-500" />
+            Stop
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full border-2 border-zinc-700 bg-amber-400 dark:border-zinc-300" />
+            Next stop for bus
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-sky-500" />
+            Terminus
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <span className="inline-flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-emerald-500" />
+            Bus on time
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-amber-400" />
+            Bus early
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-red-500" />
+            Bus late
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full border-2 border-zinc-400 bg-zinc-400/25 dark:border-zinc-400 dark:bg-zinc-500/25" />
+            Possible ghost
+          </span>
+        </div>
       </div>
 
-      <div className="mb-3">
+      <div className="mb-3 min-w-0">
         <RouteLoopDirectionGuide
           route={route}
           orientation={layout.orientation}
         />
       </div>
 
-      <div className="w-full px-1 sm:px-0">
+      <div className="loop-diagram-surface w-full px-1 sm:px-0">
         <svg
           viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
           preserveAspectRatio="xMidYMid meet"
-          className="mx-auto block h-auto w-full"
+          className="loop-diagram-svg mx-auto block h-auto w-full"
           role="img"
           aria-label={`Schematic loop diagram for route ${route.routeId}`}
         >
@@ -310,7 +326,7 @@ export function SchematicRouteLoop({
 
       <p className="mt-3 px-3 pb-2 text-center text-xs text-zinc-500 sm:px-0 sm:pb-0 dark:text-zinc-400">
         Tap a bus or stop for details. Positions are estimated from live
-        predictions.
+        predictions. Yellow stop dots mark where a live bus is heading next.
         {stopDisruptionsByNaptanId && stopDisruptionsByNaptanId.size > 0
           ? " Red × marks a stop that TfL reports as closed."
           : ""}

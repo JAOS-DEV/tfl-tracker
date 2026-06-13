@@ -69,14 +69,20 @@ export function RouteLoopStopNode({
       }}
       role="button"
       tabIndex={0}
-      aria-label={`Stop ${node.stop.name}${isClosed ? ", closed" : ""}`}
+      aria-label={`Stop ${node.stop.name}${
+        isClosed
+          ? ", closed"
+          : hasNearbyBus
+            ? ", next stop for approaching bus"
+            : ""
+      }`}
     >
       <circle cx={x} cy={y} r={hitRadius} className="fill-transparent" />
       <circle
         cx={x}
         cy={y}
         r={radius}
-        className={`transition-all duration-200 ${
+        className={`${
           isClosed
             ? "fill-red-200 dark:fill-red-950/70"
             : node.isTerminal

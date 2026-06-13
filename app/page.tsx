@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, startTransition, useState } from "react";
 import { ActiveRoutes } from "@/components/ActiveRoutes";
 import { ErrorState } from "@/components/ErrorState";
 import { SettingsPanel } from "@/components/SettingsPanel";
@@ -271,7 +271,9 @@ export default function HomePage(): React.ReactElement {
       {settingsOpen ? (
         <SettingsPanel
           isOpen={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
+          onClose={() => {
+            startTransition(() => setSettingsOpen(false));
+          }}
           favouriteStops={favouriteStops}
           onClearFavouriteStops={clearFavouriteStops}
         />
