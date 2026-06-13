@@ -1,10 +1,22 @@
 import { describe, expect, it } from "vitest";
+import { LOOP_LAYOUT } from "@/lib/constants";
 import { isPossibleGhostBus } from "@/lib/ghostDisplay";
 import {
   attachTerminusLayoverState,
   detectTerminusLayover,
+  getTerminusLayoverDisplayPosition,
 } from "@/lib/terminusLayover";
 import type { EstimatedVehiclePosition, NormalizedRoute } from "@/lib/tfl/types";
+
+const portraitLayout = {
+  viewBoxWidth: 520,
+  viewBoxHeight: 400,
+  leftX: 178,
+  rightX: 342,
+  topY: 72,
+  bottomY: 320,
+  orientation: "portrait" as const,
+};
 
 const route: NormalizedRoute = {
   routeId: "156",
@@ -77,6 +89,7 @@ describe("terminusLayover", () => {
 
     expect(result.markerState).toBe("terminus-layover");
     expect(result.terminusLayoverLabel).toBe("At terminus");
+    expect(result.terminusLayoverKind).toBe("leg-end");
   });
 
   it("does not mark a normal mid-route bus as terminus layover", () => {
@@ -93,7 +106,7 @@ describe("terminusLayover", () => {
     expect(result.markerState).toBe("live");
   });
 
-  it("uses grey-style marker state without ghost styling", () => {
+  it("places outbound leg-end waiting buses on the portrait bottom connector", () => {
     const enriched = attachTerminusLayoverState(
       [
         vehicle({
@@ -103,9 +116,49 @@ describe("terminusLayover", () => {
         }),
       ],
       route,
+      portraitLayout,
     );
 
     expect(enriched[0]?.markerState).toBe("terminus-layover");
     expect(isPossibleGhostBus(enriched[0]!)).toBe(false);
+    expect(enriched[0]?.x).toBe(260);
+    expect(enriched[0]?.y).toBeCloseTo(314.048);
+    expect(enriched[0]?.terminusLayoverKind).toBe("leg-end");
+  });
+
+  it("places outbound leg-start waiting buses on the portrait top connector", () => {
+    const position = getTerminusLayoverDisplayPosition(
+      "outbound",
+      portraitLayout,
+      "leg-start",
+    );
+
+    expect(position.x).toBe(260);
+    expect(position.y).toBeCloseTo(77.952);
+    expect(position.progress).toBe(0.25);
+  });
+
+  it("places inbound leg-start waiting buses on the portrait bottom connector", () => {
+    const position = getTerminusLayoverDisplayPosition(
+      "inbound",
+      portraitLayout,
+      "leg-start",
+    );
+
+    expect(position.x).toBe(260);
+    expect(position.y).toBeCloseTo(314.048);
+    expect(position.progress).toBe(0.75);
+  });
+
+  it("places landscape outbound leg-end waiting buses on the right connector", () => {
+    const position = getTerminusLayoverDisplayPosition(
+      "outbound",
+      LOOP_LAYOUT,
+      "leg-end",
+    );
+
+    expect(position.x).toBeCloseTo(880.8);
+    expect(position.y).toBe(260);
+    expect(position.progress).toBe(0.25);
   });
 });

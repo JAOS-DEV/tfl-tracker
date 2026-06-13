@@ -90,8 +90,8 @@ describe("BusDetailsModal", () => {
     );
 
     expect(screen.getByText(/Registration: LV24EWY/)).toBeInTheDocument();
-    expect(screen.getByText(/Fleet: 3085/)).toBeInTheDocument();
-    expect(screen.getByText(/Run: 568/)).toBeInTheDocument();
+    expect(screen.getByText(/Fleet number: 3085/)).toBeInTheDocument();
+    expect(screen.getByText(/Running number: 568/)).toBeInTheDocument();
     expect(screen.queryByText("iBus base version")).not.toBeInTheDocument();
     expect(screen.getByText("Block")).toBeInTheDocument();
   });

@@ -1,13 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import unzipper from "unzipper";
 import { runningShardForTripId } from "../lib/ibus/keys";
-import { buildRouteSchedules, discoverServiceLineNos } from "../lib/ibus/routeScheduleImport";
+import {
+  buildRouteSchedules,
+  buildScheduleCorpus,
+} from "../lib/ibus/routeScheduleImport";
 import {
   buildRunningLookupRecords,
-  parseBlockXml,
   parseGarageXml,
-  parseJourneyXml,
   parseVehicleXml,
 } from "../lib/ibus/parsers";
 import { IBUS_OPERATOR_CODES } from "../lib/ibus/operators";
@@ -16,9 +16,18 @@ import type {
   IbusImportReport,
   IbusRunningRecord,
 } from "../lib/ibus/types";
-import { parseBaseVersionXml } from "../lib/ibus/baseVersion";
+import { isCleanOldVersions, isForceDownload } from "../lib/ibus/cache";
+import { parseRouteScheduleEnv } from "../lib/ibus/importConfig";
+import {
+  fetchIbusZipCached,
+  prepareIbusImport,
+} from "../lib/ibus/ibusFetch";
+import { extractXmlFiles } from "../lib/ibus/zipExtract";
 
-const IBUS_ROOT = "https://ibus.data.tfl.gov.uk";
+const SIZE_WARNING_ROUTE_SCHEDULE_TOTAL = 250 * 1024 * 1024;
+const SIZE_WARNING_OUTPUT_TOTAL = 50 * 1024 * 1024;
+const SIZE_WARNING_SINGLE_ROUTE = 5 * 1024 * 1024;
+const SIZE_WARNING_SELECTED_ROUTE = 1024 * 1024;
 
 async function writeJson(filePath: string, data: unknown): Promise<number> {
   const json = `${JSON.stringify(data)}\n`;
@@ -40,45 +49,40 @@ async function listRouteScheduleRoutes(outputRoot: string): Promise<string[]> {
   }
 }
 
-async function fetchText(url: string): Promise<string> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.status}`);
-  }
+async function computeDirectorySize(dirPath: string): Promise<number> {
+  let total = 0;
 
-  return response.text();
-}
-
-async function fetchBuffer(url: string): Promise<Buffer | null> {
-  const response = await fetch(url);
-  if (response.status === 404) {
-    return null;
-  }
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.status}`);
-  }
-
-  return Buffer.from(await response.arrayBuffer());
-}
-
-async function extractXmlFiles(
-  zipBuffer: Buffer,
-  matcher: (fileName: string) => boolean,
-): Promise<Array<{ name: string; content: string }>> {
-  const archive = await unzipper.Open.buffer(zipBuffer);
-  const results: Array<{ name: string; content: string }> = [];
-
-  for (const entry of archive.files) {
-    if (entry.type !== "File" || !matcher(entry.path)) {
-      continue;
+  async function walk(currentPath: string): Promise<void> {
+    let entries;
+    try {
+      entries = await fs.readdir(currentPath, { withFileTypes: true });
+    } catch {
+      return;
     }
 
-    const content = (await entry.buffer()).toString("utf8");
-    results.push({ name: entry.path, content });
+    for (const entry of entries) {
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        await walk(entryPath);
+      } else if (entry.isFile()) {
+        const stat = await fs.stat(entryPath);
+        total += stat.size;
+      }
+    }
   }
 
-  return results;
+  await walk(dirPath);
+  return total;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${bytes} B`;
 }
 
 function shardRunningRecords(
@@ -96,31 +100,64 @@ function shardRunningRecords(
   return shards;
 }
 
+async function cleanOldBaseVersions(
+  currentBaseVersion: string,
+  warnings: string[],
+): Promise<void> {
+  if (!isCleanOldVersions()) {
+    return;
+  }
+
+  const ibusRoot = path.join("public", "data", "ibus");
+  let entries;
+  try {
+    entries = await fs.readdir(ibusRoot, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name === currentBaseVersion) {
+      continue;
+    }
+
+    if (!/^\d{8}$/.test(entry.name)) {
+      continue;
+    }
+
+    const target = path.join(ibusRoot, entry.name);
+    await fs.rm(target, { recursive: true, force: true });
+    warnings.push(`Removed old base version folder: ${target}`);
+  }
+}
+
 async function main(): Promise<void> {
+  const startedAt = Date.now();
   const warnings: string[] = [];
   const fileSizes: Record<string, number> = {};
-  const scheduleZipsDownloaded: string[] = [];
-  const scheduleZipsSkipped: string[] = [];
-  const operatorFoldersDetected: string[] = [];
+  const operatorFoldersDetected = [...IBUS_OPERATOR_CODES];
+  const routeScheduleConfig = parseRouteScheduleEnv(
+    process.env.IBUS_ROUTE_SCHEDULES,
+  );
 
   console.log("Fetching Base_Version.xml...");
-  const baseVersionXml = await fetchText(`${IBUS_ROOT}/Base_Version.xml`);
-  const baseVersion = parseBaseVersionXml(baseVersionXml);
+  const { baseVersion, urls, context, downloadVerification } =
+    await prepareIbusImport();
+  warnings.push(...downloadVerification.warnings);
+
   console.log(`Detected base version: ${baseVersion}`);
+  console.log(`Download method: ${downloadVerification.downloadMethod}`);
 
   const outputRoot = path.join("public", "data", "ibus", baseVersion);
   const shardDir = path.join(outputRoot, "running-shards");
 
   let vehicleRecords: Record<string, unknown> = {};
-  const vehicleUrl = `${IBUS_ROOT}/Base_Version_${baseVersion}/Vehicle_${baseVersion}.zip`;
-  console.log(`Downloading ${vehicleUrl}`);
-  const vehicleZip = await fetchBuffer(vehicleUrl);
+  console.log(`Downloading ${urls.vehicleZip}`);
+  const vehicleZip = await fetchIbusZipCached(context, urls.vehicleZip, "Vehicle zip");
   if (!vehicleZip) {
-    warnings.push(`Vehicle zip missing: ${vehicleUrl}`);
+    warnings.push(`Vehicle zip missing: ${urls.vehicleZip}`);
   } else {
-    const xmlFiles = await extractXmlFiles(vehicleZip, (name) =>
-      /vehicle/i.test(name),
-    );
+    const xmlFiles = await extractXmlFiles(vehicleZip, (name) => /vehicle/i.test(name));
     for (const file of xmlFiles) {
       vehicleRecords = {
         ...vehicleRecords,
@@ -133,15 +170,12 @@ async function main(): Promise<void> {
   }
 
   let garageRecords: Record<string, unknown> = {};
-  const garageUrl = `${IBUS_ROOT}/Base_Version_${baseVersion}/Garage_${baseVersion}.zip`;
-  console.log(`Downloading ${garageUrl}`);
-  const garageZip = await fetchBuffer(garageUrl);
+  console.log(`Downloading ${urls.garageZip}`);
+  const garageZip = await fetchIbusZipCached(context, urls.garageZip, "Garage zip");
   if (!garageZip) {
-    warnings.push(`Garage zip missing: ${garageUrl}`);
+    warnings.push(`Garage zip missing: ${urls.garageZip}`);
   } else {
-    const xmlFiles = await extractXmlFiles(garageZip, (name) =>
-      /garage/i.test(name),
-    );
+    const xmlFiles = await extractXmlFiles(garageZip, (name) => /garage/i.test(name));
     for (const file of xmlFiles) {
       garageRecords = {
         ...garageRecords,
@@ -153,56 +187,22 @@ async function main(): Promise<void> {
     }
   }
 
-  const journeyLinks = [];
-  const blockRecords = [];
-  let journeyCount = 0;
-  let blockCount = 0;
+  console.log("Building schedule corpus from operator zips...");
+  const corpusDepth = routeScheduleConfig.mode === "none" ? "core" : "full";
+  const corpus = await buildScheduleCorpus(urls, context, { depth: corpusDepth });
+  warnings.push(...context.warnings.filter((warning) => !warnings.includes(warning)));
 
-  for (const operatorCode of IBUS_OPERATOR_CODES) {
-    operatorFoldersDetected.push(operatorCode);
-    const scheduleUrl = `${IBUS_ROOT}/Base_Version_${baseVersion}/${operatorCode}/schedule_${operatorCode}_${baseVersion}.zip`;
-    const scheduleZip = await fetchBuffer(scheduleUrl);
-
-    if (!scheduleZip) {
-      scheduleZipsSkipped.push(operatorCode);
-      warnings.push(`Schedule zip missing for operator ${operatorCode}`);
-      continue;
-    }
-
-    scheduleZipsDownloaded.push(operatorCode);
-    console.log(`Parsed schedule zip for ${operatorCode}`);
-
-    const xmlFiles = await extractXmlFiles(
-      scheduleZip,
-      (name) =>
-        /(^|\/)Journey[^/]*\.xml$/i.test(name) ||
-        /(^|\/)Block[^/]*\.xml$/i.test(name),
-    );
-
-    for (const file of xmlFiles) {
-      if (
-        /(^|\/)Journey[^/]*\.xml$/i.test(file.name) &&
-        !/drive|wait|calendar/i.test(file.name)
-      ) {
-        const parsed = parseJourneyXml(file.content);
-        journeyCount += parsed.length;
-        journeyLinks.push(...parsed);
-      }
-
-      if (
-        /(^|\/)Block[^/]*\.xml$/i.test(file.name) &&
-        !/calendar/i.test(file.name)
-      ) {
-        const parsed = parseBlockXml(file.content);
-        blockCount += parsed.length;
-        blockRecords.push(...parsed);
-      }
-    }
-  }
+  const blockRecords = corpus.allBlocks.map((block) => ({
+    blockIdx: block.blockIdx,
+    blockNo: block.blockNo,
+    runningNo: block.runningNo,
+    garageNo: block.garageNo,
+    operatorCode: block.operatorCode,
+  }));
 
   const runningRecords = buildRunningLookupRecords(
     baseVersion,
-    journeyLinks,
+    corpus.journeyLinks,
     blockRecords,
   );
   const shards = shardRunningRecords(runningRecords);
@@ -219,26 +219,162 @@ async function main(): Promise<void> {
   let shardFileCount = 0;
   for (const [shard, records] of Object.entries(shards)) {
     const shardPath = path.join(shardDir, `${shard}.json`);
-    fileSizes[`running-shards/${shard}.json`] = await writeJson(
-      shardPath,
-      records,
-    );
+    fileSizes[`running-shards/${shard}.json`] = await writeJson(shardPath, records);
     shardFileCount += 1;
   }
 
   const generatedAt = new Date().toISOString();
+  let routeSchedulesRequested: string | null = null;
+  let routeSchedulesGenerated = 0;
+  let routeSchedulesSkipped = 0;
+  let totalRouteScheduleSizeBytes = 0;
+  let totalLegacyRouteScheduleSizeBytes = 0;
+  let largestRouteSchedule: { routeId: string; sizeBytes: number } | null = null;
+  let topLargestRouteSchedules: Array<{ routeId: string; sizeBytes: number }> = [];
+  let scheduleResult: Awaited<ReturnType<typeof buildRouteSchedules>> | null = null;
+
+  if (routeScheduleConfig.mode === "all") {
+    routeSchedulesRequested = "all";
+    console.log(
+      `Building route schedules for all ${corpus.serviceLineNos.length} discovered route(s)...`,
+    );
+    scheduleResult = await buildRouteSchedules({
+      baseVersion,
+      outputRoot,
+      routeIds: corpus.serviceLineNos,
+      corpus,
+      urls,
+      context,
+    });
+    routeSchedulesGenerated = scheduleResult.routesBuilt.length;
+    routeSchedulesSkipped = scheduleResult.routesSkipped.length;
+    totalRouteScheduleSizeBytes = scheduleResult.totalRouteScheduleSize;
+    totalLegacyRouteScheduleSizeBytes = scheduleResult.totalLegacyRouteScheduleSize;
+    largestRouteSchedule = scheduleResult.largestRouteSchedule;
+    topLargestRouteSchedules = scheduleResult.topLargestRouteSchedules;
+    warnings.push(...scheduleResult.warnings);
+    console.log(
+      `Route schedules built: ${scheduleResult.routesBuilt.length}, skipped: ${scheduleResult.routesSkipped.length}`,
+    );
+  } else if (routeScheduleConfig.mode === "selected") {
+    routeSchedulesRequested = routeScheduleConfig.routeIds.join(",");
+    console.log(
+      `Building route schedules for ${routeScheduleConfig.routeIds.length} selected route(s)...`,
+    );
+    scheduleResult = await buildRouteSchedules({
+      baseVersion,
+      outputRoot,
+      routeIds: routeScheduleConfig.routeIds,
+      corpus,
+      urls,
+      context,
+    });
+    routeSchedulesGenerated = scheduleResult.routesBuilt.length;
+    routeSchedulesSkipped = scheduleResult.routesSkipped.length;
+    totalRouteScheduleSizeBytes = scheduleResult.totalRouteScheduleSize;
+    totalLegacyRouteScheduleSizeBytes = scheduleResult.totalLegacyRouteScheduleSize;
+    largestRouteSchedule = scheduleResult.largestRouteSchedule;
+    topLargestRouteSchedules = scheduleResult.topLargestRouteSchedules;
+    warnings.push(...scheduleResult.warnings);
+    console.log(
+      `Route schedules built: ${scheduleResult.routesBuilt.length}, skipped: ${scheduleResult.routesSkipped.length}`,
+    );
+  }
+
+  const averageRouteScheduleSizeBytes =
+    routeSchedulesGenerated > 0
+      ? Math.round(totalRouteScheduleSizeBytes / routeSchedulesGenerated)
+      : 0;
+  const estimatedCompactSavingsBytes = Math.max(
+    0,
+    totalLegacyRouteScheduleSizeBytes - totalRouteScheduleSizeBytes,
+  );
+
+  if (totalRouteScheduleSizeBytes > SIZE_WARNING_ROUTE_SCHEDULE_TOTAL) {
+    warnings.push(
+      `Total route schedule size exceeds 250 MB (${formatBytes(totalRouteScheduleSizeBytes)})`,
+    );
+  }
+
+  if (largestRouteSchedule && largestRouteSchedule.sizeBytes > SIZE_WARNING_SINGLE_ROUTE) {
+    warnings.push(
+      `Route ${largestRouteSchedule.routeId} schedule exceeds 5 MB (${formatBytes(largestRouteSchedule.sizeBytes)})`,
+    );
+  }
+
+  const route156Size = scheduleResult?.routeScheduleSizes["156"];
+  if (route156Size && route156Size > SIZE_WARNING_SELECTED_ROUTE) {
+    warnings.push(
+      `Route 156 schedule exceeds 1 MB (${formatBytes(route156Size)})`,
+    );
+  }
+
+  const routeScheduleRoutes =
+    scheduleResult !== null
+      ? [...scheduleResult.routesBuilt].sort((left, right) =>
+          left.localeCompare(right, undefined, { numeric: true }),
+        )
+      : await listRouteScheduleRoutes(outputRoot);
+
+  if (scheduleResult && routeScheduleConfig.mode === "selected") {
+    const scheduleDir = path.join(outputRoot, "route-schedules");
+    const keepRoutes = new Set(scheduleResult.routesBuilt);
+    try {
+      const files = await fs.readdir(scheduleDir);
+      for (const fileName of files) {
+        if (!fileName.endsWith(".json")) {
+          continue;
+        }
+        const routeId = fileName.replace(/\.json$/, "");
+        if (!keepRoutes.has(routeId)) {
+          await fs.unlink(path.join(scheduleDir, fileName));
+        }
+      }
+    } catch {
+      // route-schedules directory may not exist yet
+    }
+  }
+  const totalOutputSizeBytes = await computeDirectorySize(outputRoot);
+
+  if (totalOutputSizeBytes > SIZE_WARNING_OUTPUT_TOTAL) {
+    warnings.push(
+      `Total public/data/ibus/${baseVersion} size exceeds 50 MB (${formatBytes(totalOutputSizeBytes)})`,
+    );
+  }
+
   const importReport: IbusImportReport = {
     baseVersion,
     generatedAt,
+    downloadMethod: downloadVerification.downloadMethod,
+    cacheUsed: context.stats.cacheHits > 0,
+    forceDownload: isForceDownload(),
     operatorFoldersDetected,
-    scheduleZipsDownloaded,
-    scheduleZipsSkipped,
-    journeyRecordsParsed: journeyCount,
-    blockRecordsParsed: blockCount,
+    scheduleZipsDownloaded: corpus.stats.operatorZipsDownloaded,
+    scheduleZipsReusedFromCache: corpus.stats.operatorZipsReusedFromCache,
+    scheduleZipsSkipped: corpus.stats.operatorZipsSkipped,
+    journeyRecordsParsed: corpus.stats.journeyRecordsParsed,
+    blockRecordsParsed: corpus.stats.blockRecordsParsed,
+    waitRecordsParsed: corpus.stats.waitRecordsParsed,
+    driveRecordsParsed: corpus.stats.driveRecordsParsed,
+    stopRecordsParsed: corpus.stats.stopRecordsParsed,
+    patternRecordsParsed: corpus.stats.patternRecordsParsed,
     runningNumberRecordsGenerated: Object.keys(runningRecords).length,
     garageRecordsGenerated: Object.keys(garageRecords).length,
     vehicleRecordsGenerated: Object.keys(vehicleRecords).length,
     shardCount: shardFileCount,
+    routeSchedulesRequested,
+    routeSchedulesGenerated,
+    routeSchedulesSkipped,
+    routeScheduleRoutes,
+    routeScheduleSchemaVersion: 2,
+    compactScheduleEnabled: true,
+    totalRouteScheduleSizeBytes,
+    totalLegacyRouteScheduleSizeBytes,
+    averageRouteScheduleSizeBytes,
+    largestRouteSchedule,
+    topLargestRouteSchedules,
+    estimatedCompactSavingsBytes,
+    totalOutputSizeBytes,
     fileSizes,
     warnings,
   };
@@ -260,51 +396,51 @@ async function main(): Promise<void> {
       runningNumbers: importReport.runningNumberRecordsGenerated,
       garages: importReport.garageRecordsGenerated,
       vehicles: importReport.vehicleRecordsGenerated,
-      operators: scheduleZipsDownloaded.length,
+      operators: corpus.stats.operatorZipsDownloaded.length +
+        corpus.stats.operatorZipsReusedFromCache.length,
       warnings: warnings.length,
     },
+    ...(routeScheduleRoutes.length > 0 ? { routeScheduleRoutes } : {}),
   };
 
   await writeJson(path.join("public", "data", "ibus", "current.json"), currentManifest);
+  await cleanOldBaseVersions(baseVersion, warnings);
 
-  const routeScheduleEnv = process.env.IBUS_ROUTE_SCHEDULES?.trim();
-  if (routeScheduleEnv) {
-    const routeIds =
-      routeScheduleEnv === "all"
-        ? await discoverServiceLineNos(baseVersion)
-        : routeScheduleEnv
-            .split(",")
-            .map((routeId) => routeId.trim())
-            .filter(Boolean);
-
-    console.log(`Building route schedules for ${routeIds.length} route(s)...`);
-    const scheduleResult = await buildRouteSchedules({
-      baseVersion,
-      outputRoot,
-      routeIds,
-    });
+  const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
+  console.log("");
+  console.log("iBus import complete");
+  console.log(`Base version: ${baseVersion}`);
+  console.log(`Download method: ${downloadVerification.downloadMethod}`);
+  console.log(
+    `Operators parsed: ${corpus.stats.operatorZipsDownloaded.length + corpus.stats.operatorZipsReusedFromCache.length}`,
+  );
+  console.log(`Running records: ${importReport.runningNumberRecordsGenerated}`);
+  console.log(`Vehicle records: ${importReport.vehicleRecordsGenerated}`);
+  console.log(`Garage records: ${importReport.garageRecordsGenerated}`);
+  console.log(`Route schedules generated: ${routeSchedulesGenerated}`);
+  console.log(`Total schedule size: ${formatBytes(totalRouteScheduleSizeBytes)}`);
+  if (estimatedCompactSavingsBytes > 0) {
     console.log(
-      `Route schedules built: ${scheduleResult.routesBuilt.length}, skipped: ${scheduleResult.routesSkipped.length}`,
-    );
-    if (scheduleResult.warnings.length > 0) {
-      warnings.push(...scheduleResult.warnings);
-    }
-  }
-
-  const routeScheduleRoutes = await listRouteScheduleRoutes(outputRoot);
-  if (routeScheduleRoutes.length > 0) {
-    const manifestWithSchedules: IbusCurrentManifest = {
-      ...currentManifest,
-      routeScheduleRoutes,
-    };
-    await writeJson(
-      path.join("public", "data", "ibus", "current.json"),
-      manifestWithSchedules,
+      `Estimated compact savings: ${formatBytes(estimatedCompactSavingsBytes)} (legacy ${formatBytes(totalLegacyRouteScheduleSizeBytes)})`,
     );
   }
-
-  console.log("Import complete");
-  console.log(JSON.stringify(importReport, null, 2));
+  if (largestRouteSchedule) {
+    console.log(
+      `Largest route: ${largestRouteSchedule.routeId}.json, ${formatBytes(largestRouteSchedule.sizeBytes)}`,
+    );
+  }
+  if (topLargestRouteSchedules.length > 0) {
+    console.log(
+      `Top routes: ${topLargestRouteSchedules
+        .slice(0, 5)
+        .map((entry) => `${entry.routeId} (${formatBytes(entry.sizeBytes)})`)
+        .join(", ")}`,
+    );
+  }
+  console.log(`Total output size: ${formatBytes(totalOutputSizeBytes)}`);
+  console.log(`Cache hits: ${context.stats.cacheHits}, downloads: ${context.stats.downloads}`);
+  console.log(`Elapsed: ${elapsedSeconds}s`);
+  console.log(`Warnings: ${warnings.length}`);
 }
 
 main().catch((error) => {

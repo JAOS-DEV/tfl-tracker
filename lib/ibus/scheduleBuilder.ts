@@ -241,7 +241,6 @@ export function buildRouteSchedule(
     baseVersion: input.baseVersion,
     routeId: input.routeId,
     generatedAt: input.generatedAt,
-    blockServiceDays: input.blockServiceDays,
     journeys,
   };
 }

@@ -27,21 +27,74 @@ The app uses Next.js API routes under `/api/tfl/*` to proxy TfL requests and kee
 | `npm run lint` | ESLint |
 | `npm run import:ibus` | Download and build TfL iBus static JSON under `public/data/ibus/` |
 
-## TfL iBus static import
+## Updating TfL iBus static data
 
-Fleet numbers and running numbers use official TfL iBus static data shipped as JSON in the repo — no database, cron, or always-running backend.
+The app uses static iBus JSON generated locally on your machine. There is no database, hosted importer, or cron job — you run the importer, commit the generated files, and Vercel serves them as static assets.
 
-1. Run locally:
+### What the importer does
 
-```bash
+1. Fetches [`Base_Version.xml`](https://ibus.data.tfl.gov.uk/Base_Version.xml) to find the current base version (for example `20260606`).
+2. Downloads matching TfL iBus zip files using **direct file URLs** such as `https://ibus.data.tfl.gov.uk/Base_Version_20260606/Vehicle_20260606.zip`. The browser hash route (`#!Base_Version_...`) and folder listing URL (`/Base_Version_20260606/`) are not used for downloads.
+3. Parses Vehicle, Garage, operator schedule (Journey/Block), and optional route schedule data.
+4. Writes compact JSON under `public/data/ibus/`.
+5. Updates `public/data/ibus/current.json` so the app knows which base version and route schedules are available.
+
+The app only loads route schedule JSON for routes listed in `current.json` → `routeScheduleRoutes` when you open that route. It does not load all schedules on page load.
+
+### Commands
+
+Default / core update (vehicle, garage, running-number shards, manifest, import report — no route schedules unless already present):
+
+```powershell
 npm run import:ibus
 ```
 
-2. The script downloads the current base version from [ibus.data.tfl.gov.uk](https://ibus.data.tfl.gov.uk/), parses Vehicle, Garage, and operator schedule (Journey/Block) zips, and writes compact JSON under `public/data/ibus/`.
-3. Commit the generated files (including `public/data/ibus/current.json` and `public/data/ibus/<baseVersion>/`).
-4. Deploy to Vercel as usual.
+Selected route schedules (for example routes 337 and 156):
 
-Re-run when TfL publishes a new base version (see `Base_Version.xml`).
+```powershell
+$env:IBUS_ROUTE_SCHEDULES="337,156"
+npm run import:ibus
+```
+
+All route schedules:
+
+```powershell
+$env:IBUS_ROUTE_SCHEDULES="all"
+npm run import:ibus
+```
+
+Force fresh download (ignore local cache):
+
+```powershell
+$env:IBUS_FORCE_DOWNLOAD="1"
+$env:IBUS_ROUTE_SCHEDULES="all"
+npm run import:ibus
+```
+
+Optional: remove old `public/data/ibus/<oldBaseVersion>/` folders after a successful import:
+
+```powershell
+$env:IBUS_CLEAN_OLD="1"
+npm run import:ibus
+```
+
+### After importing
+
+```bash
+git add public/data/ibus
+git commit -m "Update iBus static data"
+git push
+```
+
+- `.ibus-cache/` is local only (gitignored) and speeds up repeated imports.
+- Commit `public/data/ibus/current.json` and `public/data/ibus/<baseVersion>/`.
+- Re-run when TfL publishes a new base version.
+
+This powers fleet numbers, running numbers, garage lookup, and possible ghost bus detection.
+
+## TfL iBus static import (details)
+
+Fleet numbers and running numbers use official TfL iBus static data shipped as JSON in the repo — no database, cron, or always-running backend.
 
 - **Fleet numbers** — `Registration_Number` → `Bonnet_No` from `Vehicle_<baseVersion>.zip`
 - **Running numbers** — `${baseVersion}:${tripId}` → Journey `aJourney_Idx` → Block `aBlock_Idx` → `Running_No` (never match tripId alone)

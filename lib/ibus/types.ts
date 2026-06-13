@@ -44,15 +44,36 @@ export interface IbusCurrentManifest {
 export interface IbusImportReport {
   baseVersion: string;
   generatedAt: string;
+  downloadMethod: "direct-file-urls";
+  cacheUsed: boolean;
+  forceDownload: boolean;
   operatorFoldersDetected: string[];
   scheduleZipsDownloaded: string[];
+  scheduleZipsReusedFromCache: string[];
   scheduleZipsSkipped: string[];
   journeyRecordsParsed: number;
   blockRecordsParsed: number;
+  waitRecordsParsed: number;
+  driveRecordsParsed: number;
+  stopRecordsParsed: number;
+  patternRecordsParsed: number;
   runningNumberRecordsGenerated: number;
   garageRecordsGenerated: number;
   vehicleRecordsGenerated: number;
   shardCount: number;
+  routeSchedulesRequested: string | null;
+  routeSchedulesGenerated: number;
+  routeSchedulesSkipped: number;
+  routeScheduleRoutes: string[];
+  routeScheduleSchemaVersion: number;
+  compactScheduleEnabled: boolean;
+  totalRouteScheduleSizeBytes: number;
+  totalLegacyRouteScheduleSizeBytes: number;
+  averageRouteScheduleSizeBytes: number;
+  largestRouteSchedule: { routeId: string; sizeBytes: number } | null;
+  topLargestRouteSchedules: Array<{ routeId: string; sizeBytes: number }>;
+  estimatedCompactSavingsBytes: number;
+  totalOutputSizeBytes: number;
   fileSizes: Record<string, number>;
   warnings: string[];
 }

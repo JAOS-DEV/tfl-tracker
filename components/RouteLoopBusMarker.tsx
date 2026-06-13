@@ -1,9 +1,16 @@
 import { EmbeddedBusIcon } from "@/components/BusIcon";
 import {
+  buildLoopMarkerLabels,
   LoopMarkerInfoBadges,
   type LoopMarkerLabelSettings,
 } from "@/components/LoopMarkerInfoBadges";
 import { LoopMarkerBadge } from "@/components/LoopMarkerBadge";
+import type { LoopLayoutConfig } from "@/lib/constants";
+import {
+  getBusMarkerGroupOffsetY,
+  getLoopInfoBadgePlacement,
+  isTerminusConnectorMarker,
+} from "@/lib/loopMarkerLayout";
 import {
   getGhostMarkerIconText,
   getPossibleGhostMarkerLabel,
@@ -24,6 +31,7 @@ interface RouteLoopBusMarkerProps {
   displayY: number;
   movementDecision?: SmoothMovementDecision;
   loopLabelSettings?: LoopMarkerLabelSettings;
+  layout?: LoopLayoutConfig;
   isSelected: boolean;
   markerSize?: number;
   onSelect: () => void;
@@ -46,6 +54,7 @@ export function RouteLoopBusMarker({
   displayY,
   movementDecision,
   loopLabelSettings,
+  layout,
   isSelected,
   markerSize = 32,
   onSelect,
@@ -86,8 +95,17 @@ export function RouteLoopBusMarker({
 
   const badgeX = markerSize - 8;
   const badgeY = -20;
-  const infoBadgeX = -4;
-  const infoBadgeY = markerSize + 6;
+  const infoLabels = loopLabelSettings
+    ? buildLoopMarkerLabels(vehicle, loopLabelSettings)
+    : [];
+  const infoBadgePlacement =
+    layout && infoLabels.length > 0
+      ? getLoopInfoBadgePlacement(markerSize)
+      : null;
+  const groupOffsetY = getBusMarkerGroupOffsetY({
+    alignToConnector:
+      isTerminus && layout != null && isTerminusConnectorMarker(vehicle),
+  });
   const iconText = isGhost
     ? getGhostMarkerIconText(vehicle)
     : vehicle.routeNumber;
@@ -95,7 +113,7 @@ export function RouteLoopBusMarker({
   return (
     <g
       className="cursor-pointer"
-      transform={`translate(${displayX - half}, ${displayY - half - 8})`}
+      transform={`translate(${displayX - half}, ${displayY - half + groupOffsetY})`}
       onClick={onSelect}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -173,12 +191,13 @@ export function RouteLoopBusMarker({
           <LoopMarkerBadge vehicle={vehicle} />
         </g>
       )}
-      {loopLabelSettings ? (
+      {loopLabelSettings && infoBadgePlacement ? (
         <LoopMarkerInfoBadges
           vehicle={vehicle}
           settings={loopLabelSettings}
-          anchorX={infoBadgeX}
-          anchorY={infoBadgeY}
+          anchorX={infoBadgePlacement.anchorX}
+          anchorY={infoBadgePlacement.anchorY}
+          align={infoBadgePlacement.align}
         />
       ) : null}
     </g>

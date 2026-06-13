@@ -81,8 +81,9 @@ function attachLiveIbusRunningDetails(
 
     return {
       ...vehicle,
-      ibusRunningNo: detail.runningNo,
-      ibusBlockNo: detail.blockNo,
+      ...(detail.runningNo ? { ibusRunningNo: detail.runningNo } : {}),
+      ...(detail.blockNo ? { ibusBlockNo: detail.blockNo } : {}),
+      ...(detail.fleetNo ? { ibusFleetNo: detail.fleetNo } : {}),
     };
   });
 }
@@ -187,7 +188,11 @@ export function buildRouteIntelligence(
   });
 
   const vehicles = attachPredictionAndGhostState(
-    attachTerminusLayoverState(scheduledGhostResult.vehicles, input.route),
+    attachTerminusLayoverState(
+      scheduledGhostResult.vehicles,
+      input.route,
+      input.layout,
+    ),
     enrichedTracking,
     input.dataUpdatedAt,
     input.now,

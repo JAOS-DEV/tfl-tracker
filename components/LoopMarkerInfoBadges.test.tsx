@@ -72,7 +72,7 @@ describe("buildLoopMarkerLabels", () => {
   it("shows fleet and running labels when enabled and available", () => {
     const labels = buildLoopMarkerLabels(
       vehicle({
-        vehicleFleetReference: "3085",
+        ibusFleetNo: "3085",
         ibusRunningNo: "136",
       }),
       {
@@ -83,9 +83,25 @@ describe("buildLoopMarkerLabels", () => {
     );
 
     expect(labels.map((label) => label.text)).toEqual([
-      "Fleet: 3085",
-      "Run: 136",
+      "Fleet no: 3085",
+      "Running no: 136",
     ]);
+  });
+
+  it("falls back to vehicle fleet reference when iBus fleet is unavailable", () => {
+    const labels = buildLoopMarkerLabels(
+      vehicle({
+        vehicleFleetReference: "LTZ1049",
+        ibusRunningNo: "136",
+      }),
+      {
+        showRegistration: false,
+        showFleetNumber: true,
+        showRunningNumber: false,
+      },
+    );
+
+    expect(labels).toEqual([{ key: "fleet", text: "Fleet no: LTZ1049" }]);
   });
 
   it("does not show fake registration or fleet on schedule ghosts", () => {
@@ -104,6 +120,6 @@ describe("buildLoopMarkerLabels", () => {
       },
     );
 
-    expect(labels).toEqual([{ key: "running", text: "Run: 136" }]);
+    expect(labels).toEqual([{ key: "running", text: "Running no: 136" }]);
   });
 });

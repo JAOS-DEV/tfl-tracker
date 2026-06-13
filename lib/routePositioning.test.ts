@@ -183,6 +183,73 @@ describe("vehicle grouping and positions", () => {
     expect(positions.every((position) => position.matched)).toBe(true);
     expect(positions.every((position) => position.adherence)).toBe(true);
   });
+
+  it("staggers overlapping first-stop markers along the portrait route line", () => {
+    const mobileLayout = getLoopLayout(true, sampleRoute);
+    const predictions: NormalizedVehiclePrediction[] = [
+      {
+        ...samplePrediction,
+        id: "first-1",
+        vehicleId: "BUS1",
+        naptanId: "490000001A",
+        stopName: "Stop A",
+        timeToStation: 10,
+      },
+      {
+        ...samplePrediction,
+        id: "first-2",
+        vehicleId: "BUS2",
+        naptanId: "490000001A",
+        stopName: "Stop A",
+        timeToStation: 10,
+      },
+    ];
+
+    const positions = buildVehiclePositions(
+      predictions,
+      sampleRoute,
+      mobileLayout,
+    );
+
+    expect(positions).toHaveLength(2);
+    expect(positions[0]?.x).toBe(mobileLayout.leftX);
+    expect(positions[1]?.x).toBe(mobileLayout.leftX);
+    expect(positions[1]?.y).toBeGreaterThan(positions[0]?.y ?? 0);
+  });
+
+  it("keeps overlapping last-stop markers inside the portrait route line", () => {
+    const mobileLayout = getLoopLayout(true, sampleRoute);
+    const predictions: NormalizedVehiclePrediction[] = [
+      {
+        ...samplePrediction,
+        id: "last-1",
+        vehicleId: "BUS1",
+        naptanId: "490000003C",
+        stopName: "Stop C",
+        timeToStation: 10,
+      },
+      {
+        ...samplePrediction,
+        id: "last-2",
+        vehicleId: "BUS2",
+        naptanId: "490000003C",
+        stopName: "Stop C",
+        timeToStation: 10,
+      },
+    ];
+
+    const positions = buildVehiclePositions(
+      predictions,
+      sampleRoute,
+      mobileLayout,
+    );
+
+    expect(positions).toHaveLength(2);
+    expect(positions[0]?.x).toBe(mobileLayout.leftX);
+    expect(positions[1]?.x).toBe(mobileLayout.leftX);
+    expect(positions[1]?.y).toBeLessThanOrEqual(mobileLayout.bottomY);
+    expect(positions[1]?.y).toBeLessThan(positions[0]?.y ?? 0);
+  });
 });
 
 describe("buildLoopStops", () => {

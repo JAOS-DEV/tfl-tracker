@@ -226,6 +226,7 @@ export interface EstimatedVehiclePosition {
   vehicleFleetReference?: string;
   ibusRunningNo?: string;
   ibusBlockNo?: string;
+  ibusFleetNo?: string;
   tripId?: string;
   baseVersion?: string;
   routeNumber: string;
@@ -268,6 +269,7 @@ export interface EstimatedVehiclePosition {
   scheduledGhostSource?: string;
   markerState?: MarkerState;
   terminusLayoverLabel?: string;
+  terminusLayoverKind?: "leg-start" | "leg-end";
 }
 
 export interface RouteAlertBadge {

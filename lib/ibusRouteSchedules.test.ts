@@ -93,8 +93,58 @@ describe("ibusRouteSchedules", () => {
       "156.json",
     );
     const current = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as IbusCurrentManifest;
+    const scheduleRaw = JSON.parse(fs.readFileSync(schedulePath, "utf8")) as {
+      schemaVersion?: number;
+    };
 
     expect(current.routeScheduleRoutes).toContain("156");
     expect(fs.existsSync(schedulePath)).toBe(true);
+    expect(scheduleRaw.schemaVersion).toBe(2);
+  });
+
+  it("decodes compact v2 route schedules for runtime ghost detection", async () => {
+    const compactManifest: IbusCurrentManifest = {
+      ...manifest,
+      routeScheduleRoutes: ["337"],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => compactManifest,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          schemaVersion: 2,
+          baseVersion: "20260606",
+          routeId: "337",
+          generatedAt: "2026-06-13T00:00:00.000Z",
+          stops: {
+            "490000001A": { n: "Stop A", c: "A1" },
+            "490000002B": { n: "Stop B", c: "B1" },
+          },
+          patterns: { "10": ["490000001A", "490000002B"] },
+          dirs: { "10": "1" },
+          journeys: [
+            {
+              t: "9001",
+              r: "94",
+              b: "35094",
+              d: "1",
+              p: "10",
+              s: 36000,
+              e: 36300,
+              w: [0, 300],
+            },
+          ],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const schedule = await loadRouteSchedule("337");
+
+    expect(schedule?.journeys[0]?.tripId).toBe("9001");
+    expect(schedule?.journeys[0]?.stops).toHaveLength(2);
   });
 });

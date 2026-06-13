@@ -1,4 +1,5 @@
 import { LOOP_EDGE_PADDING } from "@/lib/constants";
+import type { LoopLayoutConfig } from "@/lib/constants";
 import { isPossibleGhostBus } from "@/lib/ghostDisplay";
 import type {
   EstimatedVehiclePosition,
@@ -6,12 +7,78 @@ import type {
   NormalizedRoute,
 } from "@/lib/tfl/types";
 
+export type TerminusLayoverKind = "leg-start" | "leg-end";
+
 export const TERMINUS_WAIT_SECONDS = 180;
 export const TERMINUS_PROGRESS_TOLERANCE = 0.025;
+
+export const TERMINUS_LAYOVER_OUTBOUND_PROGRESS = 0.25;
+export const TERMINUS_LAYOVER_INBOUND_PROGRESS = 0.75;
+
+export interface TerminusLayoverDisplayPosition {
+  x: number;
+  y: number;
+  progress: number;
+}
+
+export function getTerminusLayoverDisplayPosition(
+  direction: EstimatedVehiclePosition["direction"],
+  layout: LoopLayoutConfig,
+  layoverKind: TerminusLayoverKind,
+): TerminusLayoverDisplayPosition {
+  const { leftX, rightX, topY, bottomY } = layout;
+  const midX = (leftX + rightX) / 2;
+  const midY = (topY + bottomY) / 2;
+  const xInset = (rightX - leftX) * LOOP_EDGE_PADDING * 2;
+  const yInset = (bottomY - topY) * LOOP_EDGE_PADDING * 2;
+
+  if (layout.orientation === "portrait") {
+    const topConnectorY = topY + yInset;
+    const bottomConnectorY = bottomY - yInset;
+    const useTopConnector =
+      (direction === "outbound" && layoverKind === "leg-start") ||
+      (direction === "inbound" && layoverKind === "leg-end");
+
+    if (useTopConnector) {
+      return {
+        x: midX,
+        y: topConnectorY,
+        progress: TERMINUS_LAYOVER_OUTBOUND_PROGRESS,
+      };
+    }
+
+    return {
+      x: midX,
+      y: bottomConnectorY,
+      progress: TERMINUS_LAYOVER_INBOUND_PROGRESS,
+    };
+  }
+
+  const leftConnectorX = leftX + xInset;
+  const rightConnectorX = rightX - xInset;
+  const useRightConnector =
+    (direction === "outbound" && layoverKind === "leg-end") ||
+    (direction === "inbound" && layoverKind === "leg-start");
+
+  if (useRightConnector) {
+    return {
+      x: rightConnectorX,
+      y: midY,
+      progress: TERMINUS_LAYOVER_OUTBOUND_PROGRESS,
+    };
+  }
+
+  return {
+    x: leftConnectorX,
+    y: midY,
+    progress: TERMINUS_LAYOVER_INBOUND_PROGRESS,
+  };
+}
 
 export interface TerminusLayoverResult {
   markerState: MarkerState;
   terminusLayoverLabel?: string;
+  terminusLayoverKind?: TerminusLayoverKind;
 }
 
 function getLegProgressBounds(
@@ -59,6 +126,7 @@ export function detectTerminusLayover(
     return {
       markerState: "terminus-layover",
       terminusLayoverLabel: "At terminus",
+      terminusLayoverKind: "leg-end",
     };
   }
 
@@ -66,6 +134,7 @@ export function detectTerminusLayover(
     return {
       markerState: "terminus-layover",
       terminusLayoverLabel: "Waiting to start return journey",
+      terminusLayoverKind: "leg-start",
     };
   }
 
@@ -75,6 +144,7 @@ export function detectTerminusLayover(
 export function attachTerminusLayoverState(
   vehicles: EstimatedVehiclePosition[],
   route: NormalizedRoute,
+  layout: LoopLayoutConfig,
 ): EstimatedVehiclePosition[] {
   return vehicles.map((vehicle) => {
     if (isPossibleGhostBus(vehicle)) {
@@ -85,10 +155,28 @@ export function attachTerminusLayoverState(
     }
 
     const layover = detectTerminusLayover(vehicle, route);
-    return {
+    const withState = {
       ...vehicle,
       markerState: layover.markerState,
       terminusLayoverLabel: layover.terminusLayoverLabel,
+      terminusLayoverKind: layover.terminusLayoverKind,
+    };
+
+    if (layover.markerState !== "terminus-layover" || !layover.terminusLayoverKind) {
+      return withState;
+    }
+
+    const displayPosition = getTerminusLayoverDisplayPosition(
+      vehicle.direction,
+      layout,
+      layover.terminusLayoverKind,
+    );
+
+    return {
+      ...withState,
+      x: displayPosition.x,
+      y: displayPosition.y,
+      progress: displayPosition.progress,
     };
   });
 }

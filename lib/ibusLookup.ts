@@ -102,8 +102,9 @@ async function loadRunningShard(
 }
 
 export interface LiveIbusRunningDetail {
-  runningNo: string;
-  blockNo: string;
+  runningNo?: string;
+  blockNo?: string;
+  fleetNo?: string;
 }
 
 export async function resolveLiveRunningDetailsForPredictions(
@@ -165,6 +166,36 @@ export async function resolveLiveRunningDetailsForPredictions(
         blockNo: running.blockNo,
       });
     }
+  }
+
+  const vehicleLookup = await loadVehicleLookup(manifest);
+  if (!vehicleLookup) {
+    return result;
+  }
+
+  for (const prediction of predictions) {
+    const vehicleKey = prediction.vehicleId;
+    if (!vehicleKey) {
+      continue;
+    }
+
+    const registration =
+      extractVehicleRegistration(vehicleKey) ??
+      normalizeIbusRegistration(vehicleKey);
+    if (!registration) {
+      continue;
+    }
+
+    const fleetNo = vehicleLookup[registration]?.fleetNo;
+    if (!fleetNo) {
+      continue;
+    }
+
+    const existing = result.get(vehicleKey);
+    result.set(vehicleKey, {
+      ...existing,
+      fleetNo,
+    });
   }
 
   return result;

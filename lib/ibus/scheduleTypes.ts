@@ -29,7 +29,8 @@ export interface IbusRouteSchedule {
   baseVersion: string;
   routeId: string;
   generatedAt: string;
-  blockServiceDays: Record<string, number[]>;
+  /** Legacy v1 field; omitted in compact v2 files. */
+  blockServiceDays?: Record<string, number[]>;
   journeys: IbusScheduledJourney[];
 }
 

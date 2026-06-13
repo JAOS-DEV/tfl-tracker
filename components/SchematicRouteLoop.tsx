@@ -12,6 +12,7 @@ import type { DisplayMarkerPosition } from "@/hooks/useSmoothBusMarkers";
 import type { SmoothMovementDecision } from "@/lib/smoothBusMovement";
 import type { LoopLayoutConfig } from "@/lib/constants";
 import { getLoopLayout } from "@/lib/constants";
+import { getRouteBadgeCenter } from "@/lib/loopMarkerLayout";
 import {
   buildLoopPath,
   buildLoopStops,
@@ -62,22 +63,6 @@ function applyMobileLabels(
   return {
     outbound: enhance(layout.outbound),
     inbound: enhance(layout.inbound),
-  };
-}
-
-function getRouteBadgeCenter(
-  layout: LoopLayoutConfig,
-): { x: number; y: number } {
-  if (layout.orientation === "portrait") {
-    return {
-      x: layout.viewBoxWidth / 2,
-      y: layout.topY,
-    };
-  }
-
-  return {
-    x: layout.viewBoxWidth / 2,
-    y: (layout.topY + layout.bottomY) / 2,
   };
 }
 
@@ -165,7 +150,7 @@ export function SchematicRouteLoop({
   }
 
   const allNodes: LoopStopNode[] = [...loopStops.outbound, ...loopStops.inbound];
-  const routeBadge = getRouteBadgeCenter(layout);
+  const routeBadge = getRouteBadgeCenter(layout, isMobile);
   const routeBadgeWidth = isMobile ? 88 : 72;
   const routeBadgeHeight = isMobile ? 48 : 40;
   const routeBadgeFontSize = isMobile ? 24 : 20;
@@ -306,26 +291,6 @@ export function SchematicRouteLoop({
             );
           })}
 
-          {vehicles.map((vehicle) => {
-            const display = displayPositions[vehicle.vehicleId];
-            const movementDecision = movementDecisions?.[vehicle.vehicleId];
-            return (
-              <RouteLoopBusMarker
-                key={vehicle.vehicleId}
-                vehicle={vehicle}
-                displayX={display?.x ?? vehicle.x}
-                displayY={display?.y ?? vehicle.y}
-                movementDecision={
-                  showAdvancedDiagnostics ? movementDecision : undefined
-                }
-                loopLabelSettings={loopLabelSettings}
-                markerSize={markerSize}
-                isSelected={selectedVehicleId === vehicle.vehicleId}
-                onSelect={() => onBusSelect(vehicle)}
-              />
-            );
-          })}
-
           <g aria-hidden="true">
             <rect
               x={routeBadge.x - routeBadgeWidth / 2}
@@ -349,6 +314,27 @@ export function SchematicRouteLoop({
               {route.routeId}
             </text>
           </g>
+
+          {vehicles.map((vehicle) => {
+            const display = displayPositions[vehicle.vehicleId];
+            const movementDecision = movementDecisions?.[vehicle.vehicleId];
+            return (
+              <RouteLoopBusMarker
+                key={vehicle.vehicleId}
+                vehicle={vehicle}
+                displayX={display?.x ?? vehicle.x}
+                displayY={display?.y ?? vehicle.y}
+                movementDecision={
+                  showAdvancedDiagnostics ? movementDecision : undefined
+                }
+                loopLabelSettings={loopLabelSettings}
+                layout={layout}
+                markerSize={markerSize}
+                isSelected={selectedVehicleId === vehicle.vehicleId}
+                onSelect={() => onBusSelect(vehicle)}
+              />
+            );
+          })}
         </svg>
       </div>
 

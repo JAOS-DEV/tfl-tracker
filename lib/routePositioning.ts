@@ -315,13 +315,30 @@ function spreadOverlappingMarkers(
     }
 
     const offset = index * 16;
+    const terminalTolerance = 28;
     if (layout.orientation === "portrait") {
-      const xOffset = offset * (position.direction === "outbound" ? -1 : 1);
-      return { ...position, x: position.x + xOffset };
+      const nearTop = position.y <= layout.topY + terminalTolerance;
+      const nearBottom = position.y >= layout.bottomY - terminalTolerance;
+      const directionSign =
+        nearTop || (!nearBottom && position.direction === "outbound") ? 1 : -1;
+      const y = Math.max(
+        layout.topY,
+        Math.min(layout.bottomY, position.y + offset * directionSign),
+      );
+
+      return { ...position, y };
     }
 
-    const yOffset = offset * (position.direction === "outbound" ? -1 : 1);
-    return { ...position, y: position.y + yOffset };
+    const nearLeft = position.x <= layout.leftX + terminalTolerance;
+    const nearRight = position.x >= layout.rightX - terminalTolerance;
+    const directionSign =
+      nearLeft || (!nearRight && position.direction === "outbound") ? 1 : -1;
+    const x = Math.max(
+      layout.leftX,
+      Math.min(layout.rightX, position.x + offset * directionSign),
+    );
+
+    return { ...position, x };
   });
 }
 

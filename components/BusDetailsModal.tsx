@@ -5,6 +5,11 @@ import { MobileBottomSheet } from "@/components/MobileBottomSheet";
 import { useIbusVehicleDetails } from "@/hooks/useIbusVehicleDetails";
 import { formatLastUpdated, formatLocalTime, formatMinutes } from "@/lib/format";
 import {
+  formatFleetNumberLabel,
+  formatRunningNumberLabel,
+  resolveDisplayFleetNumber,
+} from "@/lib/vehicleLabels";
+import {
   formatGhostDestination,
   getGhostSource,
   getPossibleGhostExplanation,
@@ -142,7 +147,10 @@ export function BusDetailsModal({
 
   const headerRegistration = vehicle.vehicleRegistration ?? null;
   const headerFleet =
-    ibusDetails.displayFleetNo ?? vehicle.vehicleFleetReference ?? null;
+    ibusDetails.displayFleetNo ??
+    vehicle.ibusFleetNo ??
+    resolveDisplayFleetNumber(vehicle) ??
+    null;
   const headerRunning =
     vehicle.ibusRunningNo ??
     ibusDetails.runningNo ??
@@ -151,8 +159,8 @@ export function BusDetailsModal({
 
   const identityParts = [
     headerRegistration ? `Registration: ${headerRegistration}` : null,
-    headerFleet ? `Fleet: ${headerFleet}` : null,
-    headerRunning ? `Run: ${headerRunning}` : null,
+    headerFleet ? formatFleetNumberLabel(headerFleet) : null,
+    headerRunning ? formatRunningNumberLabel(headerRunning) : null,
   ].filter(Boolean);
 
   return (

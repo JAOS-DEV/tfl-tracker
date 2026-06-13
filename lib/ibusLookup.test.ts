@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearIbusLookupCache,
   getIbusDetailsForPrediction,
+  resolveLiveRunningDetailsForPredictions,
 } from "@/lib/ibusLookup";
 
 describe("getIbusDetailsForPrediction", () => {
@@ -167,5 +168,79 @@ describe("getIbusDetailsForPrediction", () => {
     expect(result?.status).toBe("base-version-mismatch");
     expect(result?.message).toContain("20260620");
     expect(result?.message).toContain("20260606");
+  });
+});
+
+describe("resolveLiveRunningDetailsForPredictions", () => {
+  beforeEach(() => {
+    clearIbusLookupCache();
+    vi.restoreAllMocks();
+  });
+
+  it("enriches fleet numbers from vehicle lookup alongside running numbers", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("/data/ibus/current.json")) {
+          return {
+            ok: true,
+            json: async () => ({
+              baseVersion: "20260606",
+              vehicleLookupPath: "/data/ibus/20260606/vehicle-lookup.json",
+              garageLookupPath: "/data/ibus/20260606/garage-lookup.json",
+              runningShardPathTemplate:
+                "/data/ibus/20260606/running-shards/{shard}.json",
+            }),
+          };
+        }
+
+        if (url.endsWith("/data/ibus/20260606/vehicle-lookup.json")) {
+          return {
+            ok: true,
+            json: async () => ({
+              BT66MSU: {
+                fleetNo: "WHV142",
+                bonnetNo: "WHV142",
+                operatorAgency: "LG",
+                baseVersion: "20260606",
+                source: "tfl-ibus-static",
+              },
+            }),
+          };
+        }
+
+        if (url.endsWith("/data/ibus/20260606/running-shards/222.json")) {
+          return {
+            ok: true,
+            json: async () => ({
+              "20260606:527326": {
+                runningNo: "94",
+                blockNo: "35094",
+                blockIdx: "23224",
+                garageNo: "350",
+                operatorCode: "LG",
+                source: "tfl-ibus-static",
+              },
+            }),
+          };
+        }
+
+        return { ok: true, json: async () => ({}) };
+      }),
+    );
+
+    const result = await resolveLiveRunningDetailsForPredictions([
+      {
+        vehicleId: "BT66MSU",
+        tripId: "527326",
+        baseVersion: "20260606",
+      },
+    ]);
+
+    expect(result.get("BT66MSU")).toEqual({
+      runningNo: "94",
+      blockNo: "35094",
+      fleetNo: "WHV142",
+    });
   });
 });

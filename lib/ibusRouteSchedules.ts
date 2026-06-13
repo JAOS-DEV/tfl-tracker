@@ -1,5 +1,6 @@
 import type { IbusCurrentManifest } from "@/lib/ibus/types";
 import type { IbusRouteSchedule } from "@/lib/ibus/scheduleTypes";
+import { normalizeRouteSchedule } from "@/lib/ibus/compactScheduleDecode";
 
 const manifestCache = new Map<string, Promise<IbusCurrentManifest | null>>();
 const scheduleCache = new Map<string, Promise<IbusRouteSchedule | null>>();
@@ -83,9 +84,10 @@ export async function loadRouteSchedule(
     return existing;
   }
 
-  const promise = fetchJson<IbusRouteSchedule>(
+  const promise = fetchJson<unknown>(
     getRouteSchedulePath(version, routeId),
-  ).then((schedule) => {
+  ).then((raw) => {
+    const schedule = normalizeRouteSchedule(raw);
     if (!schedule) {
       missingScheduleRoutes.add(cacheKey);
     }
