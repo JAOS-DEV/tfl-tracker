@@ -6,7 +6,6 @@ import { IbusDataVersionSection } from "@/components/IbusDataVersionSection";
 import { MobileBottomSheet } from "@/components/MobileBottomSheet";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ThresholdMinutesInput } from "@/components/ThresholdMinutesInput";
-import { useAllRouteHistory } from "@/hooks/useRouteHistory";
 import { useDisplaySettings } from "@/hooks/useDisplaySettings";
 import {
   DEFAULT_DISPLAY_SETTINGS,
@@ -14,6 +13,7 @@ import {
 } from "@/lib/displaySettings";
 import {
   exportSnapshotsAsJson,
+  clearAllRouteHistory,
   loadAllSnapshots,
 } from "@/lib/localRouteHistory";
 import type { FavouriteStop } from "@/lib/favouriteStops";
@@ -69,7 +69,6 @@ export function SettingsPanel({
   onClearFavouriteStops,
 }: SettingsPanelProps): React.ReactElement | null {
   const [settings, setSettings] = useDisplaySettings();
-  const { clearAll } = useAllRouteHistory();
   const [aboutOpen, setAboutOpen] = useState(false);
 
   if (!isOpen) {
@@ -288,7 +287,7 @@ export function SettingsPanel({
             <span>Large gap threshold (minutes)</span>
             <ThresholdMinutesInput
               value={settings.globalAlertDefaults.largeGapMinutes}
-              min={1}
+              min={0.1}
               max={60}
               ariaLabel="Default large gap threshold in minutes"
               onChange={(largeGapMinutes) => updateGlobalAlert({ largeGapMinutes })}
@@ -444,7 +443,7 @@ export function SettingsPanel({
                     "Clear all local route history on this device?",
                   )
                 ) {
-                  clearAll();
+                  clearAllRouteHistory();
                 }
               }}
               className="min-h-11 rounded-lg border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"

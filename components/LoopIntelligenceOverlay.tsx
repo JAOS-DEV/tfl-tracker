@@ -27,9 +27,9 @@ export function LoopIntelligenceOverlay({
             x2={end.x}
             y2={end.y}
             stroke="#F59E0B"
-            strokeWidth={layout.orientation === "portrait" ? 10 : 8}
+            strokeWidth={layout.orientation === "portrait" ? 8 : 6}
             strokeLinecap="round"
-            opacity={0.35}
+            opacity={0.95}
             strokeDasharray="10 8"
           />
         );

@@ -52,6 +52,7 @@ interface RouteSearchProps {
   onOpenStop: (stop: StopDetailTarget) => void;
   isFavouriteRoute: (routeId: string) => boolean;
   isFavouriteStop: (stopPointId: string) => boolean;
+  isLoadingSavedData?: boolean;
 }
 
 interface DiscoveryResults {
@@ -81,6 +82,7 @@ export function RouteSearch({
   onOpenStop,
   isFavouriteRoute,
   isFavouriteStop,
+  isLoadingSavedData = false,
 }: RouteSearchProps): React.ReactElement {
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -359,6 +361,12 @@ export function RouteSearch({
           {isSearching ? "Searching…" : "Search"}
         </button>
       </div>
+
+      {isLoadingSavedData ? (
+        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+          Search is ready. Saved routes and favourites are still loading.
+        </p>
+      ) : null}
 
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <button

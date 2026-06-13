@@ -27,7 +27,7 @@ export function RouteAlertSettings({
         <div className="flex items-center gap-2">
           <ThresholdMinutesInput
             value={preferences.largeGapMinutes}
-            min={1}
+            min={0.1}
             max={60}
             ariaLabel="Large gap threshold in minutes"
             onChange={(largeGapMinutes) => update({ largeGapMinutes })}

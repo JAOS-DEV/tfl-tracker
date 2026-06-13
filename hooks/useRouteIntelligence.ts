@@ -28,6 +28,7 @@ interface UseRouteIntelligenceResult {
   arrivalsQuery: ReturnType<typeof useLineArrivals>;
   intelligence: RouteIntelligenceResult | null;
   now: Date;
+  isCheckingSchedule: boolean;
 }
 
 export function useRouteIntelligence(
@@ -46,7 +47,7 @@ export function useRouteIntelligence(
   const { timetables } = useRouteTimetable(routeId, route, fetchTimetable);
   const routeScheduleQuery = useRouteSchedule(
     routeId,
-    showScheduleGhosts && Boolean(route),
+    includeScheduleMatching && showScheduleGhosts && Boolean(route),
   );
 
   const predictions = useMemo(
@@ -75,6 +76,8 @@ export function useRouteIntelligence(
       loopLayout.orientation,
       includeScheduleMatching ? timetables.outbound?.journeys.length : null,
       includeScheduleMatching ? timetables.inbound?.journeys.length : null,
+      showScheduleGhosts ? routeScheduleQuery.dataUpdatedAt : null,
+      showScheduleGhosts ? routeScheduleQuery.status : null,
       showScheduleGhosts ? routeScheduleQuery.data?.journeys.length : null,
     ],
     queryFn: async () => {
@@ -102,14 +105,15 @@ export function useRouteIntelligence(
         timetables: includeScheduleMatching ? timetables : {},
         includeScheduleMatching,
         routeSchedule: routeScheduleQuery.data,
-        showScheduleGhosts,
+        showScheduleGhosts:
+          showScheduleGhosts && Boolean(routeScheduleQuery.data),
         includeLowConfidenceScheduleGhosts,
         liveBaseVersion,
         liveIbusRunningDetails,
         collectScheduleGhostDiagnostics: includeLowConfidenceScheduleGhosts,
       });
     },
-    enabled: Boolean(routeId && route && (!showScheduleGhosts || routeScheduleQuery.isFetched)),
+    enabled: Boolean(routeId && route),
     staleTime: POLL_INTERVAL_MS,
     placeholderData: keepPreviousData,
   });
@@ -120,6 +124,10 @@ export function useRouteIntelligence(
     arrivalsQuery,
     intelligence: intelligenceQuery.data ?? null,
     now: new Date(),
+    isCheckingSchedule:
+      includeScheduleMatching &&
+      showScheduleGhosts &&
+      routeScheduleQuery.isFetching,
   };
 }
 

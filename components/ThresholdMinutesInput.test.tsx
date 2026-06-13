@@ -45,4 +45,25 @@ describe("ThresholdMinutesInput", () => {
     expect(onChange).not.toHaveBeenCalled();
     expect(input).toHaveValue("4");
   });
+
+  it("accepts decimal minute thresholds", () => {
+    const onChange = vi.fn();
+
+    render(
+      <ThresholdMinutesInput
+        value={1}
+        min={0.1}
+        onChange={onChange}
+        ariaLabel="Decimal gap threshold"
+      />,
+    );
+
+    const input = screen.getByLabelText("Decimal gap threshold");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "0.5" } });
+    fireEvent.blur(input);
+
+    expect(onChange).toHaveBeenCalledWith(0.5);
+    expect(input).toHaveValue("0.5");
+  });
 });

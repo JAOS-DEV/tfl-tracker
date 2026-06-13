@@ -5,11 +5,13 @@ import { normalizeRouteSchedule } from "@/lib/ibus/compactScheduleDecode";
 const manifestCache = new Map<string, Promise<IbusCurrentManifest | null>>();
 const scheduleCache = new Map<string, Promise<IbusRouteSchedule | null>>();
 const missingScheduleRoutes = new Set<string>();
+let routeAvailabilityCache = new WeakMap<IbusCurrentManifest, Set<string>>();
 
 export function clearRouteScheduleCache(): void {
   manifestCache.clear();
   scheduleCache.clear();
   missingScheduleRoutes.clear();
+  routeAvailabilityCache = new WeakMap<IbusCurrentManifest, Set<string>>();
 }
 
 async function fetchJson<T>(path: string): Promise<T | null> {
@@ -56,7 +58,44 @@ export function isRouteScheduleAvailable(
   if (!manifest?.routeScheduleRoutes) {
     return true;
   }
-  return manifest.routeScheduleRoutes.includes(routeId);
+
+  let routeSet = routeAvailabilityCache.get(manifest);
+  if (!routeSet) {
+    routeSet = new Set(manifest.routeScheduleRoutes);
+    routeAvailabilityCache.set(manifest, routeSet);
+  }
+
+  return routeSet.has(routeId);
+}
+
+function markScheduleStart(cacheKey: string): number {
+  if (process.env.NODE_ENV !== "development" || typeof performance === "undefined") {
+    return 0;
+  }
+  performance.mark(`route-schedule:${cacheKey}:start`);
+  return performance.now();
+}
+
+function measureScheduleLoad(cacheKey: string, startedAt: number): void {
+  if (
+    process.env.NODE_ENV !== "development" ||
+    typeof performance === "undefined" ||
+    startedAt === 0
+  ) {
+    return;
+  }
+
+  performance.mark(`route-schedule:${cacheKey}:end`);
+  performance.measure(
+    `route-schedule:${cacheKey}`,
+    `route-schedule:${cacheKey}:start`,
+    `route-schedule:${cacheKey}:end`,
+  );
+  console.debug(
+    `Route schedule ${cacheKey} fetched/decoded in ${Math.round(
+      performance.now() - startedAt,
+    )}ms`,
+  );
 }
 
 export async function loadRouteSchedule(
@@ -84,6 +123,7 @@ export async function loadRouteSchedule(
     return existing;
   }
 
+  const startedAt = markScheduleStart(cacheKey);
   const promise = fetchJson<unknown>(
     getRouteSchedulePath(version, routeId),
   ).then((raw) => {
@@ -91,6 +131,7 @@ export async function loadRouteSchedule(
     if (!schedule) {
       missingScheduleRoutes.add(cacheKey);
     }
+    measureScheduleLoad(cacheKey, startedAt);
     return schedule;
   });
   scheduleCache.set(cacheKey, promise);

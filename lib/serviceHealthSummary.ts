@@ -37,11 +37,25 @@ function healthVariant(score: number): ServiceHealthSummaryChip["variant"] {
   return "danger";
 }
 
+interface BuildServiceHealthSummaryOptions {
+  isFetching?: boolean;
+  isStale?: boolean;
+  largeGapThresholdMinutes?: number | null;
+}
+
 export function buildServiceHealthSummary(
   metrics: ServiceHealthMetrics,
-  options?: { isFetching?: boolean; isStale?: boolean },
+  options?: BuildServiceHealthSummaryOptions,
 ): ServiceHealthSummary {
   const chips: ServiceHealthSummaryChip[] = [];
+  const largeGapThresholdMinutes =
+    options?.largeGapThresholdMinutes === undefined
+      ? 12
+      : options.largeGapThresholdMinutes;
+  const showLargeGap =
+    largeGapThresholdMinutes !== null &&
+    metrics.largestGapMinutes !== null &&
+    metrics.largestGapMinutes >= largeGapThresholdMinutes;
 
   if (options?.isFetching) {
     chips.push({ id: "refreshing", label: "Refreshing…", variant: "info" });
@@ -99,10 +113,7 @@ export function buildServiceHealthSummary(
     });
   }
 
-  if (
-    metrics.largestGapMinutes !== null &&
-    metrics.largestGapMinutes >= 12
-  ) {
+  if (showLargeGap) {
     chips.push({
       id: "gap",
       label: `${metrics.largestGapMinutes} min gap`,
@@ -116,8 +127,8 @@ export function buildServiceHealthSummary(
   } else if (metrics.estimatedLateCount > 0) {
     topWarning = `${metrics.estimatedLateCount} estimated late`;
   } else if (
-    metrics.largestGapMinutes !== null &&
-    metrics.largestGapMinutes >= 12
+    showLargeGap &&
+    metrics.largestGapMinutes !== null
   ) {
     topWarning = `Largest gap ${metrics.largestGapMinutes} min`;
   } else if (metrics.liveVehicleCount === 0) {

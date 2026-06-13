@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { EmbeddedBusIcon } from "@/components/BusIcon";
 import {
   buildLoopMarkerLabels,
@@ -48,7 +49,7 @@ const adherenceRingClasses = {
 const terminusRingClass =
   "fill-zinc-400/20 stroke-zinc-500 stroke-dashed dark:fill-zinc-500/20 dark:stroke-zinc-400";
 
-export function RouteLoopBusMarker({
+export const RouteLoopBusMarker = memo(function RouteLoopBusMarker({
   vehicle,
   displayX,
   displayY,
@@ -109,16 +110,20 @@ export function RouteLoopBusMarker({
   const iconText = isGhost
     ? getGhostMarkerIconText(vehicle)
     : vehicle.routeNumber;
+  const handleSelect = (): void => {
+    onSelect();
+  };
 
   return (
     <g
       className="cursor-pointer"
       transform={`translate(${displayX - half}, ${displayY - half + groupOffsetY})`}
-      onClick={onSelect}
+      onPointerDown={handleSelect}
+      onClick={handleSelect}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          onSelect();
+          handleSelect();
         }
       }}
       role="button"
@@ -127,6 +132,14 @@ export function RouteLoopBusMarker({
       opacity={isFaded ? 0.65 : 1}
     >
       {debugTitle ? <title>{debugTitle}</title> : null}
+      <circle
+        cx={half}
+        cy={half}
+        r={ringRadius + 8}
+        fill="transparent"
+        stroke="transparent"
+        strokeWidth={1}
+      />
       <circle
         cx={half}
         cy={half}
@@ -202,4 +215,4 @@ export function RouteLoopBusMarker({
       ) : null}
     </g>
   );
-}
+});

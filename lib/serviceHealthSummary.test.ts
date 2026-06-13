@@ -75,4 +75,32 @@ describe("buildServiceHealthSummary", () => {
     expect(summary.chips.some((chip) => chip.id === "ghost")).toBe(false);
     expect(summary.chips.some((chip) => chip.id === "gap")).toBe(false);
   });
+
+  it("uses the configured large-gap threshold", () => {
+    const summary = buildServiceHealthSummary(
+      createMetrics({
+        estimatedLateCount: 0,
+        possibleGhostCount: 0,
+        largestGapMinutes: 3,
+      }),
+      { largeGapThresholdMinutes: 2 },
+    );
+
+    expect(summary.chips.some((chip) => chip.id === "gap")).toBe(true);
+    expect(summary.topWarning).toBe("Largest gap 3 min");
+  });
+
+  it("can suppress large-gap summary warnings", () => {
+    const summary = buildServiceHealthSummary(
+      createMetrics({
+        estimatedLateCount: 0,
+        possibleGhostCount: 0,
+        largestGapMinutes: 20,
+      }),
+      { largeGapThresholdMinutes: null },
+    );
+
+    expect(summary.chips.some((chip) => chip.id === "gap")).toBe(false);
+    expect(summary.topWarning).toBeNull();
+  });
 });

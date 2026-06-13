@@ -147,4 +147,50 @@ describe("ibusRouteSchedules", () => {
     expect(schedule?.journeys[0]?.tripId).toBe("9001");
     expect(schedule?.journeys[0]?.stops).toHaveLength(2);
   });
+
+  it("reuses the same promise for duplicate concurrent schedule loads", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          ...manifest,
+          routeScheduleRoutes: ["337"],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          schemaVersion: 2,
+          baseVersion: "20260606",
+          routeId: "337",
+          generatedAt: "2026-06-13T00:00:00.000Z",
+          stops: { "490000001A": { n: "Stop A", c: "A1" } },
+          patterns: { "10": ["490000001A"] },
+          journeys: [
+            {
+              t: "9001",
+              d: "1",
+              p: "10",
+              s: 36000,
+              e: 36000,
+              w: [0],
+            },
+          ],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const [first, second] = await Promise.all([
+      loadRouteSchedule("337"),
+      loadRouteSchedule("337"),
+    ]);
+
+    expect(first?.journeys[0]?.tripId).toBe("9001");
+    expect(second?.journeys[0]?.tripId).toBe("9001");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "/data/ibus/20260606/route-schedules/337.json",
+    );
+  });
 });

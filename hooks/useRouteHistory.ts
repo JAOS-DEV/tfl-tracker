@@ -32,10 +32,13 @@ interface UseRouteHistoryResult {
   exportCsv: () => string;
 }
 
-export function useRouteHistory(routeId: string): UseRouteHistoryResult {
+export function useRouteHistory(
+  routeId: string,
+  enabled = true,
+): UseRouteHistoryResult {
   const getSnapshotForRoute = useCallback(
-    () => getSnapshotsForRoute(routeId),
-    [routeId],
+    () => (enabled ? getSnapshotsForRoute(routeId) : EMPTY_ROUTE_HISTORY_SNAPSHOTS),
+    [enabled, routeId],
   );
 
   const snapshots = useSyncExternalStore(
@@ -68,7 +71,7 @@ export function useRouteHistory(routeId: string): UseRouteHistoryResult {
   return {
     snapshots,
     dailyStats,
-    hydrated: true,
+    hydrated: enabled,
     refresh,
     clearRoute,
     exportJson,

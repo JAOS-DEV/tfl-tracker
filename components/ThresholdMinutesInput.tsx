@@ -15,10 +15,20 @@ function clampThreshold(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function sanitizeDecimalInput(value: string): string {
+  const cleaned = value.replace(/[^\d.]/g, "");
+  const [whole = "", ...decimalParts] = cleaned.split(".");
+  if (decimalParts.length === 0) {
+    return whole;
+  }
+
+  return `${whole}.${decimalParts.join("")}`;
+}
+
 export function ThresholdMinutesInput({
   value,
   onChange,
-  min = 1,
+  min = 0.1,
   max = 60,
   className = "w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-right dark:border-zinc-700 dark:bg-zinc-900",
   ariaLabel,
@@ -33,7 +43,7 @@ export function ThresholdMinutesInput({
   }, [value]);
 
   const commitDraft = () => {
-    const parsed = Number.parseInt(draft, 10);
+    const parsed = Number.parseFloat(draft);
     const next = Number.isFinite(parsed)
       ? clampThreshold(parsed, min, max)
       : value;
@@ -48,8 +58,8 @@ export function ThresholdMinutesInput({
   return (
     <input
       type="text"
-      inputMode="numeric"
-      pattern="[0-9]*"
+      inputMode="decimal"
+      pattern="[0-9]*[.]?[0-9]*"
       aria-label={ariaLabel}
       value={draft}
       onFocus={() => {
@@ -60,7 +70,7 @@ export function ThresholdMinutesInput({
         commitDraft();
       }}
       onChange={(event) => {
-        setDraft(event.target.value.replace(/\D/g, ""));
+        setDraft(sanitizeDecimalInput(event.target.value));
       }}
       onKeyDown={(event) => {
         if (event.key === "Enter") {

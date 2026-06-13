@@ -72,6 +72,40 @@ describe("calculateVehicleGaps", () => {
     expect(gaps).toHaveLength(1);
     expect(gaps[0]?.gapMinutes).toBe(8);
   });
+
+  it("keeps sub-minute gaps as decimals", () => {
+    const gaps = calculateVehicleGaps([
+      vehicle({
+        vehicleId: "BUS1",
+        progress: 0.1,
+        expectedArrival: "2026-06-11T12:00:00Z",
+      }),
+      vehicle({
+        vehicleId: "BUS2",
+        progress: 0.2,
+        expectedArrival: "2026-06-11T12:00:45Z",
+      }),
+    ]);
+
+    expect(gaps[0]?.gapMinutes).toBe(0.75);
+  });
+
+  it("uses absolute ETA separation when route progress and arrival times differ", () => {
+    const gaps = calculateVehicleGaps([
+      vehicle({
+        vehicleId: "BUS1",
+        progress: 0.1,
+        expectedArrival: "2026-06-11T12:08:00Z",
+      }),
+      vehicle({
+        vehicleId: "BUS2",
+        progress: 0.2,
+        expectedArrival: "2026-06-11T12:00:00Z",
+      }),
+    ]);
+
+    expect(gaps[0]?.gapMinutes).toBe(8);
+  });
 });
 
 describe("bunching and large gap detection", () => {
@@ -111,6 +145,24 @@ describe("bunching and large gap detection", () => {
 
     expect(detectLargeGaps(vehicles)).toHaveLength(1);
     expect(detectLargeGaps(vehicles)[0]?.gapMinutes).toBe(20);
+  });
+
+  it("detects large predicted gaps with sub-minute thresholds", () => {
+    const vehicles = [
+      vehicle({
+        vehicleId: "BUS1",
+        progress: 0.1,
+        expectedArrival: "2026-06-11T12:00:00Z",
+      }),
+      vehicle({
+        vehicleId: "BUS2",
+        progress: 0.5,
+        expectedArrival: "2026-06-11T12:00:45Z",
+      }),
+    ];
+
+    expect(detectLargeGaps(vehicles, 0.5)).toHaveLength(1);
+    expect(detectLargeGaps(vehicles, 1)).toHaveLength(0);
   });
 });
 

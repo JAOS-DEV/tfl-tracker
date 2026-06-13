@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { LoopIntelligenceOverlay } from "@/components/LoopIntelligenceOverlay";
 import type { LoopMarkerLabelSettings } from "@/components/LoopMarkerInfoBadges";
 import { RouteLoopBusMarker } from "@/components/RouteLoopBusMarker";
@@ -38,6 +38,7 @@ interface SchematicRouteLoopProps {
   movementDecisions?: Record<string, SmoothMovementDecision>;
   showAdvancedDiagnostics?: boolean;
   loopLabelSettings?: LoopMarkerLabelSettings;
+  largeGapThresholdMinutes?: number | null;
   stopDisruptionsByNaptanId?: Map<string, StopDisruption>;
   scheduleGhostDiagnostics?: string[];
   onStopSelect: (stop: NormalizedStop) => void;
@@ -90,13 +91,14 @@ function terminalArrow(
   return `${x - size},${y} ${x + 4},${y - size} ${x + 4},${y + size}`;
 }
 
-export function SchematicRouteLoop({
+export const SchematicRouteLoop = memo(function SchematicRouteLoop({
   route,
   vehicles,
   displayPositions,
   movementDecisions,
   showAdvancedDiagnostics = false,
   loopLabelSettings,
+  largeGapThresholdMinutes,
   scheduleGhostDiagnostics,
   stopDisruptionsByNaptanId,
   onStopSelect,
@@ -115,8 +117,11 @@ export function SchematicRouteLoop({
     [vehicles],
   );
   const largeGapSegments = useMemo(
-    () => detectLargeGaps(vehicles),
-    [vehicles],
+    () =>
+      largeGapThresholdMinutes
+        ? detectLargeGaps(vehicles, largeGapThresholdMinutes)
+        : [],
+    [vehicles, largeGapThresholdMinutes],
   );
 
   const nearbyStopIds = useMemo(() => {
@@ -137,9 +142,17 @@ export function SchematicRouteLoop({
   }, [route, layout, isMobile, nearbyStopIds, selectedStopId]);
 
   const { viewBoxWidth, viewBoxHeight } = layout;
+  const loopPath = useMemo(
+    () => buildLoopPath(route, layout),
+    [route, layout],
+  );
   const legEndpoints = useMemo(
     () => getLoopLegEndpoints(route, layout),
     [route, layout],
+  );
+  const allNodes: LoopStopNode[] = useMemo(
+    () => [...loopStops.outbound, ...loopStops.inbound],
+    [loopStops],
   );
   if (route.outbound.length === 0 && route.inbound.length === 0) {
     return (
@@ -149,7 +162,6 @@ export function SchematicRouteLoop({
     );
   }
 
-  const allNodes: LoopStopNode[] = [...loopStops.outbound, ...loopStops.inbound];
   const routeBadge = getRouteBadgeCenter(layout, isMobile);
   const routeBadgeWidth = isMobile ? 88 : 72;
   const routeBadgeHeight = isMobile ? 48 : 40;
@@ -173,20 +185,6 @@ export function SchematicRouteLoop({
       <div className="mb-2 space-y-2 px-3 text-sm text-zinc-700 sm:px-0 dark:text-zinc-300">
         <div className="flex flex-wrap gap-x-4 gap-y-2">
           <span className="inline-flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full border-2 border-zinc-600 bg-zinc-400 dark:border-zinc-300 dark:bg-zinc-500" />
-            Stop
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full border-2 border-zinc-700 bg-amber-400 dark:border-zinc-300" />
-            Next stop for bus
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-sky-500" />
-            Terminus
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-2">
-          <span className="inline-flex items-center gap-2">
             <span className="h-3 w-3 rounded-full bg-emerald-500" />
             Bus on time
           </span>
@@ -205,6 +203,27 @@ export function SchematicRouteLoop({
           <span className="inline-flex items-center gap-2">
             <span className="h-3 w-3 rounded-full border-2 border-dashed border-violet-400 bg-violet-400/15 dark:border-violet-300 dark:bg-violet-500/15" />
             Possible ghost
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <svg
+              width="28"
+              height="12"
+              viewBox="0 0 28 12"
+              aria-hidden="true"
+              className="shrink-0"
+            >
+              <line
+                x1="2"
+                y1="6"
+                x2="26"
+                y2="6"
+                stroke="#F59E0B"
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeDasharray="6 4"
+              />
+            </svg>
+            Large predicted gap
           </span>
         </div>
         {showAdvancedDiagnostics && scheduleGhostDiagnostics?.length ? (
@@ -232,7 +251,7 @@ export function SchematicRouteLoop({
           aria-label={`Schematic loop diagram for route ${route.routeId}`}
         >
           <path
-            d={buildLoopPath(route, layout)}
+            d={loopPath}
             fill="none"
             stroke="#0EA5E9"
             strokeWidth={isMobile ? 7 : 5}
@@ -353,4 +372,4 @@ export function SchematicRouteLoop({
       </p>
     </section>
   );
-}
+});

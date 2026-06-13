@@ -99,6 +99,7 @@ export function RouteCard({
     sequenceQuery,
     arrivalsQuery,
     intelligence,
+    isCheckingSchedule,
   } = useRouteIntelligence(activeRoute.routeId, {
     includeScheduleMatching: isExpanded,
     fetchTimetable: isExpanded,
@@ -134,6 +135,7 @@ export function RouteCard({
   );
   const { dailyStats, hydrated: historyHydrated } = useRouteHistory(
     activeRoute.routeId,
+    isExpanded,
   );
 
   const vehicles = useMemo(
@@ -172,6 +174,9 @@ export function RouteCard({
     const summary = buildServiceHealthSummary(serviceHealth, {
       isFetching: arrivalsQuery.isFetching,
       isStale: serviceHealth.isDataStale,
+      largeGapThresholdMinutes: preferences.warnLargeGap
+        ? preferences.largeGapMinutes
+        : null,
     });
     return summary.chips.map((chip) => ({
       id: chip.id,
@@ -179,7 +184,12 @@ export function RouteCard({
       variant: chip.variant,
       showLiveDot: chip.id === "live",
     }));
-  }, [serviceHealth, arrivalsQuery.isFetching]);
+  }, [
+    serviceHealth,
+    arrivalsQuery.isFetching,
+    preferences.largeGapMinutes,
+    preferences.warnLargeGap,
+  ]);
 
   useRouteHistoryRecorder(
     activeRoute.routeId,
@@ -399,6 +409,20 @@ export function RouteCard({
                   }}
                 />
               ) : null}
+              {arrivalsQuery.isLoading ? (
+                <p className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                  Loading live bus data…
+                </p>
+              ) : arrivalsQuery.isFetching ? (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Updating live bus data…
+                </p>
+              ) : null}
+              {isCheckingSchedule ? (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Checking schedule data for possible ghosts…
+                </p>
+              ) : null}
             </div>
 
             {visualMode === "loop" ? (
@@ -410,6 +434,9 @@ export function RouteCard({
                   movementDecisions={movementDecisions}
                   showAdvancedDiagnostics={displaySettings.showAdvancedDiagnostics}
                   scheduleGhostDiagnostics={intelligence?.scheduleGhostDiagnostics}
+                  largeGapThresholdMinutes={
+                    preferences.warnLargeGap ? preferences.largeGapMinutes : null
+                  }
                   loopLabelSettings={{
                     showRegistration: displaySettings.showBusRegistrationOnLoop,
                     showFleetNumber: displaySettings.showBusFleetNumberOnLoop,

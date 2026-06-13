@@ -31,7 +31,7 @@ function minutesBetweenArrivals(
   const diff =
     new Date(later.expectedArrival).getTime() -
     new Date(earlier.expectedArrival).getTime();
-  return Math.max(0, Math.round(diff / 60000));
+  return Math.abs(diff) / 60000;
 }
 
 function vehiclesForDirection(
@@ -87,7 +87,8 @@ function areVehiclesNearby(
 
 export function detectBunchingClusters(
   vehicles: EstimatedVehiclePosition[],
-  thresholdMinutes = SERVICE_INTELLIGENCE_THRESHOLDS.BUNCHING_THRESHOLD_MINUTES,
+  thresholdMinutes: number =
+    SERVICE_INTELLIGENCE_THRESHOLDS.BUNCHING_THRESHOLD_MINUTES,
 ): BunchingCluster[] {
   const clusters: BunchingCluster[] = [];
   const directions: RouteDirection[] = ["outbound", "inbound"];
@@ -151,14 +152,16 @@ export function detectBunchingClusters(
 
 export function detectBunching(
   vehicles: EstimatedVehiclePosition[],
-  thresholdMinutes = SERVICE_INTELLIGENCE_THRESHOLDS.BUNCHING_THRESHOLD_MINUTES,
+  thresholdMinutes: number =
+    SERVICE_INTELLIGENCE_THRESHOLDS.BUNCHING_THRESHOLD_MINUTES,
 ): boolean {
   return detectBunchingClusters(vehicles, thresholdMinutes).length > 0;
 }
 
 export function detectLargeGaps(
   vehicles: EstimatedVehiclePosition[],
-  thresholdMinutes = SERVICE_INTELLIGENCE_THRESHOLDS.LARGE_GAP_THRESHOLD_MINUTES,
+  thresholdMinutes: number =
+    SERVICE_INTELLIGENCE_THRESHOLDS.LARGE_GAP_THRESHOLD_MINUTES,
 ): LargeGapSegment[] {
   return calculateVehicleGaps(vehicles)
     .filter((gap) => gap.gapMinutes >= thresholdMinutes)

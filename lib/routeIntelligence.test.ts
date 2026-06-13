@@ -201,4 +201,74 @@ describe("buildRouteIntelligence", () => {
     );
     expect(result.dashboardSummary.isDataStale).toBe(directMetrics.isDataStale);
   });
+
+  it("renders live buses first and appends schedule ghosts after route schedule loads", () => {
+    const now = new Date("2026-06-12T09:04:00.000Z").getTime();
+    const baseInput = {
+      routeId: "337",
+      route: sampleRoute,
+      predictions: [basePrediction],
+      layout: LOOP_LAYOUT,
+      dataUpdatedAt: now,
+      now,
+      trackingStates: new Map<string, PredictionTrackingState>(),
+      liveBaseVersion: "20260606",
+      showScheduleGhosts: true,
+    };
+
+    const liveOnly = buildRouteIntelligence(baseInput);
+    expect(liveOnly.vehicles.some((vehicle) => vehicle.isScheduledGhostCandidate)).toBe(false);
+
+    const withSchedule = buildRouteIntelligence({
+      ...baseInput,
+      routeSchedule: {
+        baseVersion: "20260606",
+        routeId: "337",
+        generatedAt: "2026-06-13T00:00:00.000Z",
+        journeys: [
+          {
+            tripId: "scheduled-ghost-trip",
+            operatorCode: "CX",
+            blockNo: "123568",
+            blockIdx: "",
+            runningNo: "568",
+            garageNo: "123",
+            direction: "1",
+            destination: "towards Stop B",
+            patternIdx: "10",
+            startTime: "10:00",
+            startSeconds: 36000,
+            endSeconds: 36300,
+            journeyType: 1,
+            serviceDays: [5],
+            stops: [
+              {
+                sequence: 1,
+                stopName: "Stop A",
+                stopCode: "A1",
+                naptanId: "490000001A",
+                scheduledTime: "10:00",
+                scheduledSeconds: 36000,
+              },
+              {
+                sequence: 2,
+                stopName: "Stop B",
+                stopCode: "B1",
+                naptanId: "490000002B",
+                scheduledTime: "10:05",
+                scheduledSeconds: 36300,
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const scheduleGhosts = withSchedule.vehicles.filter(
+      (vehicle) => vehicle.isScheduledGhostCandidate,
+    );
+    expect(scheduleGhosts).toHaveLength(1);
+    expect(scheduleGhosts[0]?.scheduledGhostRunningNo).toBe("568");
+    expect(withSchedule.dashboardSummary.possibleGhostCount).toBe(1);
+  });
 });

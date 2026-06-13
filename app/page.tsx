@@ -161,6 +161,7 @@ export default function HomePage(): React.ReactElement {
     : null;
 
   const normalizedDisplaySettings = normalizeDisplaySettings(displaySettings);
+  const savedDataLoading = !isHydrated;
 
   return (
     <div className="flex min-h-full flex-col">
@@ -186,60 +187,60 @@ export default function HomePage(): React.ReactElement {
 
       <main className="mx-auto w-full max-w-6xl flex-1 space-y-6 px-2 py-6 sm:px-4">
         <InstallAppBanner />
-        {isHydrated ? (
-          <>
-            {offlineError ? (
-              <ErrorState
-                title={offlineError.title}
-                message={offlineError.message}
-                action={offlineError.action}
-              />
-            ) : null}
+        {offlineError ? (
+          <ErrorState
+            title={offlineError.title}
+            message={offlineError.message}
+            action={offlineError.action}
+          />
+        ) : null}
 
-            {urlLoadWarning ? (
-              <SharedRouteWarningBanner
-                title={urlLoadWarning.title}
-                message={urlLoadWarning.message}
-                action={urlLoadWarning.action}
-                onDismiss={() => setUrlLoadWarning(null)}
-              />
-            ) : null}
+        {urlLoadWarning ? (
+          <SharedRouteWarningBanner
+            title={urlLoadWarning.title}
+            message={urlLoadWarning.message}
+            action={urlLoadWarning.action}
+            onDismiss={() => setUrlLoadWarning(null)}
+          />
+        ) : null}
 
-            <RouteSearch
-              activeRoutes={activeRoutes}
-              recentRoutes={recentRoutes}
-              favouriteRoutes={migratedFavourites}
-              favouriteStops={favouriteStops}
-              defaultView={normalizedDisplaySettings.defaultVisualMode}
-              onActiveRoutesChange={setActiveRoutes}
-              onRecentRoutesChange={setRecentRoutes}
-              onRemoveFavouriteRoute={handleRemoveFavouriteRoute}
-              onToggleFavouriteRoute={handleToggleFavouriteRoute}
-              onToggleFavouriteStop={toggleFavouriteStop}
-              onRemoveFavouriteStop={removeFavouriteStop}
-              onOpenStop={handleOpenStop}
-              isFavouriteRoute={(routeId) =>
-                isFavouriteRoute(migratedFavourites, routeId)
-              }
-              isFavouriteStop={(stopPointId) =>
-                checkFavouriteStop(favouriteStops, stopPointId)
-              }
-            />
-            <ActiveRoutes
-              activeRoutes={activeRoutes}
-              favouriteRoutes={migratedFavourites}
-              alertPreferences={normalizeAlertPreferencesMap(alertPreferences)}
-              displaySettings={normalizedDisplaySettings}
-              urlVisualMode={urlVisualMode}
-              onActiveRoutesChange={setActiveRoutes}
-              onToggleFavourite={handleToggleFavouriteRoute}
-              onAlertPreferencesChange={handleAlertPreferencesChange}
-            />
-          </>
-        ) : (
-          <div className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-            Loading saved routes…
+        <RouteSearch
+          activeRoutes={activeRoutes}
+          recentRoutes={recentRoutes}
+          favouriteRoutes={migratedFavourites}
+          favouriteStops={favouriteStops}
+          defaultView={normalizedDisplaySettings.defaultVisualMode}
+          onActiveRoutesChange={setActiveRoutes}
+          onRecentRoutesChange={setRecentRoutes}
+          onRemoveFavouriteRoute={handleRemoveFavouriteRoute}
+          onToggleFavouriteRoute={handleToggleFavouriteRoute}
+          onToggleFavouriteStop={toggleFavouriteStop}
+          onRemoveFavouriteStop={removeFavouriteStop}
+          onOpenStop={handleOpenStop}
+          isFavouriteRoute={(routeId) =>
+            isFavouriteRoute(migratedFavourites, routeId)
+          }
+          isFavouriteStop={(stopPointId) =>
+            checkFavouriteStop(favouriteStops, stopPointId)
+          }
+          isLoadingSavedData={savedDataLoading}
+        />
+
+        {savedDataLoading ? (
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+            Loading saved routes and favourites…
           </div>
+        ) : (
+          <ActiveRoutes
+            activeRoutes={activeRoutes}
+            favouriteRoutes={migratedFavourites}
+            alertPreferences={normalizeAlertPreferencesMap(alertPreferences)}
+            displaySettings={normalizedDisplaySettings}
+            urlVisualMode={urlVisualMode}
+            onActiveRoutesChange={setActiveRoutes}
+            onToggleFavourite={handleToggleFavouriteRoute}
+            onAlertPreferencesChange={handleAlertPreferencesChange}
+          />
         )}
       </main>
 
