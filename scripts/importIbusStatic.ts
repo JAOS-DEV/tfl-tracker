@@ -20,6 +20,26 @@ import { parseBaseVersionXml } from "../lib/ibus/baseVersion";
 
 const IBUS_ROOT = "https://ibus.data.tfl.gov.uk";
 
+async function writeJson(filePath: string, data: unknown): Promise<number> {
+  const json = `${JSON.stringify(data)}\n`;
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, json, "utf8");
+  return Buffer.byteLength(json, "utf8");
+}
+
+async function listRouteScheduleRoutes(outputRoot: string): Promise<string[]> {
+  const scheduleDir = path.join(outputRoot, "route-schedules");
+  try {
+    const files = await fs.readdir(scheduleDir);
+    return files
+      .filter((fileName) => fileName.endsWith(".json"))
+      .map((fileName) => fileName.replace(/\.json$/, ""))
+      .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+  } catch {
+    return [];
+  }
+}
+
 async function fetchText(url: string): Promise<string> {
   const response = await fetch(url);
   if (!response.ok) {
@@ -40,13 +60,6 @@ async function fetchBuffer(url: string): Promise<Buffer | null> {
   }
 
   return Buffer.from(await response.arrayBuffer());
-}
-
-async function writeJson(filePath: string, value: unknown): Promise<number> {
-  const content = `${JSON.stringify(value)}\n`;
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, content, "utf8");
-  return Buffer.byteLength(content, "utf8");
 }
 
 async function extractXmlFiles(
@@ -276,6 +289,18 @@ async function main(): Promise<void> {
     if (scheduleResult.warnings.length > 0) {
       warnings.push(...scheduleResult.warnings);
     }
+  }
+
+  const routeScheduleRoutes = await listRouteScheduleRoutes(outputRoot);
+  if (routeScheduleRoutes.length > 0) {
+    const manifestWithSchedules: IbusCurrentManifest = {
+      ...currentManifest,
+      routeScheduleRoutes,
+    };
+    await writeJson(
+      path.join("public", "data", "ibus", "current.json"),
+      manifestWithSchedules,
+    );
   }
 
   console.log("Import complete");

@@ -180,7 +180,7 @@ export function SettingsPanel({
           </p>
 
           <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
-            <span>Show schedule ghosts</span>
+            <span>Show possible ghost buses</span>
             <input
               type="checkbox"
               checked={settings.showScheduleGhosts}
@@ -194,8 +194,8 @@ export function SettingsPanel({
             />
           </label>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Show possible ghost buses from TfL iBus schedule data when a
-            scheduled journey has no matching live vehicle.
+            Show buses that may be missing from the live feed, based on live TfL
+            data and iBus schedule checks.
           </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Service details, history, and alerts are always available from each

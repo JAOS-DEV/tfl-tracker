@@ -5,7 +5,13 @@ import { IbusDetailsSection } from "@/components/IbusDetailsSection";
 import { MobileBottomSheet } from "@/components/MobileBottomSheet";
 import { useIbusVehicleDetails } from "@/hooks/useIbusVehicleDetails";
 import { formatLastUpdated, formatLocalTime, formatMinutes } from "@/lib/format";
-import { ghostStatusLabel } from "@/lib/ghostBusDetection";
+import {
+  formatGhostDestination,
+  getGhostSource,
+  getPossibleGhostExplanation,
+  isPossibleGhostBus,
+  POSSIBLE_GHOST_SHORT_LABEL,
+} from "@/lib/ghostDisplay";
 import { predictionConfidenceLabel } from "@/lib/predictionTracking";
 import { isStopIdLike } from "@/lib/stopDisplayName";
 import {
@@ -21,6 +27,7 @@ interface BusDetailsModalProps {
   vehicle: EstimatedVehiclePosition | null;
   predictionConfidence?: PredictionConfidence;
   movementDecision?: SmoothMovementDecision;
+  showAdvancedDiagnostics?: boolean;
   onClose: () => void;
 }
 
@@ -63,6 +70,7 @@ export function BusDetailsModal({
   vehicle,
   predictionConfidence = "normal",
   movementDecision,
+  showAdvancedDiagnostics = false,
   onClose,
 }: BusDetailsModalProps): React.ReactElement | null {
   const shouldFetchDetails =
@@ -93,6 +101,11 @@ export function BusDetailsModal({
   const confidence =
     vehicle.predictionConfidence ?? predictionConfidence ?? "normal";
 
+  const isGhost = isPossibleGhostBus(vehicle);
+  const ghostExplanation = getPossibleGhostExplanation(vehicle);
+  const ghostSource = getGhostSource(vehicle);
+  const isScheduleGhost = vehicle.isScheduledGhostCandidate === true;
+
   const matchedStopDisplay =
     vehicle.matchedStopName &&
     !isStopIdLike(vehicle.matchedStopName)
@@ -117,13 +130,13 @@ export function BusDetailsModal({
           >
             {predictionConfidenceLabel(confidence)}
           </span>
-          {vehicle.isSuspectedGhost ? (
+          {isGhost ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-900 dark:bg-violet-950 dark:text-violet-100">
               <GhostIcon size={16} />
-              Possible ghost
+              {POSSIBLE_GHOST_SHORT_LABEL}
             </span>
           ) : null}
-          {vehicle.ghostStatus === "disappeared" ? (
+          {!isGhost && vehicle.ghostStatus === "disappeared" ? (
             <span className="inline-block rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
               Prediction disappeared
             </span>
@@ -138,63 +151,135 @@ export function BusDetailsModal({
           Position is estimated from TfL arrival predictions, not live GPS.
         </p>
 
-        {vehicle.isScheduledGhostCandidate ? (
+        {isGhost && ghostExplanation ? (
           <section className="mt-4 rounded-xl border border-violet-300 bg-violet-50 p-3 dark:border-violet-800 dark:bg-violet-950/40">
             <h3 className="text-sm font-semibold text-violet-900 dark:text-violet-100">
-              Possible ghost bus
+              {ghostExplanation.title}
             </h3>
             <p className="mt-2 text-sm text-violet-900 dark:text-violet-100">
-              Scheduled bus not currently matched to a live vehicle.
-            </p>
-            <p className="mt-2 text-xs text-violet-800 dark:text-violet-200">
-              This is a scheduled bus that should be on the route, but no
-              matching live vehicle is currently visible. Source: TfL iBus static
-              schedule + live TfL data.
+              {ghostExplanation.summary}
             </p>
             <dl className="mt-3 space-y-2 text-sm">
+              {isScheduleGhost ? (
+                <>
+                  <div>
+                    <dt className="text-violet-700 dark:text-violet-300">Running number</dt>
+                    <dd className="font-medium">
+                      {vehicle.scheduledGhostRunningNo ?? "Unknown"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-violet-700 dark:text-violet-300">Block</dt>
+                    <dd className="font-medium">
+                      {vehicle.scheduledGhostBlockNo ?? "Unknown"}
+                    </dd>
+                  </div>
+                  {vehicle.scheduledGhostGarageNo ? (
+                    <div>
+                      <dt className="text-violet-700 dark:text-violet-300">Garage no</dt>
+                      <dd className="font-medium">{vehicle.scheduledGhostGarageNo}</dd>
+                    </div>
+                  ) : null}
+                  {vehicle.scheduledGhostOperatorCode ? (
+                    <div>
+                      <dt className="text-violet-700 dark:text-violet-300">Operator</dt>
+                      <dd className="font-medium">{vehicle.scheduledGhostOperatorCode}</dd>
+                    </div>
+                  ) : null}
+                  <div>
+                    <dt className="text-violet-700 dark:text-violet-300">Destination</dt>
+                    <dd className="font-medium">
+                      {formatGhostDestination(vehicle.destinationName)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-violet-700 dark:text-violet-300">Expected near</dt>
+                    <dd className="font-medium">
+                      {vehicle.matchedStopName ?? "Unknown stop"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-violet-700 dark:text-violet-300">Scheduled time</dt>
+                    <dd className="font-medium">
+                      {vehicle.matchedScheduledTime
+                        ? formatLocalTime(vehicle.matchedScheduledTime)
+                        : "Unknown"}
+                    </dd>
+                  </div>
+                  {showAdvancedDiagnostics && vehicle.scheduledGhostConfidence ? (
+                    <div>
+                      <dt className="text-violet-700 dark:text-violet-300">Confidence</dt>
+                      <dd className="font-medium capitalize">
+                        {vehicle.scheduledGhostConfidence}
+                      </dd>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  {vehicle.vehicleRegistration ? (
+                    <div>
+                      <dt className="text-violet-700 dark:text-violet-300">Registration</dt>
+                      <dd className="font-medium">{vehicle.vehicleRegistration}</dd>
+                    </div>
+                  ) : null}
+                  {vehicle.vehicleFleetReference ? (
+                    <div>
+                      <dt className="text-violet-700 dark:text-violet-300">Fleet number</dt>
+                      <dd className="font-medium">{vehicle.vehicleFleetReference}</dd>
+                    </div>
+                  ) : null}
+                  {vehicle.scheduledGhostRunningNo ? (
+                    <div>
+                      <dt className="text-violet-700 dark:text-violet-300">Running number</dt>
+                      <dd className="font-medium">{vehicle.scheduledGhostRunningNo}</dd>
+                    </div>
+                  ) : null}
+                  {matchedStopDisplay ? (
+                    <div>
+                      <dt className="text-violet-700 dark:text-violet-300">Last seen stop</dt>
+                      <dd className="font-medium">{matchedStopDisplay}</dd>
+                    </div>
+                  ) : null}
+                  {vehicle.lastSeenAt ? (
+                    <div>
+                      <dt className="text-violet-700 dark:text-violet-300">Last seen time</dt>
+                      <dd className="font-medium">
+                        {formatLastUpdated(new Date(vehicle.lastSeenAt))}
+                      </dd>
+                    </div>
+                  ) : null}
+                  <div>
+                    <dt className="text-violet-700 dark:text-violet-300">Route / direction</dt>
+                    <dd className="font-medium capitalize">
+                      {vehicle.routeNumber} · {vehicle.direction}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-violet-700 dark:text-violet-300">Destination</dt>
+                    <dd className="font-medium">
+                      {formatGhostDestination(vehicle.destinationName)}
+                    </dd>
+                  </div>
+                </>
+              )}
               <div>
-                <dt className="text-violet-700 dark:text-violet-300">Running number</dt>
-                <dd className="font-medium">{vehicle.scheduledGhostRunningNo ?? "Unknown"}</dd>
+                <dt className="text-violet-700 dark:text-violet-300">Source</dt>
+                <dd className="font-medium">{ghostExplanation.sourceLabel}</dd>
               </div>
-              <div>
-                <dt className="text-violet-700 dark:text-violet-300">Block</dt>
-                <dd className="font-medium">{vehicle.scheduledGhostBlockNo ?? "Unknown"}</dd>
-              </div>
-              {vehicle.scheduledGhostGarageNo ? (
-                <div>
-                  <dt className="text-violet-700 dark:text-violet-300">Garage no</dt>
-                  <dd className="font-medium">{vehicle.scheduledGhostGarageNo}</dd>
-                </div>
-              ) : null}
-              {vehicle.scheduledGhostOperatorCode ? (
-                <div>
-                  <dt className="text-violet-700 dark:text-violet-300">Operator</dt>
-                  <dd className="font-medium">{vehicle.scheduledGhostOperatorCode}</dd>
-                </div>
-              ) : null}
-              <div>
-                <dt className="text-violet-700 dark:text-violet-300">Expected near</dt>
-                <dd className="font-medium">{vehicle.matchedStopName ?? "Unknown stop"}</dd>
-              </div>
-              <div>
-                <dt className="text-violet-700 dark:text-violet-300">Scheduled time</dt>
-                <dd className="font-medium">{vehicle.matchedScheduledTime ?? "Unknown"}</dd>
-              </div>
-              <div>
-                <dt className="text-violet-700 dark:text-violet-300">Confidence</dt>
-                <dd className="font-medium capitalize">
-                  {vehicle.scheduledGhostConfidence ?? "unknown"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-violet-700 dark:text-violet-300">Reason</dt>
-                <dd className="font-medium">{vehicle.ghostReason ?? "scheduled-journey-active-but-no-live-match"}</dd>
-              </div>
-              {vehicle.baseVersion ? (
-                <div>
-                  <dt className="text-violet-700 dark:text-violet-300">Source base version</dt>
-                  <dd className="font-medium">{vehicle.baseVersion}</dd>
-                </div>
+              {showAdvancedDiagnostics ? (
+                <>
+                  <div>
+                    <dt className="text-violet-700 dark:text-violet-300">Ghost source</dt>
+                    <dd className="font-medium capitalize">{ghostSource}</dd>
+                  </div>
+                  {vehicle.ghostReason ? (
+                    <div>
+                      <dt className="text-violet-700 dark:text-violet-300">Ghost reason</dt>
+                      <dd className="font-medium">{vehicle.ghostReason}</dd>
+                    </div>
+                  ) : null}
+                </>
               ) : null}
             </dl>
           </section>
@@ -327,10 +412,19 @@ export function BusDetailsModal({
           </p>
         </section>
 
-        {vehicle.isSuspectedGhost || vehicle.ghostStatus !== "normal" ? (
+        {!isGhost &&
+        (vehicle.ghostStatus === "missingLatest" ||
+          vehicle.ghostStatus === "reappeared" ||
+          vehicle.ghostStatus === "stale") ? (
           <section className="mt-4 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
             <h3 className="text-sm font-semibold">Prediction tracking</h3>
-            <p className="mt-2 text-sm">{ghostStatusLabel(vehicle.ghostStatus)}</p>
+            <p className="mt-2 text-sm">
+              {vehicle.ghostStatus === "missingLatest"
+                ? "Missing from latest TfL feed"
+                : vehicle.ghostStatus === "reappeared"
+                  ? "Reappeared"
+                  : "TfL data may be stale"}
+            </p>
             {vehicle.lastSeenAt ? (
               <p className="mt-1 text-sm text-zinc-500">
                 Last seen {formatLastUpdated(new Date(vehicle.lastSeenAt))}
@@ -342,14 +436,8 @@ export function BusDetailsModal({
                 {vehicle.missedRefreshCount === 1 ? "" : "es"}
               </p>
             ) : null}
-            {vehicle.ghostReason ? (
+            {showAdvancedDiagnostics && vehicle.ghostReason ? (
               <p className="mt-2 text-xs text-zinc-500">{vehicle.ghostReason}</p>
-            ) : null}
-            {vehicle.isSuspectedGhost ? (
-              <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-                This bus prediction has disappeared from the TfL feed for multiple
-                refreshes. It may be a ghost bus, but TfL data can briefly flicker.
-              </p>
             ) : null}
           </section>
         ) : null}

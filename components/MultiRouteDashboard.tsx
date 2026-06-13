@@ -4,6 +4,7 @@ import { ActiveRouteComparison } from "@/components/ActiveRouteComparison";
 import { MultiRouteHistoryComparison } from "@/components/MultiRouteHistoryComparison";
 import { StatusPill } from "@/components/StatusPill";
 import { useActiveRouteIntelligences } from "@/hooks/useRouteIntelligence";
+import { possibleGhostCountLabel } from "@/lib/ghostDisplay";
 import {
   createRouteAlertPreferences,
   type DisplaySettings,
@@ -36,7 +37,7 @@ function compactAlertLabel(summary: RouteDashboardSummary | undefined): string |
     return null;
   }
   if (summary.possibleGhostCount > 0) {
-    return `${summary.possibleGhostCount} ghost`;
+    return possibleGhostCountLabel(summary.possibleGhostCount);
   }
   if (summary.estimatedLateCount > 0) {
     return `${summary.estimatedLateCount} late`;
@@ -147,7 +148,7 @@ function DashboardRouteItem({
           ? ` · gap ${summary.largestGapMinutes} min`
           : ""}
         {summary.possibleGhostCount > 0
-          ? ` · ${summary.possibleGhostCount} ghost`
+          ? ` · ${possibleGhostCountLabel(summary.possibleGhostCount)}`
           : ""}
         {summary.estimatedLateCount > 0
           ? ` · ${summary.estimatedLateCount} late`

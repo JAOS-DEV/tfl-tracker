@@ -162,6 +162,29 @@ export function mapIbusDirectionToRouteDirection(
   return ibusDirection === "2" ? "inbound" : "outbound";
 }
 
+export function resolveScheduledJourneyDestination(
+  journey: IbusScheduledJourney,
+  route: NormalizedRoute,
+  direction: RouteDirection,
+): string | null {
+  if (journey.destination) {
+    return journey.destination;
+  }
+
+  const finalStop = journey.stops[journey.stops.length - 1];
+  if (finalStop?.stopName) {
+    return `towards ${finalStop.stopName}`;
+  }
+
+  const leg = direction === "outbound" ? route.outbound : route.inbound;
+  const terminal = leg[leg.length - 1];
+  if (terminal?.name) {
+    return `towards ${terminal.name}`;
+  }
+
+  return null;
+}
+
 function countStopMatches(
   naptanIds: string[],
   routeStops: NormalizedStop[],
@@ -404,7 +427,7 @@ export function getScheduledGhostCandidates(
       blockNo: journey.blockNo,
       garageNo: journey.garageNo,
       operatorCode: journey.operatorCode,
-      destination: journey.destination,
+      destination: resolveScheduledJourneyDestination(journey, input.route, direction),
       expectedStopName: currentStop?.stopName ?? "Unknown stop",
       expectedStopCode: currentStop?.stopCode ?? null,
       expectedScheduledTime: currentStop?.scheduledTime ?? journey.startTime,
@@ -430,7 +453,7 @@ export function scheduledGhostToVehiclePosition(
     baseVersion: candidate.baseVersion,
     routeNumber: candidate.routeId,
     direction: candidate.direction,
-    destinationName: candidate.destination ?? "Scheduled destination",
+    destinationName: candidate.destination ?? "Destination unavailable",
     expectedArrival: new Date().toISOString(),
     timeToStation: 0,
     nextPrediction: {
@@ -439,7 +462,7 @@ export function scheduledGhostToVehiclePosition(
       routeNumber: candidate.routeId,
       naptanId: "",
       stopName: candidate.expectedStopName,
-      destinationName: candidate.destination ?? "Scheduled destination",
+      destinationName: candidate.destination ?? "Destination unavailable",
       direction: candidate.direction,
       timeToStation: 0,
       expectedArrival: new Date().toISOString(),
@@ -465,6 +488,7 @@ export function scheduledGhostToVehiclePosition(
       "Scheduled bus not currently matched to a live vehicle",
     ghostStatus: "suspectedGhost",
     ghostReason: candidate.reason,
+    ghostSource: "schedule",
     missedRefreshCount: 0,
     isSuspectedGhost: true,
     isScheduledGhostCandidate: true,

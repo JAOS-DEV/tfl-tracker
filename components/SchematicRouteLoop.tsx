@@ -209,7 +209,7 @@ export function SchematicRouteLoop({
             Bus late
           </span>
           <span className="inline-flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full border-2 border-zinc-400 bg-zinc-400/25 dark:border-zinc-400 dark:bg-zinc-500/25" />
+            <span className="h-3 w-3 rounded-full border-2 border-dashed border-violet-400 bg-violet-400/15 dark:border-violet-300 dark:bg-violet-500/15" />
             Possible ghost
           </span>
         </div>

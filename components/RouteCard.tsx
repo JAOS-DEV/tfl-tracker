@@ -581,6 +581,7 @@ export function RouteCard({
             ? selectedMovementDecision
             : undefined
         }
+        showAdvancedDiagnostics={displaySettings.showAdvancedDiagnostics}
         onClose={() => setSelectedVehicle(null)}
       />
     </>

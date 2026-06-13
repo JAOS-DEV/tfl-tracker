@@ -1,6 +1,8 @@
 import { GHOST_BUS_THRESHOLDS } from "@/lib/constants";
+import { countPossibleGhostBuses } from "@/lib/ghostDisplay";
 import { isPredictionDataStale } from "@/lib/predictionTracking";
 import type {
+  EstimatedVehiclePosition,
   GhostStatus,
   NormalizedVehiclePrediction,
   PredictionTrackingState,
@@ -136,31 +138,20 @@ export function ghostStatusLabel(status: GhostStatus): string {
 }
 
 export function countGhostStatuses(
-  vehicles: Array<{
-    ghostStatus: GhostStatus;
-    isScheduledGhostCandidate?: boolean;
-  }>,
+  vehicles: EstimatedVehiclePosition[],
 ): {
   possibleGhostCount: number;
   predictionDisappearedCount: number;
   missingLatestCount: number;
   reappearedCount: number;
 } {
-  let possibleGhostCount = 0;
+  const possibleGhostCount = countPossibleGhostBuses(vehicles);
   let predictionDisappearedCount = 0;
   let missingLatestCount = 0;
   let reappearedCount = 0;
 
   for (const vehicle of vehicles) {
-    if (vehicle.isScheduledGhostCandidate) {
-      possibleGhostCount += 1;
-      continue;
-    }
-
     switch (vehicle.ghostStatus) {
-      case "suspectedGhost":
-        possibleGhostCount += 1;
-        break;
       case "disappeared":
         predictionDisappearedCount += 1;
         break;

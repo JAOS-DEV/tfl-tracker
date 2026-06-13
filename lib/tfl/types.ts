@@ -253,6 +253,7 @@ export interface EstimatedVehiclePosition {
   missedRefreshCount: number;
   reappearedAt?: number;
   isSuspectedGhost: boolean;
+  ghostSource?: "schedule" | "feed" | "disappeared";
   isScheduledGhostCandidate?: boolean;
   scheduledGhostConfidence?: "high" | "medium" | "low";
   scheduledGhostRunningNo?: string;

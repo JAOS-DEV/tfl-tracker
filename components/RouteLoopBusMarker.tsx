@@ -1,7 +1,12 @@
 import { EmbeddedBusIcon } from "@/components/BusIcon";
-import { EmbeddedGhostIcon } from "@/components/EmbeddedGhostIcon";
 import { LoopMarkerBadge } from "@/components/LoopMarkerBadge";
-import { ghostStatusLabel } from "@/lib/ghostBusDetection";
+import {
+  getGhostMarkerIconText,
+  getPossibleGhostMarkerLabel,
+  GHOST_MARKER_RING_CLASS,
+  isPossibleGhostBus,
+  POSSIBLE_GHOST_LABEL,
+} from "@/lib/ghostDisplay";
 import { scheduleAccessibleLabel } from "@/lib/scheduleDeviation";
 import {
   formatMovementDecision,
@@ -38,24 +43,21 @@ export function RouteLoopBusMarker({
 }: RouteLoopBusMarkerProps): React.ReactElement {
   const half = markerSize / 2;
   const ringRadius = half + 10;
-  const isScheduledGhost = vehicle.isScheduledGhostCandidate === true;
-  const isGhost = vehicle.isSuspectedGhost;
+  const isGhost = isPossibleGhostBus(vehicle);
   const isFaded =
-    vehicle.ghostStatus === "missingLatest" ||
-    vehicle.ghostStatus === "disappeared" ||
-    (isGhost && !isScheduledGhost);
+    !isGhost &&
+    (vehicle.ghostStatus === "missingLatest" ||
+      vehicle.ghostStatus === "disappeared");
 
-  const statusLabel = isScheduledGhost
-    ? `Possible ghost bus, running number ${vehicle.scheduledGhostRunningNo ?? "unknown"}`
-    : isGhost
-      ? ghostStatusLabel(vehicle.ghostStatus)
-      : scheduleAccessibleLabel(
-          vehicle.scheduleStatus,
-          vehicle.scheduleDeviationMinutes,
-        );
+  const statusLabel = isGhost
+    ? `${POSSIBLE_GHOST_LABEL}, running number ${getGhostMarkerIconText(vehicle)}`
+    : scheduleAccessibleLabel(
+        vehicle.scheduleStatus,
+        vehicle.scheduleDeviationMinutes,
+      );
 
-  const label = isScheduledGhost
-    ? `Possible ghost bus ${vehicle.routeNumber}, running ${vehicle.scheduledGhostRunningNo ?? "?"} near ${vehicle.matchedStopName ?? "route"}`
+  const label = isGhost
+    ? getPossibleGhostMarkerLabel(vehicle)
     : vehicle.matched
       ? `Bus ${vehicle.routeNumber}, ${statusLabel}, estimated near ${vehicle.nextStop?.name ?? "route"}`
       : `Bus ${vehicle.routeNumber} position unavailable`;
@@ -63,16 +65,12 @@ export function RouteLoopBusMarker({
     ? `Movement: ${formatMovementDecision(movementDecision)}`
     : undefined;
 
-  const ringClass = isScheduledGhost
-    ? "fill-violet-400/15 stroke-violet-400 stroke-dashed dark:fill-violet-500/15 dark:stroke-violet-300"
-    : isGhost
-      ? "fill-zinc-400/20 stroke-zinc-400 dark:fill-zinc-500/20 dark:stroke-zinc-400"
-      : adherenceRingClasses[vehicle.adherence];
+  const ringClass = isGhost
+    ? GHOST_MARKER_RING_CLASS
+    : adherenceRingClasses[vehicle.adherence];
 
   const badgeX = markerSize - 8;
   const badgeY = -20;
-  const ghostX = badgeX + 34;
-  const ghostY = badgeY - 2;
 
   return (
     <g
@@ -97,24 +95,16 @@ export function RouteLoopBusMarker({
         r={ringRadius}
         className={`stroke-2 transition-all duration-500 ${ringClass} ${
           isSelected ? "animate-pulse" : ""
-        } ${vehicle.ghostStatus === "disappeared" && !isScheduledGhost ? "stroke-dashed" : ""}`}
+        }`}
       />
       <EmbeddedBusIcon
-        routeNumber={
-          isScheduledGhost
-            ? vehicle.scheduledGhostRunningNo ?? "?"
-            : vehicle.routeNumber
-        }
+        routeNumber={getGhostMarkerIconText(vehicle)}
         size={markerSize}
         isActive={isSelected}
-        variant={isScheduledGhost || isGhost ? "ghost" : isFaded ? "faded" : "live"}
+        variant={isGhost ? "ghost" : isFaded ? "faded" : "live"}
         ariaLabel={label}
       />
-      {!isScheduledGhost ? (
-        <g transform={`translate(${badgeX}, ${badgeY})`}>
-          <LoopMarkerBadge vehicle={vehicle} />
-        </g>
-      ) : (
+      {isGhost ? (
         <g transform={`translate(${badgeX}, ${badgeY})`}>
           <rect
             x={-8}
@@ -136,12 +126,11 @@ export function RouteLoopBusMarker({
             Ghost
           </text>
         </g>
-      )}
-      {isGhost ? (
-        <g transform={`translate(${ghostX}, ${ghostY})`}>
-          <EmbeddedGhostIcon size={18} />
+      ) : (
+        <g transform={`translate(${badgeX}, ${badgeY})`}>
+          <LoopMarkerBadge vehicle={vehicle} />
         </g>
-      ) : null}
+      )}
     </g>
   );
 }

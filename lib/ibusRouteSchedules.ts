@@ -3,20 +3,28 @@ import type { IbusRouteSchedule } from "@/lib/ibus/scheduleTypes";
 
 const manifestCache = new Map<string, Promise<IbusCurrentManifest | null>>();
 const scheduleCache = new Map<string, Promise<IbusRouteSchedule | null>>();
+const missingScheduleRoutes = new Set<string>();
 
 export function clearRouteScheduleCache(): void {
   manifestCache.clear();
   scheduleCache.clear();
+  missingScheduleRoutes.clear();
 }
 
 async function fetchJson<T>(path: string): Promise<T | null> {
   try {
     const response = await fetch(path);
     if (!response.ok) {
+      if (response.status === 404 && process.env.NODE_ENV === "development") {
+        console.debug(`Route schedule not found (expected): ${path}`);
+      }
       return null;
     }
     return (await response.json()) as T;
-  } catch {
+  } catch (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.debug("Route schedule fetch failed:", path, error);
+    }
     return null;
   }
 }
@@ -40,6 +48,16 @@ export function getRouteSchedulePath(
   return `/data/ibus/${baseVersion}/route-schedules/${routeId}.json`;
 }
 
+export function isRouteScheduleAvailable(
+  manifest: IbusCurrentManifest | null | undefined,
+  routeId: string,
+): boolean {
+  if (!manifest?.routeScheduleRoutes) {
+    return true;
+  }
+  return manifest.routeScheduleRoutes.includes(routeId);
+}
+
 export async function loadRouteSchedule(
   routeId: string,
   baseVersion?: string,
@@ -50,7 +68,16 @@ export async function loadRouteSchedule(
     return null;
   }
 
+  if (manifest && !isRouteScheduleAvailable(manifest, routeId)) {
+    missingScheduleRoutes.add(`${version}:${routeId}`);
+    return null;
+  }
+
   const cacheKey = `${version}:${routeId}`;
+  if (missingScheduleRoutes.has(cacheKey)) {
+    return null;
+  }
+
   const existing = scheduleCache.get(cacheKey);
   if (existing) {
     return existing;
@@ -58,7 +85,12 @@ export async function loadRouteSchedule(
 
   const promise = fetchJson<IbusRouteSchedule>(
     getRouteSchedulePath(version, routeId),
-  );
+  ).then((schedule) => {
+    if (!schedule) {
+      missingScheduleRoutes.add(cacheKey);
+    }
+    return schedule;
+  });
   scheduleCache.set(cacheKey, promise);
   return promise;
 }

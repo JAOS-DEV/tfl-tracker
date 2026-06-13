@@ -217,6 +217,7 @@ export function buildRouteSchedule(
     }
 
     const endSeconds = stops[stops.length - 1]?.scheduledSeconds ?? journey.startSeconds;
+    const finalStopName = stops[stops.length - 1]?.stopName;
     journeys.push({
       tripId: journey.journeyIdx,
       operatorCode: block?.operatorCode ?? null,
@@ -225,7 +226,7 @@ export function buildRouteSchedule(
       runningNo: block?.runningNo ?? "",
       garageNo: block?.garageNo ?? null,
       direction: pattern?.direction ?? "1",
-      destination: null,
+      destination: finalStopName ? `towards ${finalStopName}` : null,
       patternIdx: journey.patternIdx,
       startTime: secondsToHHMM(journey.startSeconds),
       startSeconds: journey.startSeconds,

@@ -4,6 +4,12 @@ import type {
   PredictionTrackingState,
 } from "@/lib/tfl/types";
 
+function resolveTrackedGhostSource(
+  ghostStatus: EstimatedVehiclePosition["ghostStatus"],
+): "feed" | "disappeared" {
+  return ghostStatus === "disappeared" ? "disappeared" : "feed";
+}
+
 export function appendTrackedGhostVehicles(
   vehicles: EstimatedVehiclePosition[],
   trackingStates: Map<string, PredictionTrackingState>,
@@ -64,6 +70,7 @@ export function appendTrackedGhostVehicles(
       scheduleExplanation: "Schedule match uncertain",
       ghostStatus: ghost.ghostStatus,
       ghostReason: ghost.ghostReason,
+      ghostSource: resolveTrackedGhostSource(ghost.ghostStatus),
       lastSeenAt: ghost.lastSeenAt,
       missedRefreshCount: ghost.missedRefreshCount,
       reappearedAt: ghost.reappearedAt,

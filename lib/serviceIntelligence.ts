@@ -1,5 +1,6 @@
 import { SERVICE_INTELLIGENCE_THRESHOLDS } from "@/lib/constants";
 import { countGhostStatuses } from "@/lib/ghostBusDetection";
+import { possibleGhostCountLabel } from "@/lib/ghostDisplay";
 import {
   countPredictionConfidenceStates,
   isPredictionDataStale,
@@ -406,10 +407,7 @@ export function buildServiceAlertBadges(
   if (metrics.possibleGhostCount > 0) {
     badges.push({
       id: "possible-ghost",
-      label:
-        metrics.possibleGhostCount === 1
-          ? "Possible ghost"
-          : `${metrics.possibleGhostCount} possible ghosts`,
+      label: possibleGhostCountLabel(metrics.possibleGhostCount),
       tone: "warning",
     });
   }
