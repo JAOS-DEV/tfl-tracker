@@ -7,6 +7,7 @@ import { resolvePredictionConfidence } from "@/lib/predictionTracking";
 import { buildVehiclePositions } from "@/lib/routePositioning";
 import { matchVehicleToSchedule } from "@/lib/scheduleDeviation";
 import { buildServiceHealthMetrics } from "@/lib/serviceIntelligence";
+import { attachTerminusLayoverState } from "@/lib/terminusLayover";
 import type { IbusRouteSchedule } from "@/lib/ibus/scheduleTypes";
 import type {
   EstimatedVehiclePosition,
@@ -186,7 +187,7 @@ export function buildRouteIntelligence(
   });
 
   const vehicles = attachPredictionAndGhostState(
-    scheduledGhostResult.vehicles,
+    attachTerminusLayoverState(scheduledGhostResult.vehicles, input.route),
     enrichedTracking,
     input.dataUpdatedAt,
     input.now,

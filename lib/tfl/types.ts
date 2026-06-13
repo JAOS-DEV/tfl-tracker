@@ -218,6 +218,8 @@ export interface VehicleScheduleMatch extends ScheduleDeviation {
   matchedJourneyId?: string;
 }
 
+export type MarkerState = "live" | "possible-ghost" | "terminus-layover";
+
 export interface EstimatedVehiclePosition {
   vehicleId: string;
   vehicleRegistration?: string;
@@ -264,6 +266,8 @@ export interface EstimatedVehiclePosition {
   scheduledGhostOperatorCode?: string | null;
   scheduledGhostExpectedStopCode?: string | null;
   scheduledGhostSource?: string;
+  markerState?: MarkerState;
+  terminusLayoverLabel?: string;
 }
 
 export interface RouteAlertBadge {

@@ -410,6 +410,11 @@ export function RouteCard({
                   movementDecisions={movementDecisions}
                   showAdvancedDiagnostics={displaySettings.showAdvancedDiagnostics}
                   scheduleGhostDiagnostics={intelligence?.scheduleGhostDiagnostics}
+                  loopLabelSettings={{
+                    showRegistration: displaySettings.showBusRegistrationOnLoop,
+                    showFleetNumber: displaySettings.showBusFleetNumberOnLoop,
+                    showRunningNumber: displaySettings.showBusRunningNumberOnLoop,
+                  }}
                   stopDisruptionsByNaptanId={stopDisruptionsByNaptanId}
                   onStopSelect={setSelectedStop}
                   onBusSelect={setSelectedVehicle}

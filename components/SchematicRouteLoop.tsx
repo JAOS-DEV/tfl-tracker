@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { LoopIntelligenceOverlay } from "@/components/LoopIntelligenceOverlay";
+import type { LoopMarkerLabelSettings } from "@/components/LoopMarkerInfoBadges";
 import { RouteLoopBusMarker } from "@/components/RouteLoopBusMarker";
 import { RouteLoopDirectionChevrons } from "@/components/RouteLoopDirectionChevrons";
 import { RouteLoopDirectionGuide } from "@/components/RouteLoopDirectionGuide";
@@ -35,6 +36,7 @@ interface SchematicRouteLoopProps {
   displayPositions: Record<string, DisplayMarkerPosition>;
   movementDecisions?: Record<string, SmoothMovementDecision>;
   showAdvancedDiagnostics?: boolean;
+  loopLabelSettings?: LoopMarkerLabelSettings;
   stopDisruptionsByNaptanId?: Map<string, StopDisruption>;
   scheduleGhostDiagnostics?: string[];
   onStopSelect: (stop: NormalizedStop) => void;
@@ -109,6 +111,7 @@ export function SchematicRouteLoop({
   displayPositions,
   movementDecisions,
   showAdvancedDiagnostics = false,
+  loopLabelSettings,
   scheduleGhostDiagnostics,
   stopDisruptionsByNaptanId,
   onStopSelect,
@@ -211,6 +214,10 @@ export function SchematicRouteLoop({
             Bus late
           </span>
           <span className="inline-flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full border-2 border-dashed border-zinc-500 bg-zinc-400/20 dark:border-zinc-400 dark:bg-zinc-500/20" />
+            At terminus / waiting
+          </span>
+          <span className="inline-flex items-center gap-2">
             <span className="h-3 w-3 rounded-full border-2 border-dashed border-violet-400 bg-violet-400/15 dark:border-violet-300 dark:bg-violet-500/15" />
             Possible ghost
           </span>
@@ -311,6 +318,7 @@ export function SchematicRouteLoop({
                 movementDecision={
                   showAdvancedDiagnostics ? movementDecision : undefined
                 }
+                loopLabelSettings={loopLabelSettings}
                 markerSize={markerSize}
                 isSelected={selectedVehicleId === vehicle.vehicleId}
                 onSelect={() => onBusSelect(vehicle)}

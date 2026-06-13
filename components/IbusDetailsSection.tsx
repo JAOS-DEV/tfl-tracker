@@ -1,9 +1,11 @@
 import type { IbusVehicleDetailsState } from "@/hooks/useIbusVehicleDetails";
 
 interface IbusDetailsSectionProps {
-  registration?: string;
-  vehicleReference?: string;
   details: IbusVehicleDetailsState;
+  hideRegistration?: boolean;
+  hideFleetNumber?: boolean;
+  hideRunningNumber?: boolean;
+  showBaseVersion?: boolean;
 }
 
 function unavailableLabel(value: string | null | undefined): string {
@@ -40,47 +42,65 @@ function formatSourceLines(details: IbusVehicleDetailsState): Array<{
 }
 
 export function IbusDetailsSection({
-  registration,
-  vehicleReference,
   details,
-}: IbusDetailsSectionProps): React.ReactElement {
+  hideRegistration = false,
+  hideFleetNumber = false,
+  hideRunningNumber = false,
+  showBaseVersion = false,
+}: IbusDetailsSectionProps): React.ReactElement | null {
   const ibus = details.ibusQuery.data;
   const isLoading =
     details.ibusQuery.isLoading || details.fleetFallbackQuery.isLoading;
   const sourceLines = formatSourceLines(details);
+  const hasSecondaryDetails = Boolean(
+    ibus?.blockNo ||
+      ibus?.garageNo ||
+      ibus?.garageCode ||
+      ibus?.garageName ||
+      ibus?.operatorCode ||
+      ibus?.operatorAgency ||
+      sourceLines.length > 0 ||
+      (showBaseVersion && ibus?.sourceBaseVersion) ||
+      (!hideRegistration && (ibus?.registration || details.displayFleetNo || details.runningNo)) ||
+      (!hideFleetNumber && details.displayFleetNo) ||
+      (!hideRunningNumber && details.runningNo),
+  );
+
+  if (!hasSecondaryDetails && !isLoading) {
+    return null;
+  }
 
   return (
-    <section className="mt-5 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
+    <section className="mt-4 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
       <h3 className="text-sm font-semibold">Vehicle / iBus details</h3>
 
       <dl className="mt-3 space-y-2 text-sm">
-        <div>
-          <dt className="text-zinc-500">Registration</dt>
-          <dd className="font-medium">
-            {unavailableLabel(registration ?? ibus?.registration)}
-          </dd>
-        </div>
-
-        {vehicleReference && !registration ? (
+        {!hideRegistration ? (
           <div>
-            <dt className="text-zinc-500">TfL vehicle reference</dt>
-            <dd className="font-medium">{vehicleReference}</dd>
+            <dt className="text-zinc-500">Registration</dt>
+            <dd className="font-medium">
+              {unavailableLabel(ibus?.registration)}
+            </dd>
           </div>
         ) : null}
 
-        <div>
-          <dt className="text-zinc-500">Fleet number</dt>
-          <dd className="font-medium">
-            {unavailableLabel(details.displayFleetNo)}
-          </dd>
-        </div>
+        {!hideFleetNumber ? (
+          <div>
+            <dt className="text-zinc-500">Fleet number</dt>
+            <dd className="font-medium">
+              {unavailableLabel(details.displayFleetNo)}
+            </dd>
+          </div>
+        ) : null}
 
-        <div>
-          <dt className="text-zinc-500">Running number</dt>
-          <dd className="font-medium">
-            {unavailableLabel(details.runningNo)}
-          </dd>
-        </div>
+        {!hideRunningNumber ? (
+          <div>
+            <dt className="text-zinc-500">Running number</dt>
+            <dd className="font-medium">
+              {unavailableLabel(details.runningNo)}
+            </dd>
+          </div>
+        ) : null}
 
         {ibus?.blockNo ? (
           <div>
@@ -121,7 +141,7 @@ export function IbusDetailsSection({
           </div>
         ) : null}
 
-        {ibus?.sourceBaseVersion ? (
+        {showBaseVersion && ibus?.sourceBaseVersion ? (
           <div>
             <dt className="text-zinc-500">iBus base version</dt>
             <dd className="font-medium">{ibus.sourceBaseVersion}</dd>
@@ -142,7 +162,7 @@ export function IbusDetailsSection({
         </p>
       ) : null}
 
-      {!isLoading && !details.displayFleetNo ? (
+      {!isLoading && !hideFleetNumber && !details.displayFleetNo ? (
         <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
           Fleet number unavailable. No fleet-number match found in TfL iBus
           Vehicle data
@@ -153,6 +173,7 @@ export function IbusDetailsSection({
       ) : null}
 
       {!isLoading &&
+      !hideFleetNumber &&
       details.displayFleetNo &&
       details.fleetSourceLabel === "Bustimes fallback data" ? (
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
@@ -160,7 +181,7 @@ export function IbusDetailsSection({
         </p>
       ) : null}
 
-      {!isLoading && !details.runningNo ? (
+      {!isLoading && !hideRunningNumber && !details.runningNo ? (
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
           {ibus?.message ??
             "Running number unavailable. This live prediction may not include the trip/base-version data needed for running-number matching."}

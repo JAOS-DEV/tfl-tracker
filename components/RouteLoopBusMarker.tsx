@@ -1,4 +1,8 @@
 import { EmbeddedBusIcon } from "@/components/BusIcon";
+import {
+  LoopMarkerInfoBadges,
+  type LoopMarkerLabelSettings,
+} from "@/components/LoopMarkerInfoBadges";
 import { LoopMarkerBadge } from "@/components/LoopMarkerBadge";
 import {
   getGhostMarkerIconText,
@@ -19,6 +23,7 @@ interface RouteLoopBusMarkerProps {
   displayX: number;
   displayY: number;
   movementDecision?: SmoothMovementDecision;
+  loopLabelSettings?: LoopMarkerLabelSettings;
   isSelected: boolean;
   markerSize?: number;
   onSelect: () => void;
@@ -32,11 +37,15 @@ const adherenceRingClasses = {
     "fill-amber-400/30 stroke-amber-500 dark:fill-amber-300/30 dark:stroke-amber-300",
 } as const;
 
+const terminusRingClass =
+  "fill-zinc-400/20 stroke-zinc-500 stroke-dashed dark:fill-zinc-500/20 dark:stroke-zinc-400";
+
 export function RouteLoopBusMarker({
   vehicle,
   displayX,
   displayY,
   movementDecision,
+  loopLabelSettings,
   isSelected,
   markerSize = 32,
   onSelect,
@@ -44,17 +53,21 @@ export function RouteLoopBusMarker({
   const half = markerSize / 2;
   const ringRadius = half + 10;
   const isGhost = isPossibleGhostBus(vehicle);
+  const isTerminus = vehicle.markerState === "terminus-layover";
   const isFaded =
     !isGhost &&
+    !isTerminus &&
     (vehicle.ghostStatus === "missingLatest" ||
       vehicle.ghostStatus === "disappeared");
 
   const statusLabel = isGhost
     ? `${POSSIBLE_GHOST_LABEL}, running number ${getGhostMarkerIconText(vehicle)}`
-    : scheduleAccessibleLabel(
-        vehicle.scheduleStatus,
-        vehicle.scheduleDeviationMinutes,
-      );
+    : isTerminus
+      ? vehicle.terminusLayoverLabel ?? "At terminus"
+      : scheduleAccessibleLabel(
+          vehicle.scheduleStatus,
+          vehicle.scheduleDeviationMinutes,
+        );
 
   const label = isGhost
     ? getPossibleGhostMarkerLabel(vehicle)
@@ -67,10 +80,17 @@ export function RouteLoopBusMarker({
 
   const ringClass = isGhost
     ? GHOST_MARKER_RING_CLASS
-    : adherenceRingClasses[vehicle.adherence];
+    : isTerminus
+      ? terminusRingClass
+      : adherenceRingClasses[vehicle.adherence];
 
   const badgeX = markerSize - 8;
   const badgeY = -20;
+  const infoBadgeX = -4;
+  const infoBadgeY = markerSize + 6;
+  const iconText = isGhost
+    ? getGhostMarkerIconText(vehicle)
+    : vehicle.routeNumber;
 
   return (
     <g
@@ -98,10 +118,10 @@ export function RouteLoopBusMarker({
         }`}
       />
       <EmbeddedBusIcon
-        routeNumber={getGhostMarkerIconText(vehicle)}
+        routeNumber={iconText}
         size={markerSize}
         isActive={isSelected}
-        variant={isGhost ? "ghost" : isFaded ? "faded" : "live"}
+        variant={isGhost ? "ghost" : isFaded || isTerminus ? "faded" : "live"}
         ariaLabel={label}
       />
       {isGhost ? (
@@ -126,11 +146,41 @@ export function RouteLoopBusMarker({
             Ghost
           </text>
         </g>
+      ) : isTerminus ? (
+        <g transform={`translate(${badgeX}, ${badgeY})`}>
+          <rect
+            x={-10}
+            y={-10}
+            width={48}
+            height={18}
+            rx={6}
+            className="fill-zinc-600/90 stroke-zinc-400 dark:fill-zinc-800 dark:stroke-zinc-500"
+          />
+          <text
+            x={14}
+            y={3}
+            textAnchor="middle"
+            fontSize={10}
+            fontWeight={700}
+            fill="#FFFFFF"
+            fontFamily="Arial, sans-serif"
+          >
+            Waiting
+          </text>
+        </g>
       ) : (
         <g transform={`translate(${badgeX}, ${badgeY})`}>
           <LoopMarkerBadge vehicle={vehicle} />
         </g>
       )}
+      {loopLabelSettings ? (
+        <LoopMarkerInfoBadges
+          vehicle={vehicle}
+          settings={loopLabelSettings}
+          anchorX={infoBadgeX}
+          anchorY={infoBadgeY}
+        />
+      ) : null}
     </g>
   );
 }

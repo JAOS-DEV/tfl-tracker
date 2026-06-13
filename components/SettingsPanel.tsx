@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AboutDataContent } from "@/components/AboutDataContent";
+import { IbusDataVersionSection } from "@/components/IbusDataVersionSection";
 import { MobileBottomSheet } from "@/components/MobileBottomSheet";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ThresholdMinutesInput } from "@/components/ThresholdMinutesInput";
@@ -197,6 +198,58 @@ export function SettingsPanel({
             Show buses that may be missing from the live feed, based on live TfL
             data and iBus schedule checks.
           </p>
+
+          <div className="space-y-2 pt-2">
+            <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Loop bus labels
+            </p>
+            <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+              <span>Show registration</span>
+              <input
+                type="checkbox"
+                checked={settings.showBusRegistrationOnLoop}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    showBusRegistrationOnLoop: event.target.checked,
+                  }))
+                }
+                className="h-5 w-5"
+              />
+            </label>
+            <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+              <span>Show fleet number</span>
+              <input
+                type="checkbox"
+                checked={settings.showBusFleetNumberOnLoop}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    showBusFleetNumberOnLoop: event.target.checked,
+                  }))
+                }
+                className="h-5 w-5"
+              />
+            </label>
+            <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+              <span>Show running number</span>
+              <input
+                type="checkbox"
+                checked={settings.showBusRunningNumberOnLoop}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    showBusRunningNumberOnLoop: event.target.checked,
+                  }))
+                }
+                className="h-5 w-5"
+              />
+            </label>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Show extra vehicle identifiers beside bus markers on the loop view.
+              Too many labels may clutter small screens.
+            </p>
+          </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Service details, history, and alerts are always available from each
             route card. Inline options add them directly to the card scroll.
@@ -412,7 +465,12 @@ export function SettingsPanel({
           >
             {aboutOpen ? "Hide details" : "Show details"}
           </button>
-          {aboutOpen ? <AboutDataContent /> : null}
+          {aboutOpen ? (
+            <div className="space-y-4">
+              <IbusDataVersionSection />
+              <AboutDataContent />
+            </div>
+          ) : null}
         </section>
       </div>
     </MobileBottomSheet>

@@ -28,6 +28,9 @@ export interface DisplaySettings {
   showAdvancedDiagnostics: boolean;
   smoothBusMovement: boolean;
   showScheduleGhosts: boolean;
+  showBusRegistrationOnLoop: boolean;
+  showBusFleetNumberOnLoop: boolean;
+  showBusRunningNumberOnLoop: boolean;
   globalAlertDefaults: GlobalAlertDefaults;
 }
 
@@ -40,6 +43,9 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showAdvancedDiagnostics: false,
   smoothBusMovement: true,
   showScheduleGhosts: true,
+  showBusRegistrationOnLoop: false,
+  showBusFleetNumberOnLoop: false,
+  showBusRunningNumberOnLoop: false,
   globalAlertDefaults: {
     warnLargeGap: DEFAULT_ROUTE_ALERTS.warnLargeGap,
     largeGapMinutes: DEFAULT_ROUTE_ALERTS.largeGapMinutes,
@@ -180,6 +186,18 @@ export function normalizeDisplaySettings(value: unknown): DisplaySettings {
       typeof raw.showScheduleGhosts === "boolean"
         ? raw.showScheduleGhosts
         : DEFAULT_DISPLAY_SETTINGS.showScheduleGhosts,
+    showBusRegistrationOnLoop:
+      typeof raw.showBusRegistrationOnLoop === "boolean"
+        ? raw.showBusRegistrationOnLoop
+        : DEFAULT_DISPLAY_SETTINGS.showBusRegistrationOnLoop,
+    showBusFleetNumberOnLoop:
+      typeof raw.showBusFleetNumberOnLoop === "boolean"
+        ? raw.showBusFleetNumberOnLoop
+        : DEFAULT_DISPLAY_SETTINGS.showBusFleetNumberOnLoop,
+    showBusRunningNumberOnLoop:
+      typeof raw.showBusRunningNumberOnLoop === "boolean"
+        ? raw.showBusRunningNumberOnLoop
+        : DEFAULT_DISPLAY_SETTINGS.showBusRunningNumberOnLoop,
     globalAlertDefaults: normalizeGlobalAlertDefaults(raw.globalAlertDefaults),
   };
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { GhostIcon } from "@/components/GhostIcon";
 import { IbusDetailsSection } from "@/components/IbusDetailsSection";
 import { MobileBottomSheet } from "@/components/MobileBottomSheet";
 import { useIbusVehicleDetails } from "@/hooks/useIbusVehicleDetails";
@@ -53,7 +52,9 @@ const scheduleToneClasses = {
   unknown: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
 } as const;
 
-function scheduleStatusDisplay(status: EstimatedVehiclePosition["scheduleStatus"]): string {
+function scheduleStatusDisplay(
+  status: EstimatedVehiclePosition["scheduleStatus"],
+): string {
   switch (status) {
     case "early":
       return "Estimated early";
@@ -62,8 +63,37 @@ function scheduleStatusDisplay(status: EstimatedVehiclePosition["scheduleStatus"
     case "onTime":
       return "Estimated on time";
     default:
-      return "Unknown";
+      return "Schedule unknown";
   }
+}
+
+function headerStatusChip(
+  vehicle: EstimatedVehiclePosition,
+  confidence: PredictionConfidence,
+  isGhost: boolean,
+): string {
+  if (isGhost) {
+    return POSSIBLE_GHOST_SHORT_LABEL;
+  }
+  if (vehicle.markerState === "terminus-layover") {
+    return vehicle.terminusLayoverLabel ?? "At terminus";
+  }
+  if (confidence === "stale") {
+    return "Stale";
+  }
+  if (confidence === "missing" || vehicle.ghostStatus === "missingLatest") {
+    return "Missing";
+  }
+  if (vehicle.scheduleStatus === "early") {
+    return "Early";
+  }
+  if (vehicle.scheduleStatus === "late") {
+    return "Late";
+  }
+  if (vehicle.scheduleStatus === "onTime") {
+    return "On time";
+  }
+  return predictionConfidenceLabel(confidence);
 }
 
 export function BusDetailsModal({
@@ -100,22 +130,30 @@ export function BusDetailsModal({
 
   const confidence =
     vehicle.predictionConfidence ?? predictionConfidence ?? "normal";
-
   const isGhost = isPossibleGhostBus(vehicle);
   const ghostExplanation = getPossibleGhostExplanation(vehicle);
   const ghostSource = getGhostSource(vehicle);
   const isScheduleGhost = vehicle.isScheduledGhostCandidate === true;
-
   const matchedStopDisplay =
     vehicle.matchedStopName &&
     !isStopIdLike(vehicle.matchedStopName)
       ? vehicle.matchedStopName
       : vehicle.nextStop?.name ?? null;
 
-  const headerFleetLabel =
-    vehicle.vehicleRegistration && ibusDetails.displayFleetNo
-      ? `${vehicle.vehicleRegistration} · ${ibusDetails.displayFleetNo}`
-      : null;
+  const headerRegistration = vehicle.vehicleRegistration ?? null;
+  const headerFleet =
+    ibusDetails.displayFleetNo ?? vehicle.vehicleFleetReference ?? null;
+  const headerRunning =
+    vehicle.ibusRunningNo ??
+    ibusDetails.runningNo ??
+    vehicle.scheduledGhostRunningNo ??
+    null;
+
+  const identityParts = [
+    headerRegistration ? `Registration: ${headerRegistration}` : null,
+    headerFleet ? `Fleet: ${headerFleet}` : null,
+    headerRunning ? `Run: ${headerRunning}` : null,
+  ].filter(Boolean);
 
   return (
     <MobileBottomSheet
@@ -124,32 +162,45 @@ export function BusDetailsModal({
       onClose={onClose}
     >
       <div className="text-zinc-900 dark:text-zinc-100">
-        <div className="flex flex-wrap gap-2">
-          <span
-            className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${confidenceBadgeClasses[confidence]}`}
-          >
-            {predictionConfidenceLabel(confidence)}
-          </span>
-          {isGhost ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-900 dark:bg-violet-950 dark:text-violet-100">
-              <GhostIcon size={16} />
-              {POSSIBLE_GHOST_SHORT_LABEL}
-            </span>
-          ) : null}
-          {!isGhost && vehicle.ghostStatus === "disappeared" ? (
-            <span className="inline-block rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-              Prediction disappeared
-            </span>
-          ) : null}
-        </div>
-        {headerFleetLabel ? (
-          <p className="mt-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            {headerFleetLabel}
+        <section className="space-y-2">
+          <p className="text-sm font-medium">
+            {vehicle.routeNumber} · {vehicle.destinationName}
           </p>
-        ) : null}
-        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-          Position is estimated from TfL arrival predictions, not live GPS.
-        </p>
+          <div className="flex flex-wrap gap-2">
+            <span
+              className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${
+                isGhost
+                  ? "bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-100"
+                  : vehicle.markerState === "terminus-layover"
+                    ? "bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+                    : confidenceBadgeClasses[confidence]
+              }`}
+            >
+              {headerStatusChip(vehicle, confidence, isGhost)}
+            </span>
+            {!isGhost && vehicle.scheduleStatus !== "unknown" ? (
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-medium ${scheduleToneClasses[vehicle.scheduleStatus]}`}
+              >
+                {scheduleStatusDisplay(vehicle.scheduleStatus)}
+              </span>
+            ) : null}
+          </div>
+          {identityParts.length > 0 ? (
+            <p className="text-sm text-zinc-700 dark:text-zinc-300">
+              {identityParts.join(" · ")}
+            </p>
+          ) : null}
+          {!isGhost && vehicle.markerState === "terminus-layover" ? (
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              {vehicle.terminusLayoverLabel ??
+                "At terminus / waiting to start return journey"}
+            </p>
+          ) : null}
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Position is estimated from TfL arrival predictions, not live GPS.
+          </p>
+        </section>
 
         {isGhost && ghostExplanation ? (
           <section className="mt-4 rounded-xl border border-violet-300 bg-violet-50 p-3 dark:border-violet-800 dark:bg-violet-950/40">
@@ -162,36 +213,6 @@ export function BusDetailsModal({
             <dl className="mt-3 space-y-2 text-sm">
               {isScheduleGhost ? (
                 <>
-                  <div>
-                    <dt className="text-violet-700 dark:text-violet-300">Running number</dt>
-                    <dd className="font-medium">
-                      {vehicle.scheduledGhostRunningNo ?? "Unknown"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-violet-700 dark:text-violet-300">Block</dt>
-                    <dd className="font-medium">
-                      {vehicle.scheduledGhostBlockNo ?? "Unknown"}
-                    </dd>
-                  </div>
-                  {vehicle.scheduledGhostGarageNo ? (
-                    <div>
-                      <dt className="text-violet-700 dark:text-violet-300">Garage no</dt>
-                      <dd className="font-medium">{vehicle.scheduledGhostGarageNo}</dd>
-                    </div>
-                  ) : null}
-                  {vehicle.scheduledGhostOperatorCode ? (
-                    <div>
-                      <dt className="text-violet-700 dark:text-violet-300">Operator</dt>
-                      <dd className="font-medium">{vehicle.scheduledGhostOperatorCode}</dd>
-                    </div>
-                  ) : null}
-                  <div>
-                    <dt className="text-violet-700 dark:text-violet-300">Destination</dt>
-                    <dd className="font-medium">
-                      {formatGhostDestination(vehicle.destinationName)}
-                    </dd>
-                  </div>
                   <div>
                     <dt className="text-violet-700 dark:text-violet-300">Expected near</dt>
                     <dd className="font-medium">
@@ -206,35 +227,15 @@ export function BusDetailsModal({
                         : "Unknown"}
                     </dd>
                   </div>
-                  {showAdvancedDiagnostics && vehicle.scheduledGhostConfidence ? (
-                    <div>
-                      <dt className="text-violet-700 dark:text-violet-300">Confidence</dt>
-                      <dd className="font-medium capitalize">
-                        {vehicle.scheduledGhostConfidence}
-                      </dd>
-                    </div>
-                  ) : null}
+                  <div>
+                    <dt className="text-violet-700 dark:text-violet-300">Destination</dt>
+                    <dd className="font-medium">
+                      {formatGhostDestination(vehicle.destinationName)}
+                    </dd>
+                  </div>
                 </>
               ) : (
                 <>
-                  {vehicle.vehicleRegistration ? (
-                    <div>
-                      <dt className="text-violet-700 dark:text-violet-300">Registration</dt>
-                      <dd className="font-medium">{vehicle.vehicleRegistration}</dd>
-                    </div>
-                  ) : null}
-                  {vehicle.vehicleFleetReference ? (
-                    <div>
-                      <dt className="text-violet-700 dark:text-violet-300">Fleet number</dt>
-                      <dd className="font-medium">{vehicle.vehicleFleetReference}</dd>
-                    </div>
-                  ) : null}
-                  {vehicle.scheduledGhostRunningNo ? (
-                    <div>
-                      <dt className="text-violet-700 dark:text-violet-300">Running number</dt>
-                      <dd className="font-medium">{vehicle.scheduledGhostRunningNo}</dd>
-                    </div>
-                  ) : null}
                   {matchedStopDisplay ? (
                     <div>
                       <dt className="text-violet-700 dark:text-violet-300">Last seen stop</dt>
@@ -249,18 +250,6 @@ export function BusDetailsModal({
                       </dd>
                     </div>
                   ) : null}
-                  <div>
-                    <dt className="text-violet-700 dark:text-violet-300">Route / direction</dt>
-                    <dd className="font-medium capitalize">
-                      {vehicle.routeNumber} · {vehicle.direction}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-violet-700 dark:text-violet-300">Destination</dt>
-                    <dd className="font-medium">
-                      {formatGhostDestination(vehicle.destinationName)}
-                    </dd>
-                  </div>
                 </>
               )}
               <div>
@@ -279,112 +268,82 @@ export function BusDetailsModal({
                       <dd className="font-medium">{vehicle.ghostReason}</dd>
                     </div>
                   ) : null}
+                  {vehicle.scheduledGhostConfidence ? (
+                    <div>
+                      <dt className="text-violet-700 dark:text-violet-300">Confidence</dt>
+                      <dd className="font-medium capitalize">
+                        {vehicle.scheduledGhostConfidence}
+                      </dd>
+                    </div>
+                  ) : null}
                 </>
               ) : null}
             </dl>
           </section>
         ) : null}
 
-        {movementDecision ? (
-          <section className="mt-4 rounded-xl border border-dashed border-zinc-300 p-3 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
-            <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-              Loop movement debug
-            </h3>
-            <dl className="mt-2 space-y-1">
-              <div className="flex gap-2">
-                <dt className="font-medium">Movement</dt>
-                <dd className="capitalize">{movementDecision.mode}</dd>
+        <section className="mt-4 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
+          <h3 className="text-sm font-semibold">Next live prediction</h3>
+          <dl className="mt-3 space-y-2 text-sm">
+            {vehicle.matched ? (
+              <div>
+                <dt className="text-zinc-500">Estimated position</dt>
+                <dd className="font-medium">
+                  Stop {vehicle.stopIndex + 1}
+                  {vehicle.nextStop ? ` · ${vehicle.nextStop.name}` : ""}
+                </dd>
               </div>
-              <div className="flex gap-2">
-                <dt className="font-medium">Reason</dt>
-                <dd>{movementDecision.reason}</dd>
-              </div>
-              <div className="flex gap-2">
-                <dt className="font-medium">Summary</dt>
-                <dd>{formatMovementDecision(movementDecision)}</dd>
-              </div>
-            </dl>
-          </section>
-        ) : null}
-
-        <dl className="mt-4 space-y-3 text-sm">
-          {vehicle.vehicleRegistration ? (
+            ) : null}
             <div>
-              <dt className="text-zinc-500">Registration</dt>
-              <dd className="font-medium">{vehicle.vehicleRegistration}</dd>
-            </div>
-          ) : (
-            <div>
-              <dt className="text-zinc-500">Vehicle reference</dt>
-              <dd className="font-medium">{vehicle.vehicleId}</dd>
-            </div>
-          )}
-          <div>
-            <dt className="text-zinc-500">Direction</dt>
-            <dd className="font-medium capitalize">{vehicle.direction}</dd>
-          </div>
-          <div>
-            <dt className="text-zinc-500">Destination</dt>
-            <dd className="font-medium">{vehicle.destinationName}</dd>
-          </div>
-          <div>
-            <dt className="text-zinc-500">Next predicted stop</dt>
-            <dd className="font-medium">
-              {vehicle.nextStop?.name ?? "Unable to match to route stop"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-zinc-500">Due in</dt>
-            <dd className="font-medium">
-              {formatMinutes(vehicle.timeToStation)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-zinc-500">Expected arrival</dt>
-            <dd className="font-medium">
-              {formatLocalTime(vehicle.expectedArrival)}
-            </dd>
-          </div>
-          {vehicle.currentLocation ? (
-            <div>
-              <dt className="text-zinc-500">Current location</dt>
-              <dd className="font-medium">{vehicle.currentLocation}</dd>
-            </div>
-          ) : null}
-          {vehicle.matched ? (
-            <div>
-              <dt className="text-zinc-500">Estimated route position</dt>
+              <dt className="text-zinc-500">Next predicted stop</dt>
               <dd className="font-medium">
-                Stop {vehicle.stopIndex + 1}
-                {vehicle.nextStop ? ` · ${vehicle.nextStop.name}` : ""}
+                {vehicle.nextStop?.name ?? "Unable to match to route stop"}
               </dd>
             </div>
-          ) : null}
-        </dl>
+            <div>
+              <dt className="text-zinc-500">Due in</dt>
+              <dd className="font-medium">{formatMinutes(vehicle.timeToStation)}</dd>
+            </div>
+            <div>
+              <dt className="text-zinc-500">Expected arrival</dt>
+              <dd className="font-medium">
+                {formatLocalTime(vehicle.expectedArrival)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-zinc-500">Destination</dt>
+              <dd className="font-medium">{vehicle.destinationName}</dd>
+            </div>
+            <div>
+              <dt className="text-zinc-500">Direction</dt>
+              <dd className="font-medium capitalize">{vehicle.direction}</dd>
+            </div>
+            {vehicle.currentLocation ? (
+              <div>
+                <dt className="text-zinc-500">Current location</dt>
+                <dd className="font-medium">{vehicle.currentLocation}</dd>
+              </div>
+            ) : null}
+          </dl>
+        </section>
 
-        <IbusDetailsSection
-          registration={vehicle.vehicleRegistration}
-          vehicleReference={vehicle.vehicleFleetReference ?? vehicle.vehicleId}
-          details={ibusDetails}
-        />
-
-        <section className="mt-5 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
-          <h3 className="text-sm font-semibold">Estimated schedule position</h3>
+        <section className="mt-4 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
+          <h3 className="text-sm font-semibold">Schedule match</h3>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            This compares the live bus position with the iBus schedule estimate.
+            It is approximate and may be affected by missing or delayed live
+            data.
+          </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <span
               className={`rounded-full px-2.5 py-1 text-xs font-medium ${scheduleToneClasses[vehicle.scheduleStatus]}`}
             >
               {scheduleStatusDisplay(vehicle.scheduleStatus)}
             </span>
-            {vehicle.scheduleMatchConfidence !== "unknown" ? (
-              <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                Confidence: {vehicle.scheduleMatchConfidence}
-              </span>
-            ) : null}
           </div>
           <dl className="mt-3 space-y-2 text-sm">
             <div>
-              <dt className="text-zinc-500">Difference</dt>
+              <dt className="text-zinc-500">Variance</dt>
               <dd className="font-medium">
                 {vehicle.scheduleDeviationMinutes !== null
                   ? vehicle.scheduleStatusLabel
@@ -393,24 +352,36 @@ export function BusDetailsModal({
             </div>
             {matchedStopDisplay ? (
               <div>
-                <dt className="text-zinc-500">Matched stop</dt>
+                <dt className="text-zinc-500">Scheduled stop</dt>
                 <dd className="font-medium">{matchedStopDisplay}</dd>
               </div>
             ) : null}
             {vehicle.matchedScheduledTime ? (
               <div>
-                <dt className="text-zinc-500">Matched scheduled time</dt>
+                <dt className="text-zinc-500">Scheduled time</dt>
                 <dd className="font-medium">
                   {formatLocalTime(vehicle.matchedScheduledTime)}
                 </dd>
               </div>
             ) : null}
+            {showAdvancedDiagnostics && vehicle.scheduleMatchConfidence !== "unknown" ? (
+              <div>
+                <dt className="text-zinc-500">Matched by</dt>
+                <dd className="font-medium capitalize">
+                  {vehicle.scheduleMatchConfidence}
+                </dd>
+              </div>
+            ) : null}
           </dl>
-          <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-            This compares TfL live prediction data with timetable data. It is an
-            estimate and may not match official operational running data.
-          </p>
         </section>
+
+        <IbusDetailsSection
+          details={ibusDetails}
+          hideRegistration={Boolean(headerRegistration)}
+          hideFleetNumber={Boolean(headerFleet)}
+          hideRunningNumber={Boolean(headerRunning)}
+          showBaseVersion={showAdvancedDiagnostics}
+        />
 
         {!isGhost &&
         (vehicle.ghostStatus === "missingLatest" ||
@@ -430,12 +401,6 @@ export function BusDetailsModal({
                 Last seen {formatLastUpdated(new Date(vehicle.lastSeenAt))}
               </p>
             ) : null}
-            {vehicle.missedRefreshCount > 0 ? (
-              <p className="mt-1 text-sm text-zinc-500">
-                Missed {vehicle.missedRefreshCount} refresh
-                {vehicle.missedRefreshCount === 1 ? "" : "es"}
-              </p>
-            ) : null}
             {showAdvancedDiagnostics && vehicle.ghostReason ? (
               <p className="mt-2 text-xs text-zinc-500">{vehicle.ghostReason}</p>
             ) : null}
@@ -446,6 +411,28 @@ export function BusDetailsModal({
           <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
             Unable to match this vehicle to a route stop.
           </p>
+        ) : null}
+
+        {showAdvancedDiagnostics && movementDecision ? (
+          <section className="mt-4 rounded-xl border border-dashed border-zinc-300 p-3 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+            <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+              Loop movement debug
+            </h3>
+            <dl className="mt-2 space-y-1">
+              <div className="flex gap-2">
+                <dt className="font-medium">Movement</dt>
+                <dd className="capitalize">{movementDecision.mode}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="font-medium">Reason</dt>
+                <dd>{movementDecision.reason}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="font-medium">Summary</dt>
+                <dd>{formatMovementDecision(movementDecision)}</dd>
+              </div>
+            </dl>
+          </section>
         ) : null}
       </div>
     </MobileBottomSheet>

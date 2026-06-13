@@ -181,6 +181,10 @@ export function decideMarkerMovement(
     return { mode: "snap", reason: "ghost" };
   }
 
+  if (vehicle.markerState === "terminus-layover") {
+    return { mode: "snap", reason: "ghost" };
+  }
+
   if (isGhostPrediction(vehicle)) {
     return { mode: "snap", reason: "ghost" };
   }

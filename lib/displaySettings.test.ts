@@ -13,6 +13,9 @@ describe("displaySettings", () => {
     expect(DEFAULT_DISPLAY_SETTINGS.showAdvancedDiagnostics).toBe(false);
     expect(DEFAULT_DISPLAY_SETTINGS.smoothBusMovement).toBe(true);
     expect(DEFAULT_DISPLAY_SETTINGS.showScheduleGhosts).toBe(true);
+    expect(DEFAULT_DISPLAY_SETTINGS.showBusRegistrationOnLoop).toBe(false);
+    expect(DEFAULT_DISPLAY_SETTINGS.showBusFleetNumberOnLoop).toBe(false);
+    expect(DEFAULT_DISPLAY_SETTINGS.showBusRunningNumberOnLoop).toBe(false);
   });
 
   it("normalizes unknown values to defaults", () => {

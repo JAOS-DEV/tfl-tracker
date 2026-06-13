@@ -10,7 +10,9 @@ describe("IbusDetailsSection", () => {
   it("displays garage no, code, and name separately", () => {
     render(
       <IbusDetailsSection
-        registration="LV24EWY"
+        hideRegistration
+        hideFleetNumber
+        hideRunningNumber
         details={{
           ibusQuery: {
             isLoading: false,
@@ -44,13 +46,50 @@ describe("IbusDetailsSection", () => {
     expect(screen.getByText("QB")).toBeInTheDocument();
     expect(screen.getByText("Battersea")).toBeInTheDocument();
     expect(screen.getByText("123568")).toBeInTheDocument();
-    expect(screen.getByText("568")).toBeInTheDocument();
+  });
+
+  it("hides base version unless advanced diagnostics are enabled", () => {
+    const details = {
+      ibusQuery: {
+        isLoading: false,
+        data: {
+          registration: "LV24EWY",
+          fleetNo: "3085",
+          runningNo: "568",
+          sourceBaseVersion: "20260606",
+          fleetSource: "tfl-ibus-static",
+          runningNumberSource: "tfl-ibus-static",
+          status: "matched",
+        },
+      },
+      fleetFallbackQuery: { isLoading: false, data: undefined },
+      displayFleetNo: "3085",
+      fleetSourceLabel: "TfL iBus static data",
+      runningNo: "568",
+      runningNumberSourceLabel: "TfL iBus static data",
+    } as const;
+
+    const { rerender } = render(
+      <IbusDetailsSection details={details} hideRegistration hideFleetNumber hideRunningNumber />,
+    );
+    expect(screen.queryByText("iBus base version")).not.toBeInTheDocument();
+
+    rerender(
+      <IbusDetailsSection
+        details={details}
+        hideRegistration
+        hideFleetNumber
+        hideRunningNumber
+        showBaseVersion
+      />,
+    );
+    expect(screen.getByText("iBus base version")).toBeInTheDocument();
+    expect(screen.getByText("20260606")).toBeInTheDocument();
   });
 
   it("shows a single source line when fleet and running share the same source", () => {
     render(
       <IbusDetailsSection
-        registration="LV24EWY"
         details={{
           ibusQuery: {
             isLoading: false,
@@ -81,7 +120,6 @@ describe("IbusDetailsSection", () => {
   it("shows unavailable wording when running number is missing", () => {
     render(
       <IbusDetailsSection
-        registration="BT66MSU"
         details={{
           ibusQuery: {
             isLoading: false,
