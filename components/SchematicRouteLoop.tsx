@@ -36,6 +36,7 @@ interface SchematicRouteLoopProps {
   movementDecisions?: Record<string, SmoothMovementDecision>;
   showAdvancedDiagnostics?: boolean;
   stopDisruptionsByNaptanId?: Map<string, StopDisruption>;
+  scheduleGhostDiagnostics?: string[];
   onStopSelect: (stop: NormalizedStop) => void;
   onBusSelect: (vehicle: EstimatedVehiclePosition) => void;
   selectedStopId: string | null;
@@ -108,6 +109,7 @@ export function SchematicRouteLoop({
   displayPositions,
   movementDecisions,
   showAdvancedDiagnostics = false,
+  scheduleGhostDiagnostics,
   stopDisruptionsByNaptanId,
   onStopSelect,
   onBusSelect,
@@ -213,6 +215,13 @@ export function SchematicRouteLoop({
             Possible ghost
           </span>
         </div>
+        {showAdvancedDiagnostics && scheduleGhostDiagnostics?.length ? (
+          <div className="rounded-lg border border-dashed border-zinc-300 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+            {scheduleGhostDiagnostics.map((message) => (
+              <p key={message}>{message}</p>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="mb-3 min-w-0">

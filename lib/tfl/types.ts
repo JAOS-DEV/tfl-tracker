@@ -222,6 +222,8 @@ export interface EstimatedVehiclePosition {
   vehicleId: string;
   vehicleRegistration?: string;
   vehicleFleetReference?: string;
+  ibusRunningNo?: string;
+  ibusBlockNo?: string;
   tripId?: string;
   baseVersion?: string;
   routeNumber: string;
@@ -379,4 +381,5 @@ export interface RouteIntelligenceResult {
   vehicles: EstimatedVehiclePosition[];
   metrics: ServiceHealthMetrics;
   dashboardSummary: RouteDashboardSummary;
+  scheduleGhostDiagnostics?: string[];
 }

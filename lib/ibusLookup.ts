@@ -101,6 +101,75 @@ async function loadRunningShard(
   return promise;
 }
 
+export interface LiveIbusRunningDetail {
+  runningNo: string;
+  blockNo: string;
+}
+
+export async function resolveLiveRunningDetailsForPredictions(
+  predictions: IbusPredictionInput[],
+): Promise<Map<string, LiveIbusRunningDetail>> {
+  const manifest = await loadIbusManifest();
+  const result = new Map<string, LiveIbusRunningDetail>();
+  if (!manifest) {
+    return result;
+  }
+
+  const shardEntries = new Map<
+    string,
+    Array<{ vehicleKey: string; lookupKey: string; tripId: string }>
+  >();
+
+  for (const prediction of predictions) {
+    const vehicleKey = prediction.vehicleId;
+    if (!vehicleKey || !prediction.tripId || !prediction.baseVersion) {
+      continue;
+    }
+    if (prediction.baseVersion !== manifest.baseVersion) {
+      continue;
+    }
+
+    const shard = runningShardForTripId(prediction.tripId);
+    const lookupKey = createRunningLookupKey(
+      prediction.baseVersion,
+      prediction.tripId,
+    );
+    const existing = shardEntries.get(shard) ?? [];
+    existing.push({ vehicleKey, lookupKey, tripId: prediction.tripId });
+    shardEntries.set(shard, existing);
+  }
+
+  for (const entries of shardEntries.values()) {
+    const sampleTripId = entries[0]?.tripId;
+    if (!sampleTripId) {
+      continue;
+    }
+
+    const shardData = await loadRunningShard(manifest, sampleTripId);
+    if (!shardData) {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (result.has(entry.vehicleKey)) {
+        continue;
+      }
+
+      const running = shardData[entry.lookupKey];
+      if (!running?.runningNo) {
+        continue;
+      }
+
+      result.set(entry.vehicleKey, {
+        runningNo: running.runningNo,
+        blockNo: running.blockNo,
+      });
+    }
+  }
+
+  return result;
+}
+
 export async function getIbusDetailsForPrediction(
   input: IbusPredictionInput,
 ): Promise<IbusDetailsResult | null> {

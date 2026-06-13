@@ -1,5 +1,6 @@
 import type { LoopLayoutConfig } from "@/lib/constants";
 import {
+  applyScheduleGhostDuplicateGuard,
   getScheduledGhostCandidates,
   scheduledGhostToVehiclePosition,
 } from "@/lib/scheduledGhostBuses";
@@ -20,15 +21,21 @@ export interface AppendScheduledGhostInput {
   liveBaseVersion?: string;
   showScheduleGhosts: boolean;
   includeLowConfidence: boolean;
+  collectDiagnostics?: boolean;
+}
+
+export interface AppendScheduledGhostResult {
+  vehicles: EstimatedVehiclePosition[];
+  diagnostics: string[];
 }
 
 const STALE_ROUTE_DATA_MS = 90_000;
 
 export function appendScheduledGhostVehicles(
   input: AppendScheduledGhostInput,
-): EstimatedVehiclePosition[] {
+): AppendScheduledGhostResult {
   if (!input.showScheduleGhosts || !input.schedule) {
-    return input.vehicles;
+    return { vehicles: input.vehicles, diagnostics: [] };
   }
 
   const isRouteDataStale = input.now - input.dataUpdatedAt > STALE_ROUTE_DATA_MS;
@@ -49,6 +56,16 @@ export function appendScheduledGhostVehicles(
     includeLowConfidence: input.includeLowConfidence,
   });
 
-  const scheduledGhosts = candidates.map(scheduledGhostToVehiclePosition);
-  return [...liveVehicles, ...scheduledGhosts];
+  const guarded = applyScheduleGhostDuplicateGuard(
+    input.routeId,
+    liveVehicles,
+    candidates,
+    input.collectDiagnostics ?? false,
+  );
+
+  const scheduledGhosts = guarded.candidates.map(scheduledGhostToVehiclePosition);
+  return {
+    vehicles: [...liveVehicles, ...scheduledGhosts],
+    diagnostics: guarded.diagnostics,
+  };
 }

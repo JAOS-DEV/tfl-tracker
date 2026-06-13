@@ -409,6 +409,7 @@ export function RouteCard({
                   displayPositions={displayPositions}
                   movementDecisions={movementDecisions}
                   showAdvancedDiagnostics={displaySettings.showAdvancedDiagnostics}
+                  scheduleGhostDiagnostics={intelligence?.scheduleGhostDiagnostics}
                   stopDisruptionsByNaptanId={stopDisruptionsByNaptanId}
                   onStopSelect={setSelectedStop}
                   onBusSelect={setSelectedVehicle}

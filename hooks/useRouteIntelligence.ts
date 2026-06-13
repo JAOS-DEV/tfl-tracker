@@ -10,6 +10,7 @@ import { getLoopLayout } from "@/lib/constants";
 import { useRouteTimetable } from "@/hooks/useRouteTimetable";
 import { useRouteSchedule } from "@/hooks/useRouteSchedule";
 import { loadIbusManifestClient } from "@/lib/ibusRouteSchedules";
+import { resolveLiveRunningDetailsForPredictions } from "@/lib/ibusLookup";
 import { buildRouteIntelligence } from "@/lib/routeIntelligence";
 import { MAX_ACTIVE_ROUTES, POLL_INTERVAL_MS } from "@/lib/storage";
 import type { ActiveRoute, RouteIntelligenceResult } from "@/lib/tfl/types";
@@ -82,6 +83,14 @@ export function useRouteIntelligence(
         predictions.find((prediction) => prediction.baseVersion)?.baseVersion ??
         manifest?.baseVersion;
 
+      const liveIbusRunningDetails = await resolveLiveRunningDetailsForPredictions(
+        predictions.map((prediction) => ({
+          vehicleId: prediction.vehicleId,
+          tripId: prediction.tripId,
+          baseVersion: prediction.baseVersion,
+        })),
+      );
+
       return buildRouteIntelligence({
         routeId,
         route: route!,
@@ -96,6 +105,8 @@ export function useRouteIntelligence(
         showScheduleGhosts,
         includeLowConfidenceScheduleGhosts,
         liveBaseVersion,
+        liveIbusRunningDetails,
+        collectScheduleGhostDiagnostics: includeLowConfidenceScheduleGhosts,
       });
     },
     enabled: Boolean(routeId && route && (!showScheduleGhosts || routeScheduleQuery.isFetched)),

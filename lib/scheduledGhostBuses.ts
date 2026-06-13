@@ -3,6 +3,9 @@ import {
   mapProgressToLoopCoordinates,
   stopProgress,
 } from "@/lib/routePositioning";
+import {
+  normalizeRunningNumber,
+} from "@/lib/runningNumber";
 import type {
   IbusRouteSchedule,
   IbusScheduledJourney,
@@ -60,10 +63,43 @@ export interface LiveVehicleMatchContext {
   baseVersion?: string;
   runningNo?: string;
   blockNo?: string;
+  routeId: string;
   direction: RouteDirection;
   destinationName: string;
   nextStopNaptanId?: string;
   expectedArrival?: string;
+}
+
+export function extractLiveRunningNo(
+  vehicle: EstimatedVehiclePosition,
+): string | undefined {
+  return (
+    vehicle.ibusRunningNo ??
+    vehicle.scheduledGhostRunningNo ??
+    undefined
+  );
+}
+
+export function buildLiveVehicleMatchContext(
+  vehicle: EstimatedVehiclePosition,
+): LiveVehicleMatchContext {
+  return {
+    tripId: vehicle.tripId,
+    baseVersion: vehicle.baseVersion,
+    runningNo: extractLiveRunningNo(vehicle),
+    blockNo: vehicle.ibusBlockNo ?? vehicle.scheduledGhostBlockNo,
+    routeId: vehicle.routeNumber,
+    direction: vehicle.direction,
+    destinationName: vehicle.destinationName,
+    nextStopNaptanId: vehicle.nextStop?.naptanId,
+    expectedArrival: vehicle.expectedArrival,
+  };
+}
+
+export function isActiveLiveVehicle(
+  vehicle: EstimatedVehiclePosition,
+): boolean {
+  return !vehicle.isScheduledGhostCandidate && vehicle.matched;
 }
 
 function getLondonDaySeconds(now: Date): number {
@@ -269,33 +305,68 @@ export function hasPlausibleLiveMatch(
   currentStop: IbusScheduledStop | null,
   now: Date,
   route: NormalizedRoute,
+  scheduleBaseVersion?: string,
 ): boolean {
-  if (live.tripId && journey.tripId === live.tripId) {
+  if (
+    live.tripId &&
+    live.baseVersion &&
+    scheduleBaseVersion &&
+    live.baseVersion === scheduleBaseVersion &&
+    journey.tripId === live.tripId
+  ) {
     return true;
   }
 
+  const journeyRunning = normalizeRunningNumber(journey.runningNo);
+  const liveRunning = normalizeRunningNumber(live.runningNo);
+  const journeyBlock = journey.blockNo.trim();
+  const liveBlock = live.blockNo?.trim();
+  const sameRoute = live.routeId === route.routeId;
+
   if (
-    live.runningNo &&
-    live.blockNo &&
-    journey.runningNo === live.runningNo &&
-    journey.blockNo === live.blockNo
+    sameRoute &&
+    journeyRunning &&
+    liveRunning &&
+    journeyBlock &&
+    liveBlock &&
+    journeyRunning === liveRunning &&
+    journeyBlock === liveBlock
   ) {
     return true;
   }
 
   if (
-    live.runningNo &&
-    journey.runningNo === live.runningNo &&
-    live.direction === mapIbusDirectionToRouteDirection(journey.direction, journey, route)
+    sameRoute &&
+    journeyRunning &&
+    liveRunning &&
+    journeyRunning === liveRunning
+  ) {
+    return true;
+  }
+
+  const journeyDirection = mapIbusDirectionToRouteDirection(
+    journey.direction,
+    journey,
+    route,
+  );
+  if (
+    sameRoute &&
+    journeyRunning &&
+    liveRunning &&
+    journeyRunning === liveRunning &&
+    journeyDirection &&
+    live.direction === journeyDirection
   ) {
     return true;
   }
 
   if (
+    sameRoute &&
     currentStop?.naptanId &&
     live.nextStopNaptanId &&
     currentStop.naptanId === live.nextStopNaptanId &&
-    live.direction === mapIbusDirectionToRouteDirection(journey.direction, journey, route)
+    journeyDirection &&
+    live.direction === journeyDirection
   ) {
     const minutes = minutesBetweenScheduledAndExpected(
       currentStop.scheduledSeconds,
@@ -374,20 +445,18 @@ export function getScheduledGhostCandidates(
     }
 
     const liveContexts: LiveVehicleMatchContext[] = input.liveVehicles.map(
-      (vehicle) => ({
-        tripId: vehicle.tripId,
-        baseVersion: vehicle.baseVersion,
-        runningNo: vehicle.vehicleFleetReference,
-        blockNo: undefined,
-        direction: vehicle.direction,
-        destinationName: vehicle.destinationName,
-        nextStopNaptanId: vehicle.nextStop?.naptanId,
-        expectedArrival: vehicle.expectedArrival,
-      }),
+      buildLiveVehicleMatchContext,
     );
 
     const hasLiveMatch = liveContexts.some((live) =>
-      hasPlausibleLiveMatch(journey, live, currentStop, input.now, input.route),
+      hasPlausibleLiveMatch(
+        journey,
+        live,
+        currentStop,
+        input.now,
+        input.route,
+        input.scheduleBaseVersion,
+      ),
     );
     if (hasLiveMatch) {
       continue;
@@ -440,6 +509,58 @@ export function getScheduledGhostCandidates(
   }
 
   return candidates;
+}
+
+export function applyScheduleGhostDuplicateGuard(
+  routeId: string,
+  liveVehicles: EstimatedVehiclePosition[],
+  candidates: ScheduledGhostCandidate[],
+  collectDiagnostics = false,
+): {
+  candidates: ScheduledGhostCandidate[];
+  diagnostics: string[];
+} {
+  const diagnostics: string[] = [];
+  const liveRunningNumbers = new Set<string>();
+
+  for (const vehicle of liveVehicles) {
+    if (!isActiveLiveVehicle(vehicle) || vehicle.routeNumber !== routeId) {
+      continue;
+    }
+
+    const normalizedRunning = normalizeRunningNumber(extractLiveRunningNo(vehicle));
+    if (normalizedRunning) {
+      liveRunningNumbers.add(normalizedRunning);
+    }
+  }
+
+  const seenGhosts = new Set<string>();
+  const filtered: ScheduledGhostCandidate[] = [];
+
+  for (const candidate of candidates) {
+    const normalizedRunning = normalizeRunningNumber(candidate.runningNo);
+    if (normalizedRunning && liveRunningNumbers.has(normalizedRunning)) {
+      if (collectDiagnostics) {
+        diagnostics.push(
+          `Suppressed schedule ghost ${candidate.runningNo} because live vehicle with same running number exists.`,
+        );
+      }
+      continue;
+    }
+
+    const ghostKey = [
+      normalizedRunning ?? "",
+      candidate.blockNo.trim(),
+      candidate.tripId,
+    ].join(":");
+    if (seenGhosts.has(ghostKey)) {
+      continue;
+    }
+    seenGhosts.add(ghostKey);
+    filtered.push(candidate);
+  }
+
+  return { candidates: filtered, diagnostics };
 }
 
 export function scheduledGhostToVehiclePosition(

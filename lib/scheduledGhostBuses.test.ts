@@ -12,6 +12,7 @@ import {
   parseStopInPatternXml,
 } from "@/lib/ibus/scheduleParsers";
 import {
+  applyScheduleGhostDuplicateGuard,
   getScheduledGhostCandidates,
   hasPlausibleLiveMatch,
   isJourneyActiveAtTime,
@@ -262,6 +263,7 @@ describe("scheduledGhostBuses", () => {
       hasPlausibleLiveMatch(
         scheduleJourney,
         {
+          routeId: "337",
           direction: "outbound",
           destinationName: "Richmond",
           runningNo: "568",
@@ -270,8 +272,168 @@ describe("scheduledGhostBuses", () => {
         scheduleJourney.stops[1] ?? null,
         new Date("2026-06-13T10:04:00.000Z"),
         sampleRoute,
+        "20260606",
       ),
     ).toBe(true);
+  });
+
+  it("suppresses ghosts when same route has the same normalized running number", () => {
+    expect(
+      hasPlausibleLiveMatch(
+        { ...scheduleJourney, runningNo: "136" },
+        {
+          routeId: "156",
+          direction: "inbound",
+          destinationName: "Wimbledon",
+          runningNo: "0136",
+        },
+        scheduleJourney.stops[0] ?? null,
+        new Date("2026-06-13T10:04:00.000Z"),
+        { ...sampleRoute, routeId: "156", routeName: "156" },
+        "20260606",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not suppress ghosts when the same running number is on a different route", () => {
+    expect(
+      hasPlausibleLiveMatch(
+        { ...scheduleJourney, runningNo: "136" },
+        {
+          routeId: "337",
+          direction: "outbound",
+          destinationName: "Richmond",
+          runningNo: "136",
+        },
+        scheduleJourney.stops[0] ?? null,
+        new Date("2026-06-13T10:04:00.000Z"),
+        { ...sampleRoute, routeId: "156", routeName: "156" },
+        "20260606",
+      ),
+    ).toBe(false);
+  });
+
+  it("suppresses route 156 ghosts when a live bus has iBus running number 136", () => {
+    const route156 = { ...sampleRoute, routeId: "156", routeName: "156" };
+    const journey136 = { ...scheduleJourney, runningNo: "136", blockNo: "136001" };
+    const activeTime = new Date("2026-06-12T09:04:00.000Z");
+
+    const candidates = getScheduledGhostCandidates({
+      routeId: "156",
+      now: activeTime,
+      liveVehicles: [
+        liveVehicle({
+          vehicleId: "BUS-136",
+          routeNumber: "156",
+          ibusRunningNo: "136",
+          ibusBlockNo: "136001",
+        }),
+      ],
+      scheduledJourneys: [journey136],
+      route: route156,
+      layout: LOOP_LAYOUT,
+      scheduleBaseVersion: "20260606",
+    });
+
+    expect(candidates).toHaveLength(0);
+  });
+
+  it("dedupes duplicate schedule ghosts and suppresses live running-number duplicates", () => {
+    const duplicateCandidates = [
+      {
+        kind: "scheduled-ghost-candidate" as const,
+        routeId: "156",
+        direction: "outbound" as const,
+        tripId: "9001",
+        baseVersion: "20260606",
+        runningNo: "136",
+        blockNo: "136001",
+        garageNo: null,
+        operatorCode: null,
+        destination: "towards Stop B",
+        expectedStopName: "Stop B",
+        expectedStopCode: "B1",
+        expectedScheduledTime: "10:04",
+        progress: 0.2,
+        x: 10,
+        y: 20,
+        confidence: "high" as const,
+        reason: "scheduled-journey-active-but-no-live-match",
+      },
+      {
+        kind: "scheduled-ghost-candidate" as const,
+        routeId: "156",
+        direction: "outbound" as const,
+        tripId: "9001",
+        baseVersion: "20260606",
+        runningNo: "136",
+        blockNo: "136001",
+        garageNo: null,
+        operatorCode: null,
+        destination: "towards Stop B",
+        expectedStopName: "Stop B",
+        expectedStopCode: "B1",
+        expectedScheduledTime: "10:04",
+        progress: 0.2,
+        x: 10,
+        y: 20,
+        confidence: "high" as const,
+        reason: "scheduled-journey-active-but-no-live-match",
+      },
+    ];
+
+    const liveSuppressed = applyScheduleGhostDuplicateGuard(
+      "156",
+      [
+        liveVehicle({
+          vehicleId: "BUS-136",
+          routeNumber: "156",
+          ibusRunningNo: "136",
+        }),
+      ],
+      duplicateCandidates,
+      true,
+    );
+
+    expect(liveSuppressed.candidates).toHaveLength(0);
+    expect(liveSuppressed.diagnostics[0]).toContain("Suppressed schedule ghost 136");
+
+    const deduped = applyScheduleGhostDuplicateGuard(
+      "156",
+      [],
+      duplicateCandidates,
+    );
+
+    expect(deduped.candidates).toHaveLength(1);
+  });
+
+  it("shows only live buses when live and ghost would share running number 136", () => {
+    const route156 = { ...sampleRoute, routeId: "156", routeName: "156" };
+    const journey136 = { ...scheduleJourney, runningNo: "136", blockNo: "136001" };
+    const activeTime = new Date("2026-06-12T09:04:00.000Z");
+    const live = liveVehicle({
+      vehicleId: "BUS-136",
+      routeNumber: "156",
+      ibusRunningNo: "136",
+    });
+
+    const candidates = getScheduledGhostCandidates({
+      routeId: "156",
+      now: activeTime,
+      liveVehicles: [live],
+      scheduledJourneys: [journey136],
+      route: route156,
+      layout: LOOP_LAYOUT,
+      scheduleBaseVersion: "20260606",
+    });
+    const guarded = applyScheduleGhostDuplicateGuard("156", [live], candidates);
+
+    expect(guarded.candidates).toHaveLength(0);
+    expect(
+      [live, ...guarded.candidates.map(scheduledGhostToVehiclePosition)].filter(
+        (vehicle) => vehicle.isScheduledGhostCandidate,
+      ),
+    ).toHaveLength(0);
   });
 
   it("creates a possible ghost for unmatched active scheduled journeys", () => {

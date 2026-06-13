@@ -1,5 +1,6 @@
 import type { LoopLayoutConfig } from "@/lib/constants";
 import { resolveGhostStatus } from "@/lib/ghostBusDetection";
+import type { LiveIbusRunningDetail } from "@/lib/ibusLookup";
 import { appendTrackedGhostVehicles } from "@/lib/ghostVehicles";
 import { appendScheduledGhostVehicles } from "@/lib/scheduledGhostVehicles";
 import { resolvePredictionConfidence } from "@/lib/predictionTracking";
@@ -33,6 +34,8 @@ export interface BuildRouteIntelligenceInput {
   showScheduleGhosts?: boolean;
   includeLowConfidenceScheduleGhosts?: boolean;
   liveBaseVersion?: string;
+  liveIbusRunningDetails?: Map<string, LiveIbusRunningDetail>;
+  collectScheduleGhostDiagnostics?: boolean;
 }
 
 export function toRouteDashboardSummary(
@@ -59,6 +62,28 @@ export function toRouteDashboardSummary(
     predictionDisappearedCount: metrics.predictionDisappearedCount,
     missingLatestCount: metrics.missingLatestCount,
   };
+}
+
+function attachLiveIbusRunningDetails(
+  vehicles: EstimatedVehiclePosition[],
+  details: Map<string, LiveIbusRunningDetail> | undefined,
+): EstimatedVehiclePosition[] {
+  if (!details || details.size === 0) {
+    return vehicles;
+  }
+
+  return vehicles.map((vehicle) => {
+    const detail = details.get(vehicle.vehicleId);
+    if (!detail) {
+      return vehicle;
+    }
+
+    return {
+      ...vehicle,
+      ibusRunningNo: detail.runningNo,
+      ibusBlockNo: detail.blockNo,
+    };
+  });
 }
 
 function attachPredictionAndGhostState(
@@ -106,10 +131,13 @@ function attachPredictionAndGhostState(
 export function buildRouteIntelligence(
   input: BuildRouteIntelligenceInput,
 ): RouteIntelligenceResult {
-  const positions = buildVehiclePositions(
-    input.predictions,
-    input.route,
-    input.layout,
+  const positions = attachLiveIbusRunningDetails(
+    buildVehiclePositions(
+      input.predictions,
+      input.route,
+      input.layout,
+    ),
+    input.liveIbusRunningDetails,
   );
 
   const enrichedTracking = new Map(input.trackingStates);
@@ -143,7 +171,7 @@ export function buildRouteIntelligence(
     input.now,
   );
 
-  const withScheduledGhosts = appendScheduledGhostVehicles({
+  const scheduledGhostResult = appendScheduledGhostVehicles({
     routeId: input.routeId,
     route: input.route,
     layout: input.layout,
@@ -154,10 +182,11 @@ export function buildRouteIntelligence(
     liveBaseVersion: input.liveBaseVersion,
     showScheduleGhosts: input.showScheduleGhosts ?? true,
     includeLowConfidence: input.includeLowConfidenceScheduleGhosts ?? false,
+    collectDiagnostics: input.collectScheduleGhostDiagnostics ?? false,
   });
 
   const vehicles = attachPredictionAndGhostState(
-    withScheduledGhosts,
+    scheduledGhostResult.vehicles,
     enrichedTracking,
     input.dataUpdatedAt,
     input.now,
@@ -173,5 +202,9 @@ export function buildRouteIntelligence(
     vehicles,
     metrics,
     dashboardSummary: toRouteDashboardSummary(input.routeId, metrics),
+    scheduleGhostDiagnostics:
+      scheduledGhostResult.diagnostics.length > 0
+        ? scheduledGhostResult.diagnostics
+        : undefined,
   };
 }
