@@ -136,7 +136,10 @@ export function ghostStatusLabel(status: GhostStatus): string {
 }
 
 export function countGhostStatuses(
-  vehicles: Array<{ ghostStatus: GhostStatus }>,
+  vehicles: Array<{
+    ghostStatus: GhostStatus;
+    isScheduledGhostCandidate?: boolean;
+  }>,
 ): {
   possibleGhostCount: number;
   predictionDisappearedCount: number;
@@ -149,6 +152,11 @@ export function countGhostStatuses(
   let reappearedCount = 0;
 
   for (const vehicle of vehicles) {
+    if (vehicle.isScheduledGhostCandidate) {
+      possibleGhostCount += 1;
+      continue;
+    }
+
     switch (vehicle.ghostStatus) {
       case "suspectedGhost":
         possibleGhostCount += 1;

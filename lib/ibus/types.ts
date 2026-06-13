@@ -27,6 +27,7 @@ export interface IbusCurrentManifest {
   baseVersion: string;
   generatedAt: string;
   runningShardPathTemplate: string;
+  routeSchedulePathTemplate?: string;
   garageLookupPath: string;
   vehicleLookupPath: string;
   importReportPath: string;

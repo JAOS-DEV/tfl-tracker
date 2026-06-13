@@ -102,6 +102,9 @@ export function RouteCard({
   } = useRouteIntelligence(activeRoute.routeId, {
     includeScheduleMatching: isExpanded,
     fetchTimetable: isExpanded,
+    showScheduleGhosts: displaySettings.showScheduleGhosts,
+    includeLowConfidenceScheduleGhosts:
+      displaySettings.showAdvancedDiagnostics,
   });
   const statusQuery = useLineStatus(activeRoute.routeId, isExpanded);
   const routeStopIds = useMemo(() => {

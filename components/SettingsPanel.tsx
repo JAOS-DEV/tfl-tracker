@@ -178,6 +178,25 @@ export function SettingsPanel({
             Animate estimated bus positions between TfL refreshes. This is a
             visual estimate only and does not increase live-data polling.
           </p>
+
+          <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+            <span>Show schedule ghosts</span>
+            <input
+              type="checkbox"
+              checked={settings.showScheduleGhosts}
+              onChange={(event) =>
+                setSettings((current) => ({
+                  ...current,
+                  showScheduleGhosts: event.target.checked,
+                }))
+              }
+              className="h-5 w-5"
+            />
+          </label>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Show possible ghost buses from TfL iBus schedule data when a
+            scheduled journey has no matching live vehicle.
+          </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Service details, history, and alerts are always available from each
             route card. Inline options add them directly to the card scroll.

@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import unzipper from "unzipper";
 import { runningShardForTripId } from "../lib/ibus/keys";
+import { buildRouteSchedules, discoverServiceLineNos } from "../lib/ibus/routeScheduleImport";
 import {
   buildRunningLookupRecords,
   parseBlockXml,
@@ -238,6 +239,7 @@ async function main(): Promise<void> {
     baseVersion,
     generatedAt,
     runningShardPathTemplate: `/data/ibus/${baseVersion}/running-shards/{shard}.json`,
+    routeSchedulePathTemplate: `/data/ibus/${baseVersion}/route-schedules/{routeId}.json`,
     garageLookupPath: `/data/ibus/${baseVersion}/garage-lookup.json`,
     vehicleLookupPath: `/data/ibus/${baseVersion}/vehicle-lookup.json`,
     importReportPath: `/data/ibus/${baseVersion}/import-report.json`,
@@ -251,6 +253,30 @@ async function main(): Promise<void> {
   };
 
   await writeJson(path.join("public", "data", "ibus", "current.json"), currentManifest);
+
+  const routeScheduleEnv = process.env.IBUS_ROUTE_SCHEDULES?.trim();
+  if (routeScheduleEnv) {
+    const routeIds =
+      routeScheduleEnv === "all"
+        ? await discoverServiceLineNos(baseVersion)
+        : routeScheduleEnv
+            .split(",")
+            .map((routeId) => routeId.trim())
+            .filter(Boolean);
+
+    console.log(`Building route schedules for ${routeIds.length} route(s)...`);
+    const scheduleResult = await buildRouteSchedules({
+      baseVersion,
+      outputRoot,
+      routeIds,
+    });
+    console.log(
+      `Route schedules built: ${scheduleResult.routesBuilt.length}, skipped: ${scheduleResult.routesSkipped.length}`,
+    );
+    if (scheduleResult.warnings.length > 0) {
+      warnings.push(...scheduleResult.warnings);
+    }
+  }
 
   console.log("Import complete");
   console.log(JSON.stringify(importReport, null, 2));

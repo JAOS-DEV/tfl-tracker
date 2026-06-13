@@ -68,7 +68,8 @@ export function BusDetailsModal({
   const shouldFetchDetails =
     Boolean(vehicle) &&
     vehicle?.ghostStatus !== "disappeared" &&
-    !vehicle?.isSuspectedGhost;
+    !vehicle?.isSuspectedGhost &&
+    !vehicle?.isScheduledGhostCandidate;
 
   const ibusDetails = useIbusVehicleDetails(
     vehicle
@@ -136,6 +137,68 @@ export function BusDetailsModal({
         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
           Position is estimated from TfL arrival predictions, not live GPS.
         </p>
+
+        {vehicle.isScheduledGhostCandidate ? (
+          <section className="mt-4 rounded-xl border border-violet-300 bg-violet-50 p-3 dark:border-violet-800 dark:bg-violet-950/40">
+            <h3 className="text-sm font-semibold text-violet-900 dark:text-violet-100">
+              Possible ghost bus
+            </h3>
+            <p className="mt-2 text-sm text-violet-900 dark:text-violet-100">
+              Scheduled bus not currently matched to a live vehicle.
+            </p>
+            <p className="mt-2 text-xs text-violet-800 dark:text-violet-200">
+              This is a scheduled bus that should be on the route, but no
+              matching live vehicle is currently visible. Source: TfL iBus static
+              schedule + live TfL data.
+            </p>
+            <dl className="mt-3 space-y-2 text-sm">
+              <div>
+                <dt className="text-violet-700 dark:text-violet-300">Running number</dt>
+                <dd className="font-medium">{vehicle.scheduledGhostRunningNo ?? "Unknown"}</dd>
+              </div>
+              <div>
+                <dt className="text-violet-700 dark:text-violet-300">Block</dt>
+                <dd className="font-medium">{vehicle.scheduledGhostBlockNo ?? "Unknown"}</dd>
+              </div>
+              {vehicle.scheduledGhostGarageNo ? (
+                <div>
+                  <dt className="text-violet-700 dark:text-violet-300">Garage no</dt>
+                  <dd className="font-medium">{vehicle.scheduledGhostGarageNo}</dd>
+                </div>
+              ) : null}
+              {vehicle.scheduledGhostOperatorCode ? (
+                <div>
+                  <dt className="text-violet-700 dark:text-violet-300">Operator</dt>
+                  <dd className="font-medium">{vehicle.scheduledGhostOperatorCode}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="text-violet-700 dark:text-violet-300">Expected near</dt>
+                <dd className="font-medium">{vehicle.matchedStopName ?? "Unknown stop"}</dd>
+              </div>
+              <div>
+                <dt className="text-violet-700 dark:text-violet-300">Scheduled time</dt>
+                <dd className="font-medium">{vehicle.matchedScheduledTime ?? "Unknown"}</dd>
+              </div>
+              <div>
+                <dt className="text-violet-700 dark:text-violet-300">Confidence</dt>
+                <dd className="font-medium capitalize">
+                  {vehicle.scheduledGhostConfidence ?? "unknown"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-violet-700 dark:text-violet-300">Reason</dt>
+                <dd className="font-medium">{vehicle.ghostReason ?? "scheduled-journey-active-but-no-live-match"}</dd>
+              </div>
+              {vehicle.baseVersion ? (
+                <div>
+                  <dt className="text-violet-700 dark:text-violet-300">Source base version</dt>
+                  <dd className="font-medium">{vehicle.baseVersion}</dd>
+                </div>
+              ) : null}
+            </dl>
+          </section>
+        ) : null}
 
         {movementDecision ? (
           <section className="mt-4 rounded-xl border border-dashed border-zinc-300 p-3 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">

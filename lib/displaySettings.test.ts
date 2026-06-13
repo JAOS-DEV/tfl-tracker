@@ -12,6 +12,7 @@ describe("displaySettings", () => {
     expect(DEFAULT_DISPLAY_SETTINGS.showHistoryInline).toBe(false);
     expect(DEFAULT_DISPLAY_SETTINGS.showAdvancedDiagnostics).toBe(false);
     expect(DEFAULT_DISPLAY_SETTINGS.smoothBusMovement).toBe(true);
+    expect(DEFAULT_DISPLAY_SETTINGS.showScheduleGhosts).toBe(true);
   });
 
   it("normalizes unknown values to defaults", () => {

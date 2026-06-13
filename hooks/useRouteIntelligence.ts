@@ -8,6 +8,8 @@ import { useRouteSequence } from "@/hooks/useRouteSequence";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { getLoopLayout } from "@/lib/constants";
 import { useRouteTimetable } from "@/hooks/useRouteTimetable";
+import { useRouteSchedule } from "@/hooks/useRouteSchedule";
+import { loadIbusManifestClient } from "@/lib/ibusRouteSchedules";
 import { buildRouteIntelligence } from "@/lib/routeIntelligence";
 import { MAX_ACTIVE_ROUTES, POLL_INTERVAL_MS } from "@/lib/storage";
 import type { ActiveRoute, RouteIntelligenceResult } from "@/lib/tfl/types";
@@ -15,6 +17,8 @@ import type { ActiveRoute, RouteIntelligenceResult } from "@/lib/tfl/types";
 export interface UseRouteIntelligenceOptions {
   includeScheduleMatching?: boolean;
   fetchTimetable?: boolean;
+  showScheduleGhosts?: boolean;
+  includeLowConfidenceScheduleGhosts?: boolean;
 }
 
 interface UseRouteIntelligenceResult {
@@ -31,11 +35,18 @@ export function useRouteIntelligence(
 ): UseRouteIntelligenceResult {
   const includeScheduleMatching = options.includeScheduleMatching ?? true;
   const fetchTimetable = options.fetchTimetable ?? includeScheduleMatching;
+  const showScheduleGhosts = options.showScheduleGhosts ?? true;
+  const includeLowConfidenceScheduleGhosts =
+    options.includeLowConfidenceScheduleGhosts ?? false;
   const isMobile = useMediaQuery("(max-width: 640px)");
   const sequenceQuery = useRouteSequence(routeId);
   const arrivalsQuery = useLineArrivals(routeId);
   const route = sequenceQuery.data;
   const { timetables } = useRouteTimetable(routeId, route, fetchTimetable);
+  const routeScheduleQuery = useRouteSchedule(
+    routeId,
+    showScheduleGhosts && Boolean(route),
+  );
 
   const predictions = useMemo(
     () => arrivalsQuery.data?.predictions ?? [],
@@ -63,9 +74,15 @@ export function useRouteIntelligence(
       loopLayout.orientation,
       includeScheduleMatching ? timetables.outbound?.journeys.length : null,
       includeScheduleMatching ? timetables.inbound?.journeys.length : null,
+      showScheduleGhosts ? routeScheduleQuery.data?.journeys.length : null,
     ],
-    queryFn: () =>
-      buildRouteIntelligence({
+    queryFn: async () => {
+      const manifest = await loadIbusManifestClient();
+      const liveBaseVersion =
+        predictions.find((prediction) => prediction.baseVersion)?.baseVersion ??
+        manifest?.baseVersion;
+
+      return buildRouteIntelligence({
         routeId,
         route: route!,
         predictions,
@@ -75,8 +92,13 @@ export function useRouteIntelligence(
         trackingStates: predictionTracking.states,
         timetables: includeScheduleMatching ? timetables : {},
         includeScheduleMatching,
-      }),
-    enabled: Boolean(routeId && route),
+        routeSchedule: routeScheduleQuery.data,
+        showScheduleGhosts,
+        includeLowConfidenceScheduleGhosts,
+        liveBaseVersion,
+      });
+    },
+    enabled: Boolean(routeId && route && (!showScheduleGhosts || routeScheduleQuery.isFetched)),
     staleTime: POLL_INTERVAL_MS,
     placeholderData: keepPreviousData,
   });

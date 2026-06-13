@@ -1,10 +1,12 @@
 import type { LoopLayoutConfig } from "@/lib/constants";
 import { resolveGhostStatus } from "@/lib/ghostBusDetection";
 import { appendTrackedGhostVehicles } from "@/lib/ghostVehicles";
+import { appendScheduledGhostVehicles } from "@/lib/scheduledGhostVehicles";
 import { resolvePredictionConfidence } from "@/lib/predictionTracking";
 import { buildVehiclePositions } from "@/lib/routePositioning";
 import { matchVehicleToSchedule } from "@/lib/scheduleDeviation";
 import { buildServiceHealthMetrics } from "@/lib/serviceIntelligence";
+import type { IbusRouteSchedule } from "@/lib/ibus/scheduleTypes";
 import type {
   EstimatedVehiclePosition,
   NormalizedRoute,
@@ -27,6 +29,10 @@ export interface BuildRouteIntelligenceInput {
   trackingStates: Map<string, PredictionTrackingState>;
   timetables?: Partial<Record<RouteDirection, NormalizedTimetable | null>>;
   includeScheduleMatching?: boolean;
+  routeSchedule?: IbusRouteSchedule | null;
+  showScheduleGhosts?: boolean;
+  includeLowConfidenceScheduleGhosts?: boolean;
+  liveBaseVersion?: string;
 }
 
 export function toRouteDashboardSummary(
@@ -62,6 +68,10 @@ function attachPredictionAndGhostState(
   now: number,
 ): EstimatedVehiclePosition[] {
   return vehicles.map((vehicle) => {
+    if (vehicle.isScheduledGhostCandidate) {
+      return vehicle;
+    }
+
     const trackingState = trackingStates.get(vehicle.vehicleId);
     const ghost = resolveGhostStatus({
       state: trackingState,
@@ -133,8 +143,21 @@ export function buildRouteIntelligence(
     input.now,
   );
 
+  const withScheduledGhosts = appendScheduledGhostVehicles({
+    routeId: input.routeId,
+    route: input.route,
+    layout: input.layout,
+    vehicles: withGhosts,
+    schedule: input.routeSchedule,
+    now: input.now,
+    dataUpdatedAt: input.dataUpdatedAt,
+    liveBaseVersion: input.liveBaseVersion,
+    showScheduleGhosts: input.showScheduleGhosts ?? true,
+    includeLowConfidence: input.includeLowConfidenceScheduleGhosts ?? false,
+  });
+
   const vehicles = attachPredictionAndGhostState(
-    withGhosts,
+    withScheduledGhosts,
     enrichedTracking,
     input.dataUpdatedAt,
     input.now,

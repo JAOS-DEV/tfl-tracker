@@ -253,6 +253,14 @@ export interface EstimatedVehiclePosition {
   missedRefreshCount: number;
   reappearedAt?: number;
   isSuspectedGhost: boolean;
+  isScheduledGhostCandidate?: boolean;
+  scheduledGhostConfidence?: "high" | "medium" | "low";
+  scheduledGhostRunningNo?: string;
+  scheduledGhostBlockNo?: string;
+  scheduledGhostGarageNo?: string | null;
+  scheduledGhostOperatorCode?: string | null;
+  scheduledGhostExpectedStopCode?: string | null;
+  scheduledGhostSource?: string;
 }
 
 export interface RouteAlertBadge {

@@ -177,6 +177,8 @@ export function MultiRouteDashboard({
   const routeIntelligences = useActiveRouteIntelligences(activeRoutes, {
     includeScheduleMatching: anyRouteExpanded,
     fetchTimetable: anyRouteExpanded,
+    showScheduleGhosts: displaySettings.showScheduleGhosts,
+    includeLowConfidenceScheduleGhosts: showDiagnostics,
   });
   const summaries = routeIntelligences
     .map((entry) => entry.intelligence?.dashboardSummary)
