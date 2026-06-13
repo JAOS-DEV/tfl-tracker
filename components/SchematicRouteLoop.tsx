@@ -7,6 +7,8 @@ import { RouteLoopDirectionChevrons } from "@/components/RouteLoopDirectionChevr
 import { RouteLoopDirectionGuide } from "@/components/RouteLoopDirectionGuide";
 import { RouteLoopStopNode } from "@/components/RouteLoopStopNode";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import type { DisplayMarkerPosition } from "@/hooks/useSmoothBusMarkers";
+import type { SmoothMovementDecision } from "@/lib/smoothBusMovement";
 import type { LoopLayoutConfig } from "@/lib/constants";
 import { getLoopLayout } from "@/lib/constants";
 import {
@@ -30,6 +32,9 @@ import type {
 interface SchematicRouteLoopProps {
   route: NormalizedRoute;
   vehicles: EstimatedVehiclePosition[];
+  displayPositions: Record<string, DisplayMarkerPosition>;
+  movementDecisions?: Record<string, SmoothMovementDecision>;
+  showAdvancedDiagnostics?: boolean;
   stopDisruptionsByNaptanId?: Map<string, StopDisruption>;
   onStopSelect: (stop: NormalizedStop) => void;
   onBusSelect: (vehicle: EstimatedVehiclePosition) => void;
@@ -100,6 +105,9 @@ function terminalArrow(
 export function SchematicRouteLoop({
   route,
   vehicles,
+  displayPositions,
+  movementDecisions,
+  showAdvancedDiagnostics = false,
   stopDisruptionsByNaptanId,
   onStopSelect,
   onBusSelect,
@@ -282,15 +290,24 @@ export function SchematicRouteLoop({
             );
           })}
 
-          {vehicles.map((vehicle) => (
-            <RouteLoopBusMarker
-              key={vehicle.vehicleId}
-              vehicle={vehicle}
-              markerSize={markerSize}
-              isSelected={selectedVehicleId === vehicle.vehicleId}
-              onSelect={() => onBusSelect(vehicle)}
-            />
-          ))}
+          {vehicles.map((vehicle) => {
+            const display = displayPositions[vehicle.vehicleId];
+            const movementDecision = movementDecisions?.[vehicle.vehicleId];
+            return (
+              <RouteLoopBusMarker
+                key={vehicle.vehicleId}
+                vehicle={vehicle}
+                displayX={display?.x ?? vehicle.x}
+                displayY={display?.y ?? vehicle.y}
+                movementDecision={
+                  showAdvancedDiagnostics ? movementDecision : undefined
+                }
+                markerSize={markerSize}
+                isSelected={selectedVehicleId === vehicle.vehicleId}
+                onSelect={() => onBusSelect(vehicle)}
+              />
+            );
+          })}
 
           <g aria-hidden="true">
             <rect

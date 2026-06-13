@@ -159,6 +159,25 @@ export function SettingsPanel({
               className="h-5 w-5"
             />
           </label>
+
+          <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+            <span>Smooth bus movement</span>
+            <input
+              type="checkbox"
+              checked={settings.smoothBusMovement}
+              onChange={(event) =>
+                setSettings((current) => ({
+                  ...current,
+                  smoothBusMovement: event.target.checked,
+                }))
+              }
+              className="h-5 w-5"
+            />
+          </label>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Animate estimated bus positions between TfL refreshes. This is a
+            visual estimate only and does not increase live-data polling.
+          </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Service details, history, and alerts are always available from each
             route card. Inline options add them directly to the card scroll.

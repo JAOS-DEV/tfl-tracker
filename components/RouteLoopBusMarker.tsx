@@ -3,10 +3,17 @@ import { EmbeddedGhostIcon } from "@/components/EmbeddedGhostIcon";
 import { LoopMarkerBadge } from "@/components/LoopMarkerBadge";
 import { ghostStatusLabel } from "@/lib/ghostBusDetection";
 import { scheduleAccessibleLabel } from "@/lib/scheduleDeviation";
+import {
+  formatMovementDecision,
+  type SmoothMovementDecision,
+} from "@/lib/smoothBusMovement";
 import type { EstimatedVehiclePosition } from "@/lib/tfl/types";
 
 interface RouteLoopBusMarkerProps {
   vehicle: EstimatedVehiclePosition;
+  displayX: number;
+  displayY: number;
+  movementDecision?: SmoothMovementDecision;
   isSelected: boolean;
   markerSize?: number;
   onSelect: () => void;
@@ -22,6 +29,9 @@ const adherenceRingClasses = {
 
 export function RouteLoopBusMarker({
   vehicle,
+  displayX,
+  displayY,
+  movementDecision,
   isSelected,
   markerSize = 32,
   onSelect,
@@ -44,6 +54,9 @@ export function RouteLoopBusMarker({
   const label = vehicle.matched
     ? `Bus ${vehicle.routeNumber}, ${statusLabel}, estimated near ${vehicle.nextStop?.name ?? "route"}`
     : `Bus ${vehicle.routeNumber} position unavailable`;
+  const debugTitle = movementDecision
+    ? `Movement: ${formatMovementDecision(movementDecision)}`
+    : undefined;
 
   const ringClass = isGhost
     ? "fill-zinc-400/20 stroke-zinc-400 dark:fill-zinc-500/20 dark:stroke-zinc-400"
@@ -57,7 +70,7 @@ export function RouteLoopBusMarker({
   return (
     <g
       className="cursor-pointer"
-      transform={`translate(${vehicle.x - half}, ${vehicle.y - half - 8})`}
+      transform={`translate(${displayX - half}, ${displayY - half - 8})`}
       onClick={onSelect}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -70,6 +83,7 @@ export function RouteLoopBusMarker({
       aria-label={label}
       opacity={isFaded ? 0.65 : 1}
     >
+      {debugTitle ? <title>{debugTitle}</title> : null}
       <circle
         cx={half}
         cy={half}

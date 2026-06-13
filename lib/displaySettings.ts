@@ -26,6 +26,7 @@ export interface DisplaySettings {
   showServiceDetailsInline: boolean;
   showHistoryInline: boolean;
   showAdvancedDiagnostics: boolean;
+  smoothBusMovement: boolean;
   globalAlertDefaults: GlobalAlertDefaults;
 }
 
@@ -36,6 +37,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showServiceDetailsInline: false,
   showHistoryInline: false,
   showAdvancedDiagnostics: false,
+  smoothBusMovement: true,
   globalAlertDefaults: {
     warnLargeGap: DEFAULT_ROUTE_ALERTS.warnLargeGap,
     largeGapMinutes: DEFAULT_ROUTE_ALERTS.largeGapMinutes,
@@ -168,6 +170,10 @@ export function normalizeDisplaySettings(value: unknown): DisplaySettings {
     showServiceDetailsInline: inlineToggles.showServiceDetailsInline,
     showHistoryInline: inlineToggles.showHistoryInline,
     showAdvancedDiagnostics: inlineToggles.showAdvancedDiagnostics,
+    smoothBusMovement:
+      typeof raw.smoothBusMovement === "boolean"
+        ? raw.smoothBusMovement
+        : DEFAULT_DISPLAY_SETTINGS.smoothBusMovement,
     globalAlertDefaults: normalizeGlobalAlertDefaults(raw.globalAlertDefaults),
   };
 }

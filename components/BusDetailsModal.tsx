@@ -8,6 +8,10 @@ import { formatLastUpdated, formatLocalTime, formatMinutes } from "@/lib/format"
 import { ghostStatusLabel } from "@/lib/ghostBusDetection";
 import { predictionConfidenceLabel } from "@/lib/predictionTracking";
 import { isStopIdLike } from "@/lib/stopDisplayName";
+import {
+  formatMovementDecision,
+  type SmoothMovementDecision,
+} from "@/lib/smoothBusMovement";
 import type {
   EstimatedVehiclePosition,
   PredictionConfidence,
@@ -16,6 +20,7 @@ import type {
 interface BusDetailsModalProps {
   vehicle: EstimatedVehiclePosition | null;
   predictionConfidence?: PredictionConfidence;
+  movementDecision?: SmoothMovementDecision;
   onClose: () => void;
 }
 
@@ -57,6 +62,7 @@ function scheduleStatusDisplay(status: EstimatedVehiclePosition["scheduleStatus"
 export function BusDetailsModal({
   vehicle,
   predictionConfidence = "normal",
+  movementDecision,
   onClose,
 }: BusDetailsModalProps): React.ReactElement | null {
   const shouldFetchDetails =
@@ -130,6 +136,28 @@ export function BusDetailsModal({
         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
           Position is estimated from TfL arrival predictions, not live GPS.
         </p>
+
+        {movementDecision ? (
+          <section className="mt-4 rounded-xl border border-dashed border-zinc-300 p-3 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+            <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+              Loop movement debug
+            </h3>
+            <dl className="mt-2 space-y-1">
+              <div className="flex gap-2">
+                <dt className="font-medium">Movement</dt>
+                <dd className="capitalize">{movementDecision.mode}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="font-medium">Reason</dt>
+                <dd>{movementDecision.reason}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="font-medium">Summary</dt>
+                <dd>{formatMovementDecision(movementDecision)}</dd>
+              </div>
+            </dl>
+          </section>
+        ) : null}
 
         <dl className="mt-4 space-y-3 text-sm">
           {vehicle.vehicleRegistration ? (

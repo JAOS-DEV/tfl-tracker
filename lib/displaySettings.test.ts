@@ -11,6 +11,7 @@ describe("displaySettings", () => {
     expect(DEFAULT_DISPLAY_SETTINGS.showServiceDetailsInline).toBe(false);
     expect(DEFAULT_DISPLAY_SETTINGS.showHistoryInline).toBe(false);
     expect(DEFAULT_DISPLAY_SETTINGS.showAdvancedDiagnostics).toBe(false);
+    expect(DEFAULT_DISPLAY_SETTINGS.smoothBusMovement).toBe(true);
   });
 
   it("normalizes unknown values to defaults", () => {
@@ -30,12 +31,14 @@ describe("displaySettings", () => {
       showServiceDetailsInline: true,
       showHistoryInline: true,
       showAdvancedDiagnostics: true,
+      smoothBusMovement: false,
     });
 
     expect(settings.defaultVisualMode).toBe("list");
     expect(settings.showServiceDetailsInline).toBe(true);
     expect(settings.showHistoryInline).toBe(true);
     expect(settings.showAdvancedDiagnostics).toBe(true);
+    expect(settings.smoothBusMovement).toBe(false);
   });
 
   it("ignores removed compact route card setting from stored values", () => {

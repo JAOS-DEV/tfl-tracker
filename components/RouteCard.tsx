@@ -25,7 +25,9 @@ import { useStopDisruptions } from "@/hooks/useStopDisruptions";
 import { indexStopDisruptions } from "@/lib/tfl/disruptions";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useRouteHistory } from "@/hooks/useRouteHistory";
+import { useSmoothBusMarkers } from "@/hooks/useSmoothBusMarkers";
 import {
   LoopHeaderDestination,
   routeBadgeHeightClass,
@@ -135,6 +137,15 @@ export function RouteCard({
     () => intelligence?.vehicles ?? [],
     [intelligence?.vehicles],
   );
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const { displayPositions, movementDecisions } = useSmoothBusMarkers(
+    activeRoute.routeId,
+    vehicles,
+    {
+      smoothBusMovementEnabled: displaySettings.smoothBusMovement,
+      prefersReducedMotion,
+    },
+  );
   const serviceHealth = intelligence?.metrics;
 
   const preferences =
@@ -184,6 +195,10 @@ export function RouteCard({
       ) ?? selectedVehicle
     );
   }, [selectedVehicle, vehicles]);
+
+  const selectedMovementDecision = selectedVehicleWithConfidence
+    ? movementDecisions[selectedVehicleWithConfidence.vehicleId]
+    : undefined;
 
   const historySummary =
     historyHydrated && dailyStats.snapshotCount > 0
@@ -388,6 +403,9 @@ export function RouteCard({
                 <SchematicRouteLoop
                   route={route}
                   vehicles={vehicles}
+                  displayPositions={displayPositions}
+                  movementDecisions={movementDecisions}
+                  showAdvancedDiagnostics={displaySettings.showAdvancedDiagnostics}
                   stopDisruptionsByNaptanId={stopDisruptionsByNaptanId}
                   onStopSelect={setSelectedStop}
                   onBusSelect={setSelectedVehicle}
@@ -555,6 +573,11 @@ export function RouteCard({
 
       <BusDetailsModal
         vehicle={selectedVehicleWithConfidence}
+        movementDecision={
+          displaySettings.showAdvancedDiagnostics
+            ? selectedMovementDecision
+            : undefined
+        }
         onClose={() => setSelectedVehicle(null)}
       />
     </>
