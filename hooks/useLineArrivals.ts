@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useDocumentVisibility } from "@/hooks/useDocumentVisibility";
 import type { NormalizedVehiclePrediction } from "@/lib/tfl/types";
 import { POLL_INTERVAL_MS } from "@/lib/storage";
 
@@ -26,10 +27,13 @@ async function fetchLineArrivals(
 }
 
 export function useLineArrivals(routeId: string) {
+  const isDocumentVisible = useDocumentVisibility();
+
   return useQuery({
     queryKey: ["line-arrivals", routeId],
     queryFn: () => fetchLineArrivals(routeId),
-    refetchInterval: POLL_INTERVAL_MS,
+    refetchInterval: isDocumentVisible ? POLL_INTERVAL_MS : false,
+    refetchIntervalInBackground: false,
     staleTime: POLL_INTERVAL_MS,
     enabled: Boolean(routeId),
   });

@@ -17,11 +17,11 @@ async function fetchLineStatus(routeId: string): Promise<RouteStatus> {
   return data.status;
 }
 
-export function useLineStatus(routeId: string) {
+export function useLineStatus(routeId: string, enabled = true) {
   return useQuery({
     queryKey: ["line-status", routeId],
     queryFn: () => fetchLineStatus(routeId),
     staleTime: 120_000,
-    enabled: Boolean(routeId),
+    enabled: enabled && Boolean(routeId),
   });
 }

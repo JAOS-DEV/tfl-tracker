@@ -5,14 +5,20 @@ import type { EstimatedVehiclePosition, NormalizedVehiclePrediction } from "@/li
 interface BusChipProps {
   prediction: NormalizedVehiclePrediction;
   vehicle?: EstimatedVehiclePosition;
+  fleetLabel?: string | null;
   muted?: boolean;
 }
 
 export function BusChip({
   prediction,
   vehicle,
+  fleetLabel = null,
   muted = false,
 }: BusChipProps): React.ReactElement {
+  const registration =
+    prediction.vehicleRegistration ?? vehicle?.vehicleRegistration;
+  const fleetReference =
+    prediction.vehicleFleetReference ?? vehicle?.vehicleFleetReference;
   const showSchedule =
     vehicle &&
     !vehicle.isSuspectedGhost &&
@@ -56,9 +62,17 @@ export function BusChip({
           Prediction disappeared
         </p>
       ) : null}
-      {prediction.vehicleId ? (
+      {registration || fleetReference || prediction.vehicleId ? (
         <p className="mt-1 text-[11px] opacity-70">
-          Vehicle {prediction.vehicleId}
+          {registration
+            ? fleetLabel
+              ? `${registration} · ${fleetLabel}`
+              : registration
+            : fleetReference
+              ? fleetLabel
+                ? `${fleetReference} · ${fleetLabel}`
+                : fleetReference
+              : `Vehicle ${prediction.vehicleId}`}
         </p>
       ) : null}
       {prediction.currentLocation ? (

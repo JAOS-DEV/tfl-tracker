@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  chunkStopPointIds,
   cleanDisruptionText,
   filterStopDisruptionsForIds,
   formatDisruptionPeriod,
+  mergeStopDisruptions,
   normalizeStopDisruptions,
 } from "@/lib/tfl/disruptions";
 
@@ -50,6 +52,50 @@ describe("normalizeStopDisruptions", () => {
         appearance: undefined,
       },
     ]);
+  });
+});
+
+describe("chunkStopPointIds", () => {
+  it("splits long stop lists into batches of 100", () => {
+    const ids = Array.from({ length: 129 }, (_, index) => `490000${index}`);
+    const chunks = chunkStopPointIds(ids);
+
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0]).toHaveLength(100);
+    expect(chunks[1]).toHaveLength(29);
+  });
+});
+
+describe("mergeStopDisruptions", () => {
+  it("deduplicates disruptions across batches", () => {
+    const merged = mergeStopDisruptions([
+      [
+        {
+          naptanId: "490014247W",
+          stopName: "Warspite Road",
+          type: "Closure",
+          description: "Closed",
+        },
+      ],
+      [
+        {
+          naptanId: "490014247W",
+          stopName: "Warspite Road",
+          type: "Closure",
+          description: "Closed duplicate",
+        },
+        {
+          naptanId: "490099999Z",
+          stopName: "Other Stop",
+          type: "Closure",
+          description: "Closed",
+        },
+      ],
+    ]);
+
+    expect(merged).toHaveLength(2);
+    expect(merged[0]?.naptanId).toBe("490014247W");
+    expect(merged[1]?.naptanId).toBe("490099999Z");
   });
 });
 

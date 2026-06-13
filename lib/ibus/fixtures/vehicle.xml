@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vh:Vehicle_Data xmlns:vh="http://www.tfl.uk/CDII/Vehicle">
+  <Base_Version>20260606</Base_Version>
+  <Vehicle aVehicleId="601">
+    <Registration_Number>BT66MSU</Registration_Number>
+    <Bonnet_No>WHV142</Bonnet_No>
+    <Operator_Agency>LG</Operator_Agency>
+  </Vehicle>
+</vh:Vehicle_Data>

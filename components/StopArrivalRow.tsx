@@ -75,6 +75,17 @@ export function StopArrivalRow({
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
             Expected {formatLocalTime(prediction.expectedArrival)}
           </p>
+      {prediction.vehicleRegistration ||
+      prediction.vehicleFleetReference ||
+      vehicle?.vehicleRegistration ||
+      vehicle?.vehicleFleetReference ? (
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          {prediction.vehicleRegistration ??
+            vehicle?.vehicleRegistration ??
+            prediction.vehicleFleetReference ??
+            vehicle?.vehicleFleetReference}
+        </p>
+      ) : null}
           {vehicle?.isSuspectedGhost ? (
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
               {ghostStatusLabel(vehicle.ghostStatus)}

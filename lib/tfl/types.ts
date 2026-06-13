@@ -23,6 +23,8 @@ export interface TflPrediction {
   timeToStation: number;
   expectedArrival: string;
   vehicleId?: string;
+  tripId?: string;
+  baseVersion?: string;
   currentLocation?: string;
   towards?: string;
   modeName: string;
@@ -63,6 +65,10 @@ export interface NormalizedVehiclePrediction {
   timeToStation: number;
   expectedArrival: string;
   vehicleId?: string;
+  vehicleRegistration?: string;
+  vehicleFleetReference?: string;
+  tripId?: string;
+  baseVersion?: string;
   currentLocation?: string;
 }
 
@@ -214,6 +220,10 @@ export interface VehicleScheduleMatch extends ScheduleDeviation {
 
 export interface EstimatedVehiclePosition {
   vehicleId: string;
+  vehicleRegistration?: string;
+  vehicleFleetReference?: string;
+  tripId?: string;
+  baseVersion?: string;
   routeNumber: string;
   direction: RouteDirection;
   destinationName: string;

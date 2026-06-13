@@ -1,3 +1,4 @@
+import { STOP_DISRUPTIONS_BATCH_SIZE } from "@/lib/constants";
 import type { StopDisruption, ValidityPeriod } from "@/lib/tfl/types";
 
 interface RawDisruptedPoint {
@@ -9,6 +10,39 @@ interface RawDisruptedPoint {
   type?: string;
   mode?: string;
   appearance?: string;
+}
+
+export function chunkStopPointIds(
+  stopPointIds: string[],
+  batchSize = STOP_DISRUPTIONS_BATCH_SIZE,
+): string[][] {
+  const chunks: string[][] = [];
+
+  for (let index = 0; index < stopPointIds.length; index += batchSize) {
+    chunks.push(stopPointIds.slice(index, index + batchSize));
+  }
+
+  return chunks;
+}
+
+export function mergeStopDisruptions(
+  batches: StopDisruption[][],
+): StopDisruption[] {
+  const seen = new Set<string>();
+  const merged: StopDisruption[] = [];
+
+  for (const disruptions of batches) {
+    for (const disruption of disruptions) {
+      if (seen.has(disruption.naptanId)) {
+        continue;
+      }
+
+      seen.add(disruption.naptanId);
+      merged.push(disruption);
+    }
+  }
+
+  return merged;
 }
 
 export function cleanDisruptionText(text: string): string {

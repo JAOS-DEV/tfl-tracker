@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import type { NormalizedRoute, NormalizedTimetable, RouteDirection } from "@/lib/tfl/types";
 
 async function fetchTimetable(
@@ -22,6 +23,7 @@ async function fetchTimetable(
 export function useRouteTimetable(
   routeId: string,
   route: NormalizedRoute | undefined,
+  enabled = true,
 ): {
   timetables: Partial<Record<RouteDirection, NormalizedTimetable | null>>;
   isLoading: boolean;
@@ -32,7 +34,7 @@ export function useRouteTimetable(
   const outboundQuery = useQuery({
     queryKey: ["timetable", routeId, "outbound", outboundStopId],
     queryFn: () => fetchTimetable(routeId, outboundStopId ?? "", "outbound"),
-    enabled: Boolean(route && outboundStopId),
+    enabled: enabled && Boolean(route && outboundStopId),
     staleTime: 30 * 60 * 1000,
     retry: 0,
   });
@@ -40,16 +42,21 @@ export function useRouteTimetable(
   const inboundQuery = useQuery({
     queryKey: ["timetable", routeId, "inbound", inboundStopId],
     queryFn: () => fetchTimetable(routeId, inboundStopId ?? "", "inbound"),
-    enabled: Boolean(route && inboundStopId),
+    enabled: enabled && Boolean(route && inboundStopId),
     staleTime: 30 * 60 * 1000,
     retry: 0,
   });
 
-  return {
-    timetables: {
+  const timetables = useMemo(
+    () => ({
       outbound: outboundQuery.data ?? null,
       inbound: inboundQuery.data ?? null,
-    },
+    }),
+    [outboundQuery.data, inboundQuery.data],
+  );
+
+  return {
+    timetables,
     isLoading: outboundQuery.isLoading || inboundQuery.isLoading,
   };
 }

@@ -1,3 +1,5 @@
+import { extractVehicleRegistration } from "@/lib/vehicles/registration";
+import { extractVehicleFleetReference } from "@/lib/vehicles/lookupKey";
 import type {
   LineSearchResult,
   NearbyStopResult,
@@ -138,6 +140,10 @@ export function normalizePredictions(
     timeToStation: prediction.timeToStation,
     expectedArrival: prediction.expectedArrival,
     vehicleId: prediction.vehicleId,
+    vehicleRegistration: extractVehicleRegistration(prediction.vehicleId),
+    vehicleFleetReference: extractVehicleFleetReference(prediction.vehicleId),
+    tripId: prediction.tripId,
+    baseVersion: prediction.baseVersion,
     currentLocation: prediction.currentLocation,
   }));
 }

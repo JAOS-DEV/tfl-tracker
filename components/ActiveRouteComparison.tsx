@@ -2,13 +2,11 @@
 
 import { useState } from "react";
 import { StatusPill } from "@/components/StatusPill";
-import { useRouteIntelligence } from "@/hooks/useRouteIntelligence";
 import { buildActiveRouteComparison } from "@/lib/activeRouteComparison";
-import { MAX_ACTIVE_ROUTES } from "@/lib/storage";
-import type { ActiveRoute, RouteDashboardSummary } from "@/lib/tfl/types";
+import type { RouteDashboardSummary } from "@/lib/tfl/types";
 
 interface ActiveRouteComparisonProps {
-  activeRoutes: ActiveRoute[];
+  summaries: RouteDashboardSummary[];
 }
 
 function healthVariant(
@@ -57,32 +55,10 @@ function ComparisonEntryCard({
   );
 }
 
-function useFixedRouteSummaries(
-  activeRoutes: ActiveRoute[],
-): RouteDashboardSummary[] {
-  const slotIds = Array.from({ length: MAX_ACTIVE_ROUTES }, (_, index) =>
-    activeRoutes[index]?.routeId ?? "",
-  );
-
-  const first = useRouteIntelligence(slotIds[0] ?? "");
-  const second = useRouteIntelligence(slotIds[1] ?? "");
-  const third = useRouteIntelligence(slotIds[2] ?? "");
-  const intelligences = [first, second, third];
-
-  return activeRoutes
-    .map((route, index) => intelligences[index]?.intelligence?.dashboardSummary)
-    .filter((summary): summary is RouteDashboardSummary => summary !== undefined);
-}
-
 export function ActiveRouteComparison({
-  activeRoutes,
+  summaries,
 }: ActiveRouteComparisonProps): React.ReactElement | null {
   const [isExpanded, setIsExpanded] = useState(false);
-  const summaries = useFixedRouteSummaries(activeRoutes);
-
-  if (activeRoutes.length < 2) {
-    return null;
-  }
 
   if (summaries.length < 2) {
     return (

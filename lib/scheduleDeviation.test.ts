@@ -55,6 +55,22 @@ describe("schedule deviation helpers", () => {
     expect(nearest?.naptanId).toBe("490000002B");
   });
 
+  it("re-anchors stale timetable instants before matching", () => {
+    const nearest = findNearestScheduledTime(
+      "2026-06-12T23:58:26.000Z",
+      [
+        {
+          stopId: "490000002B",
+          naptanId: "490000002B",
+          stopName: "Stop B",
+          scheduledArrival: "2026-06-13T22:50:00.000Z",
+        },
+      ],
+    );
+
+    expect(nearest?.scheduledArrival).toBe("2026-06-12T22:50:00.000Z");
+  });
+
   it("classifies early, on-time, and late deviations", () => {
     expect(classifyScheduleDeviation(-3)).toBe("early");
     expect(classifyScheduleDeviation(0)).toBe("onTime");

@@ -75,6 +75,74 @@ describe("normalizePredictions", () => {
     expect(normalized[0]?.routeId).toBe("337");
     expect(normalized[0]?.routeNumber).toBe("337");
     expect(normalized[0]?.vehicleId).toBe("LTZ123");
+    expect(normalized[0]?.vehicleRegistration).toBeUndefined();
+  });
+
+  it("extracts registration plates from vehicle ids", () => {
+    const normalized = normalizePredictions([
+      {
+        id: "2",
+        lineId: "37",
+        lineName: "37",
+        naptanId: "490000001A",
+        stationName: "Stop A",
+        destinationName: "Putney Heath",
+        direction: "inbound",
+        timeToStation: 240,
+        expectedArrival: "2026-06-11T12:04:00Z",
+        vehicleId: "BV66VKT",
+        modeName: "bus",
+        timestamp: "2026-06-11T12:00:00Z",
+      },
+    ]);
+
+    expect(normalized[0]?.vehicleRegistration).toBe("BV66VKT");
+  });
+
+  it("extracts fleet references from operator-style vehicle ids", () => {
+    const normalized = normalizePredictions([
+      {
+        id: "3",
+        lineId: "12",
+        lineName: "12",
+        naptanId: "490000001A",
+        stationName: "Stop A",
+        destinationName: "Dulwich",
+        direction: "outbound",
+        timeToStation: 240,
+        expectedArrival: "2026-06-11T12:04:00Z",
+        vehicleId: "LTZ1049",
+        modeName: "bus",
+        timestamp: "2026-06-11T12:00:00Z",
+      },
+    ]);
+
+    expect(normalized[0]?.vehicleRegistration).toBeUndefined();
+    expect(normalized[0]?.vehicleFleetReference).toBe("LTZ1049");
+  });
+
+  it("preserves tripId and baseVersion from live predictions", () => {
+    const normalized = normalizePredictions([
+      {
+        id: "4",
+        lineId: "37",
+        lineName: "37",
+        naptanId: "490000001A",
+        stationName: "Stop A",
+        destinationName: "Putney Heath",
+        direction: "inbound",
+        timeToStation: 120,
+        expectedArrival: "2026-06-11T12:02:00Z",
+        vehicleId: "LV24EWY",
+        tripId: "601608",
+        baseVersion: "20260606",
+        modeName: "bus",
+        timestamp: "2026-06-11T12:00:00Z",
+      },
+    ]);
+
+    expect(normalized[0]?.tripId).toBe("601608");
+    expect(normalized[0]?.baseVersion).toBe("20260606");
   });
 });
 

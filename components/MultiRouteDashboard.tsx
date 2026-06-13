@@ -3,7 +3,7 @@
 import { ActiveRouteComparison } from "@/components/ActiveRouteComparison";
 import { MultiRouteHistoryComparison } from "@/components/MultiRouteHistoryComparison";
 import { StatusPill } from "@/components/StatusPill";
-import { useRouteIntelligence } from "@/hooks/useRouteIntelligence";
+import { useActiveRouteIntelligences } from "@/hooks/useRouteIntelligence";
 import {
   createRouteAlertPreferences,
   type DisplaySettings,
@@ -12,7 +12,11 @@ import {
   evaluateRouteAlerts,
   type RouteAlertPreferences,
 } from "@/lib/routeAlerts";
-import type { ActiveRoute, RouteDashboardSummary } from "@/lib/tfl/types";
+import type {
+  ActiveRoute,
+  RouteDashboardSummary,
+  RouteIntelligenceResult,
+} from "@/lib/tfl/types";
 
 function healthVariant(score: number): "good" | "info" | "warning" | "danger" {
   if (score >= 85) {
@@ -48,6 +52,7 @@ function compactAlertLabel(summary: RouteDashboardSummary | undefined): string |
 
 interface DashboardRouteItemProps {
   route: ActiveRoute;
+  intelligence: RouteIntelligenceResult | null;
   alertPreferences?: RouteAlertPreferences;
   compact: boolean;
   globalAlertDefaults: DisplaySettings["globalAlertDefaults"];
@@ -56,12 +61,12 @@ interface DashboardRouteItemProps {
 
 function DashboardRouteItem({
   route,
+  intelligence,
   alertPreferences,
   compact,
   globalAlertDefaults,
   onSelect,
 }: DashboardRouteItemProps): React.ReactElement {
-  const { intelligence } = useRouteIntelligence(route.routeId);
   const summary = intelligence?.dashboardSummary;
   const metrics = intelligence?.metrics;
 
@@ -159,14 +164,23 @@ interface MultiRouteDashboardProps {
   activeRoutes: ActiveRoute[];
   alertPreferences: Record<string, RouteAlertPreferences>;
   displaySettings: DisplaySettings;
+  anyRouteExpanded: boolean;
 }
 
 export function MultiRouteDashboard({
   activeRoutes,
   alertPreferences,
   displaySettings,
+  anyRouteExpanded,
 }: MultiRouteDashboardProps): React.ReactElement | null {
   const showDiagnostics = displaySettings.showAdvancedDiagnostics;
+  const routeIntelligences = useActiveRouteIntelligences(activeRoutes, {
+    includeScheduleMatching: anyRouteExpanded,
+    fetchTimetable: anyRouteExpanded,
+  });
+  const summaries = routeIntelligences
+    .map((entry) => entry.intelligence?.dashboardSummary)
+    .filter((summary): summary is RouteDashboardSummary => summary !== undefined);
 
   if (activeRoutes.length < 2) {
     return null;
@@ -179,7 +193,7 @@ export function MultiRouteDashboard({
 
   return (
     <div className="space-y-3">
-      <ActiveRouteComparison activeRoutes={activeRoutes} />
+      <ActiveRouteComparison summaries={summaries} />
 
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -197,10 +211,11 @@ export function MultiRouteDashboard({
           ) : null}
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {activeRoutes.map((route) => (
+          {activeRoutes.map((route, index) => (
             <DashboardRouteItem
               key={route.routeId}
               route={route}
+              intelligence={routeIntelligences[index]?.intelligence ?? null}
               alertPreferences={alertPreferences[route.routeId]}
               globalAlertDefaults={displaySettings.globalAlertDefaults}
               compact={!showDiagnostics}

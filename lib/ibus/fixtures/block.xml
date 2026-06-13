@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bl:Schedule_Data xmlns:bl="http://www.tfl.uk/CDII/Block">
+  <Base_Version>20260606</Base_Version>
+  <Block aBlock_Idx="23224" aOperator_Code="LG">
+    <Block_No>35094</Block_No>
+    <Running_No>94</Running_No>
+  </Block>
+</bl:Schedule_Data>

@@ -1,7 +1,9 @@
 "use client";
 
 import { GhostIcon } from "@/components/GhostIcon";
+import { IbusDetailsSection } from "@/components/IbusDetailsSection";
 import { MobileBottomSheet } from "@/components/MobileBottomSheet";
+import { useIbusVehicleDetails } from "@/hooks/useIbusVehicleDetails";
 import { formatLastUpdated, formatLocalTime, formatMinutes } from "@/lib/format";
 import { ghostStatusLabel } from "@/lib/ghostBusDetection";
 import { predictionConfidenceLabel } from "@/lib/predictionTracking";
@@ -57,6 +59,26 @@ export function BusDetailsModal({
   predictionConfidence = "normal",
   onClose,
 }: BusDetailsModalProps): React.ReactElement | null {
+  const shouldFetchDetails =
+    Boolean(vehicle) &&
+    vehicle?.ghostStatus !== "disappeared" &&
+    !vehicle?.isSuspectedGhost;
+
+  const ibusDetails = useIbusVehicleDetails(
+    vehicle
+      ? {
+          vehicleId: vehicle.vehicleId,
+          tripId: vehicle.tripId,
+          baseVersion: vehicle.baseVersion,
+          lineName: vehicle.routeNumber,
+          expectedArrival: vehicle.expectedArrival,
+          naptanId: vehicle.nextPrediction.naptanId,
+          destinationName: vehicle.destinationName,
+        }
+      : undefined,
+    shouldFetchDetails,
+  );
+
   if (!vehicle) {
     return null;
   }
@@ -69,6 +91,11 @@ export function BusDetailsModal({
     !isStopIdLike(vehicle.matchedStopName)
       ? vehicle.matchedStopName
       : vehicle.nextStop?.name ?? null;
+
+  const headerFleetLabel =
+    vehicle.vehicleRegistration && ibusDetails.displayFleetNo
+      ? `${vehicle.vehicleRegistration} · ${ibusDetails.displayFleetNo}`
+      : null;
 
   return (
     <MobileBottomSheet
@@ -95,15 +122,27 @@ export function BusDetailsModal({
             </span>
           ) : null}
         </div>
+        {headerFleetLabel ? (
+          <p className="mt-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            {headerFleetLabel}
+          </p>
+        ) : null}
         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
           Position is estimated from TfL arrival predictions, not live GPS.
         </p>
 
         <dl className="mt-4 space-y-3 text-sm">
-          <div>
-            <dt className="text-zinc-500">Vehicle ID</dt>
-            <dd className="font-medium">{vehicle.vehicleId}</dd>
-          </div>
+          {vehicle.vehicleRegistration ? (
+            <div>
+              <dt className="text-zinc-500">Registration</dt>
+              <dd className="font-medium">{vehicle.vehicleRegistration}</dd>
+            </div>
+          ) : (
+            <div>
+              <dt className="text-zinc-500">Vehicle reference</dt>
+              <dd className="font-medium">{vehicle.vehicleId}</dd>
+            </div>
+          )}
           <div>
             <dt className="text-zinc-500">Direction</dt>
             <dd className="font-medium capitalize">{vehicle.direction}</dd>
@@ -146,6 +185,12 @@ export function BusDetailsModal({
             </div>
           ) : null}
         </dl>
+
+        <IbusDetailsSection
+          registration={vehicle.vehicleRegistration}
+          vehicleReference={vehicle.vehicleFleetReference ?? vehicle.vehicleId}
+          details={ibusDetails}
+        />
 
         <section className="mt-5 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
           <h3 className="text-sm font-semibold">Estimated schedule position</h3>

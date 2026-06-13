@@ -251,6 +251,10 @@ export function buildVehiclePositions(
 
     positions.push({
       vehicleId,
+      vehicleRegistration: nextPrediction.vehicleRegistration,
+      vehicleFleetReference: nextPrediction.vehicleFleetReference,
+      tripId: nextPrediction.tripId,
+      baseVersion: nextPrediction.baseVersion,
       routeNumber: nextPrediction.routeNumber,
       direction: estimate.direction ?? nextPrediction.direction,
       destinationName: nextPrediction.destinationName,

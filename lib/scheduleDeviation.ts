@@ -1,4 +1,8 @@
 import { SCHEDULE_DEVIATION_THRESHOLDS } from "@/lib/constants";
+import {
+  alignScheduledInstantToReference,
+  readLondonDateParts,
+} from "@/lib/londonTime";
 import { formatMatchedStopDisplayName } from "@/lib/stopDisplayName";
 import type {
   EstimatedVehiclePosition,
@@ -22,15 +26,29 @@ export function findNearestScheduledTime(
   }
 
   const predictedMs = new Date(predictedArrivalTime).getTime();
+  const reference = new Date(predictedArrivalTime);
+  const referenceDate = readLondonDateParts(reference);
+  const alignedCache = new Map<string, number>();
   let best: ScheduledStopTime | null = null;
   let bestDiff = Number.POSITIVE_INFINITY;
 
   for (const scheduled of scheduledTimes) {
-    const diffMinutes = Math.abs(
-      (new Date(scheduled.scheduledArrival).getTime() - predictedMs) / 60_000,
-    );
+    let alignedMs = alignedCache.get(scheduled.scheduledArrival);
+    if (alignedMs === undefined) {
+      alignedMs = alignScheduledInstantToReference(
+        scheduled.scheduledArrival,
+        reference,
+        referenceDate,
+      ).getTime();
+      alignedCache.set(scheduled.scheduledArrival, alignedMs);
+    }
+
+    const diffMinutes = Math.abs((alignedMs - predictedMs) / 60_000);
     if (diffMinutes <= windowMinutes && diffMinutes < bestDiff) {
-      best = scheduled;
+      best = {
+        ...scheduled,
+        scheduledArrival: new Date(alignedMs).toISOString(),
+      };
       bestDiff = diffMinutes;
     }
   }
@@ -169,9 +187,14 @@ function resolveConfidence(
 function scheduledTimesForStop(
   timetable: NormalizedTimetable | null | undefined,
   naptanId: string,
+  stopIndex?: Map<string, ScheduledStopTime[]>,
 ): ScheduledStopTime[] {
   if (!timetable?.available) {
     return [];
+  }
+
+  if (stopIndex) {
+    return stopIndex.get(naptanId) ?? [];
   }
 
   return timetable.journeys.flatMap((journey) =>
@@ -180,6 +203,42 @@ function scheduledTimesForStop(
         stopTime.naptanId === naptanId || stopTime.stopId === naptanId,
     ),
   );
+}
+
+function buildTimetableStopIndex(
+  timetable: NormalizedTimetable | null | undefined,
+): Map<string, ScheduledStopTime[]> {
+  const index = new Map<string, ScheduledStopTime[]>();
+
+  if (!timetable?.available) {
+    return index;
+  }
+
+  for (const journey of timetable.journeys) {
+    for (const stopTime of journey.stopTimes) {
+      const addStopTime = (key: string) => {
+        const existing = index.get(key) ?? [];
+        if (
+          existing.some(
+            (entry) => entry.scheduledArrival === stopTime.scheduledArrival,
+          )
+        ) {
+          return;
+        }
+
+        existing.push(stopTime);
+        index.set(key, existing);
+      };
+
+      addStopTime(stopTime.naptanId);
+
+      if (stopTime.stopId !== stopTime.naptanId) {
+        addStopTime(stopTime.stopId);
+      }
+    }
+  }
+
+  return index;
 }
 
 function resolveMatchedStopName(
@@ -216,6 +275,7 @@ export function buildVehicleScheduleMatch(
   timetable: NormalizedTimetable | null | undefined,
   agreeingPredictions: number,
   route?: NormalizedRoute,
+  stopIndex?: Map<string, ScheduledStopTime[]>,
 ): VehicleScheduleMatch {
   if (vehicle.ghostStatus === "suspectedGhost") {
     return {
@@ -248,6 +308,7 @@ export function buildVehicleScheduleMatch(
   const scheduledTimes = scheduledTimesForStop(
     timetable,
     vehicle.nextStop.naptanId,
+    stopIndex,
   );
   const nearest = findNearestScheduledTime(
     vehicle.expectedArrival,
@@ -305,6 +366,12 @@ export function matchVehicleToSchedule(
     predictionsByVehicle.set(vehicleId, existing);
   }
 
+  const stopIndexes: Partial<Record<RouteDirection, Map<string, ScheduledStopTime[]>>> =
+    {
+      outbound: buildTimetableStopIndex(timetables.outbound ?? null),
+      inbound: buildTimetableStopIndex(timetables.inbound ?? null),
+    };
+
   return vehicles.map((vehicle) => {
     const timetable = timetables[vehicle.direction] ?? null;
     const agreeingPredictions = predictionsByVehicle.get(vehicle.vehicleId)?.length ?? 1;
@@ -313,6 +380,7 @@ export function matchVehicleToSchedule(
       timetable,
       agreeingPredictions,
       route,
+      stopIndexes[vehicle.direction],
     );
 
     return {

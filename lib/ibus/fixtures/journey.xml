@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jou:Schedule_Data xmlns:jou="http://www.tfl.uk/CDII/Journey">
+  <Base_Version>20260606</Base_Version>
+  <Journey aJourney_Idx="527326" aPattern_Idx="1" aBlock_Idx="23224">
+    <Trip_No_LBSL>94</Trip_No_LBSL>
+  </Journey>
+</jou:Schedule_Data>

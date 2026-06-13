@@ -50,6 +50,14 @@ export function ActiveRoutes({
   );
 
   const allRoutesExpanded = areAllRoutesExpanded(expandedByRouteId, routeIds);
+  const anyRouteExpanded = routeIds.some((routeId, index) =>
+    isRouteExpanded(
+      expandedByRouteId,
+      routeId,
+      index,
+      activeRoutes.length,
+    ),
+  );
 
   const handleRemove = (routeId: string) => {
     onActiveRoutesChange(
@@ -92,6 +100,7 @@ export function ActiveRoutes({
         activeRoutes={activeRoutes}
         alertPreferences={alertPreferences}
         displaySettings={displaySettings}
+        anyRouteExpanded={anyRouteExpanded}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">

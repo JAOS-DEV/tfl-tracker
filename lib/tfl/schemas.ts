@@ -82,6 +82,8 @@ const rawPredictionSchema = z
     timeToStation: z.number(),
     expectedArrival: z.string(),
     vehicleId: z.string().optional(),
+    tripId: z.string().optional(),
+    baseVersion: z.string().optional(),
     currentLocation: z.string().optional(),
     towards: z.string().optional(),
     modeName: z.string(),
@@ -172,7 +174,7 @@ export const stopDisruptionsQuerySchema = z.object({
         .map((id) => id.trim())
         .filter(Boolean),
     )
-    .pipe(z.array(z.string().min(1).max(30)).min(1).max(120)),
+    .pipe(z.array(z.string().min(1).max(30)).min(1).max(100)),
 });
 
 const rawStopSearchItemSchema = z

@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "generate:icons": "node scripts/generate-pwa-icons.mjs"
+    "generate:icons": "node scripts/generate-pwa-icons.mjs",
+    "import:ibus": "tsx scripts/importIbusStatic.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.0",
@@ -27,13 +28,17 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/unzipper": "^0.10.11",
     "@vitejs/plugin-react": "^6.0.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "fast-xml-parser": "^5.8.0",
     "jsdom": "^29.1.1",
     "sharp": "^0.35.1",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5",
+    "unzipper": "^0.12.3",
     "vitest": "^4.1.8"
   }
 }

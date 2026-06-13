@@ -97,8 +97,11 @@ export function RouteCard({
     sequenceQuery,
     arrivalsQuery,
     intelligence,
-  } = useRouteIntelligence(activeRoute.routeId);
-  const statusQuery = useLineStatus(activeRoute.routeId);
+  } = useRouteIntelligence(activeRoute.routeId, {
+    includeScheduleMatching: isExpanded,
+    fetchTimetable: isExpanded,
+  });
+  const statusQuery = useLineStatus(activeRoute.routeId, isExpanded);
   const routeStopIds = useMemo(() => {
     if (!route) {
       return [];
@@ -117,7 +120,9 @@ export function RouteCard({
 
     return ids;
   }, [route]);
-  const stopDisruptionsQuery = useStopDisruptions(routeStopIds);
+  const stopDisruptionsQuery = useStopDisruptions(
+    isExpanded ? routeStopIds : [],
+  );
   const stopDisruptionsByNaptanId = useMemo(
     () => indexStopDisruptions(stopDisruptionsQuery.data ?? []),
     [stopDisruptionsQuery.data],

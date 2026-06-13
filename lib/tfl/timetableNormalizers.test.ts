@@ -36,6 +36,34 @@ describe("normalizeTimetable", () => {
     expect(timetable.available).toBe(false);
     expect(timetable.unavailableReason).toContain("No timetable");
   });
+
+  it("maps TfL hour 24 journeys near midnight", () => {
+    const timetable = normalizeTimetable(
+      {
+        ...fixture,
+        timetable: {
+          ...fixture.timetable,
+          routes: [
+            {
+              ...fixture.timetable.routes[0],
+              schedules: [
+                {
+                  name: "Night",
+                  knownJourneys: [{ hour: "24", minute: "14", intervalId: 1 }],
+                },
+              ],
+            },
+          ],
+        },
+      },
+      "337",
+      "490000001A",
+      "outbound",
+      new Date("2026-06-12T23:52:00.000Z"),
+    );
+
+    expect(timetable.journeys[0]?.departureTime).toBe("2026-06-12T23:14:00.000Z");
+  });
 });
 
 describe("flattenTimetableStopTimes", () => {

@@ -25,6 +25,30 @@ The app uses Next.js API routes under `/api/tfl/*` to proxy TfL requests and kee
 | `npm test` | Run unit tests |
 | `npm run typecheck` | TypeScript check |
 | `npm run lint` | ESLint |
+| `npm run import:ibus` | Download and build TfL iBus static JSON under `public/data/ibus/` |
+
+## TfL iBus static import
+
+Fleet numbers and running numbers use official TfL iBus static data shipped as JSON in the repo — no database, cron, or always-running backend.
+
+1. Run locally:
+
+```bash
+npm run import:ibus
+```
+
+2. The script downloads the current base version from [ibus.data.tfl.gov.uk](https://ibus.data.tfl.gov.uk/), parses Vehicle, Garage, and operator schedule (Journey/Block) zips, and writes compact JSON under `public/data/ibus/`.
+3. Commit the generated files (including `public/data/ibus/current.json` and `public/data/ibus/<baseVersion>/`).
+4. Deploy to Vercel as usual.
+
+Re-run when TfL publishes a new base version (see `Base_Version.xml`).
+
+- **Fleet numbers** — `Registration_Number` → `Bonnet_No` from `Vehicle_<baseVersion>.zip`
+- **Running numbers** — `${baseVersion}:${tripId}` → Journey `aJourney_Idx` → Block `aBlock_Idx` → `Running_No` (never match tripId alone)
+- **Bustimes** — optional server-side fallback for fleet number only when iBus Vehicle lookup misses
+- **Headway** — not used
+
+Running-number shards are split 256 ways (`tripId % 256`) so the app loads one small JSON file per lookup.
 
 ## Deploy to Vercel
 

@@ -26,6 +26,7 @@ export interface BuildRouteIntelligenceInput {
   now: number;
   trackingStates: Map<string, PredictionTrackingState>;
   timetables?: Partial<Record<RouteDirection, NormalizedTimetable | null>>;
+  includeScheduleMatching?: boolean;
 }
 
 export function toRouteDashboardSummary(
@@ -116,12 +117,14 @@ export function buildRouteIntelligence(
     });
   }
 
-  const withSchedule = matchVehicleToSchedule(
-    positions,
-    input.timetables ?? {},
-    input.predictions,
-    input.route,
-  );
+  const withSchedule = input.includeScheduleMatching === false
+    ? positions
+    : matchVehicleToSchedule(
+        positions,
+        input.timetables ?? {},
+        input.predictions,
+        input.route,
+      );
 
   const withGhosts = appendTrackedGhostVehicles(
     withSchedule,

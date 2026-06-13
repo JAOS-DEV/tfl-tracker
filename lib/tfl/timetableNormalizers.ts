@@ -1,3 +1,4 @@
+import { buildScheduledDate } from "@/lib/londonTime";
 import type {
   NormalizedTimetable,
   RouteDirection,
@@ -29,24 +30,6 @@ function normalizeDirection(value: unknown): RouteDirection | null {
     return "outbound";
   }
   return null;
-}
-
-function buildScheduledDate(hour: string, minute: string, reference: Date): Date {
-  const parsedHour = Number.parseInt(hour, 10);
-  const parsedMinute = Number.parseInt(minute, 10);
-  const scheduled = new Date(reference);
-  scheduled.setHours(
-    Number.isFinite(parsedHour) ? parsedHour : 0,
-    Number.isFinite(parsedMinute) ? parsedMinute : 0,
-    0,
-    0,
-  );
-
-  if (scheduled.getTime() < reference.getTime() - 12 * 60 * 60 * 1000) {
-    scheduled.setDate(scheduled.getDate() + 1);
-  }
-
-  return scheduled;
 }
 
 function addMinutes(base: Date, minutes: number): string {

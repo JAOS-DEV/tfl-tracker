@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gar:Network_Data xmlns:gar="http://www.tfl.uk/CDII/Garage">
+  <Base_Version>20260606</Base_Version>
+  <Garage aGarage_No="350" aOperator_Code="LG">
+    <Garage_Code>AF</Garage_Code>
+    <Garage_Name>Test Garage</Garage_Name>
+  </Garage>
+</gar:Network_Data>
