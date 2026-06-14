@@ -5,7 +5,6 @@ import { AboutDataContent } from "@/components/AboutDataContent";
 import { IbusDataVersionSection } from "@/components/IbusDataVersionSection";
 import { MobileBottomSheet } from "@/components/MobileBottomSheet";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { ThresholdMinutesInput } from "@/components/ThresholdMinutesInput";
 import { useDisplaySettings } from "@/hooks/useDisplaySettings";
 import {
   DEFAULT_DISPLAY_SETTINGS,
@@ -270,29 +269,6 @@ export function SettingsPanel({
             Defaults for new routes. Each active route can override these in
             its Alerts panel.
           </p>
-
-          <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
-            <span>Warn on large gaps</span>
-            <input
-              type="checkbox"
-              checked={settings.globalAlertDefaults.warnLargeGap}
-              onChange={(event) =>
-                updateGlobalAlert({ warnLargeGap: event.target.checked })
-              }
-              className="h-5 w-5"
-            />
-          </label>
-
-          <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
-            <span>Large gap threshold (minutes)</span>
-            <ThresholdMinutesInput
-              value={settings.globalAlertDefaults.largeGapMinutes}
-              min={0.1}
-              max={60}
-              ariaLabel="Default large gap threshold in minutes"
-              onChange={(largeGapMinutes) => updateGlobalAlert({ largeGapMinutes })}
-            />
-          </label>
 
           <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
             <span>Warn on possible bunching</span>

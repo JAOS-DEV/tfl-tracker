@@ -16,8 +16,11 @@ import {
   getScheduledGhostCandidates,
   hasPlausibleLiveMatch,
   isJourneyActiveAtTime,
+  isJourneyScheduledForServiceWindow,
   isJourneyScheduledForToday,
+  resolveScheduledGhostPosition,
   scheduledGhostToVehiclePosition,
+  type ScheduledGhostPositionDiagnostics,
 } from "@/lib/scheduledGhostBuses";
 import { decideMarkerMovement } from "@/lib/smoothBusMovement";
 import type { EstimatedVehiclePosition, NormalizedRoute } from "@/lib/tfl/types";
@@ -213,6 +216,188 @@ describe("scheduledGhostBuses", () => {
     expect(isJourneyActiveAtTime(scheduleJourney, 10 * 3600 + 4 * 60)).toBe(true);
     expect(isJourneyActiveAtTime(scheduleJourney, 8 * 3600)).toBe(false);
     expect(isJourneyActiveAtTime(scheduleJourney, 12 * 3600)).toBe(false);
+  });
+
+  it("detects active scheduled journeys that wrap through midnight", () => {
+    const nightJourney = {
+      ...scheduleJourney,
+      startSeconds: 23 * 3600 + 55 * 60,
+      endSeconds: 15 * 60,
+    };
+
+    expect(isJourneyActiveAtTime(nightJourney, 23 * 3600 + 58 * 60)).toBe(true);
+    expect(isJourneyActiveAtTime(nightJourney, 10 * 60)).toBe(true);
+    expect(isJourneyActiveAtTime(nightJourney, 12 * 3600)).toBe(false);
+  });
+
+  it("detects active scheduled journeys with post-midnight seconds", () => {
+    const nightJourney = {
+      ...scheduleJourney,
+      startSeconds: 23 * 3600 + 55 * 60,
+      endSeconds: 24 * 3600 + 15 * 60,
+    };
+
+    expect(isJourneyActiveAtTime(nightJourney, 23 * 3600 + 58 * 60)).toBe(true);
+    expect(isJourneyActiveAtTime(nightJourney, 10 * 60)).toBe(true);
+    expect(isJourneyActiveAtTime(nightJourney, 12 * 3600)).toBe(false);
+  });
+
+  it("interpolates active schedule ghost positions between matched stops", () => {
+    const position = resolveScheduledGhostPosition({
+      routeId: "337",
+      journey: scheduleJourney,
+      nowSeconds: 10 * 3600 + 3 * 60,
+      direction: "outbound",
+      route: sampleRoute,
+      layout: LOOP_LAYOUT,
+    });
+
+    expect(position.status).toBe("available");
+    expect(position.source).toBe("interpolated");
+    expect(position.confidence).toBe("high");
+    expect(position.diagnostics.interpolationFraction).toBeCloseTo(0.5);
+    expect(position.progress).toBeGreaterThan(0.01);
+    expect(position.progress).toBeLessThan(0.5);
+  });
+
+  it("uses the first stop only when the schedule time is genuinely at the first stop", () => {
+    const position = resolveScheduledGhostPosition({
+      routeId: "337",
+      journey: scheduleJourney,
+      nowSeconds: 10 * 3600,
+      direction: "outbound",
+      route: sampleRoute,
+      layout: LOOP_LAYOUT,
+    });
+
+    expect(position.status).toBe("available");
+    expect(position.source).toBe("first-stop-genuinely");
+    expect(position.routeStopIndex).toBe(0);
+  });
+
+  it("uses the final stop only when the schedule time is genuinely at the final stop", () => {
+    const position = resolveScheduledGhostPosition({
+      routeId: "337",
+      journey: scheduleJourney,
+      nowSeconds: 10 * 3600 + 6 * 60,
+      direction: "outbound",
+      route: sampleRoute,
+      layout: LOOP_LAYOUT,
+    });
+
+    expect(position.status).toBe("available");
+    expect(position.source).toBe("final-stop-genuinely");
+    expect(position.routeStopIndex).toBe(1);
+  });
+
+  it("does not fall back to a terminus when scheduled stops cannot be matched", () => {
+    const unmatchedRoute: NormalizedRoute = {
+      ...sampleRoute,
+      outbound: [
+        {
+          id: "x",
+          name: "Different Stop",
+          naptanId: "490099999X",
+          isTimingPoint: false,
+        },
+      ],
+    };
+    const position = resolveScheduledGhostPosition({
+      routeId: "337",
+      journey: scheduleJourney,
+      nowSeconds: 10 * 3600 + 3 * 60,
+      direction: "outbound",
+      route: unmatchedRoute,
+      layout: LOOP_LAYOUT,
+    });
+
+    expect(position.status).toBe("unavailable");
+    expect(position.progress).toBeNull();
+    expect(position.source).toBe("unavailable");
+  });
+
+  it("hides end-grace only candidates from normal users", () => {
+    const candidates = getScheduledGhostCandidates({
+      routeId: "337",
+      now: new Date("2026-06-12T09:08:00.000Z"),
+      liveVehicles: [],
+      scheduledJourneys: [scheduleJourney],
+      route: sampleRoute,
+      layout: LOOP_LAYOUT,
+      scheduleBaseVersion: "20260606",
+    });
+    const diagnostics: ScheduledGhostPositionDiagnostics[] = [];
+    const diagnosticCandidates = getScheduledGhostCandidates({
+      routeId: "337",
+      now: new Date("2026-06-12T09:08:00.000Z"),
+      liveVehicles: [],
+      scheduledJourneys: [scheduleJourney],
+      route: sampleRoute,
+      layout: LOOP_LAYOUT,
+      scheduleBaseVersion: "20260606",
+      diagnostics,
+    });
+
+    expect(candidates).toHaveLength(0);
+    expect(diagnosticCandidates).toHaveLength(0);
+    expect(diagnostics[0]?.reason).toBe("grace-only hidden");
+    expect(diagnostics[0]?.confidence).toBe("low");
+  });
+
+  it("matches scheduled stops by stop code and name fallback", () => {
+    const codeRoute: NormalizedRoute = {
+      ...sampleRoute,
+      outbound: [
+        { id: "A1", name: "Different A", naptanId: "X1", isTimingPoint: false },
+        { id: "B1", name: "Different B", naptanId: "X2", isTimingPoint: false },
+      ],
+    };
+    const nameRoute: NormalizedRoute = {
+      ...sampleRoute,
+      outbound: [
+        { id: "x", name: "Stop A", naptanId: "X1", isTimingPoint: false },
+        { id: "y", name: "Stop B", naptanId: "X2", isTimingPoint: false },
+      ],
+    };
+
+    expect(
+      resolveScheduledGhostPosition({
+        routeId: "337",
+        journey: scheduleJourney,
+        nowSeconds: 10 * 3600 + 3 * 60,
+        direction: "outbound",
+        route: codeRoute,
+        layout: LOOP_LAYOUT,
+      }).status,
+    ).toBe("available");
+    expect(
+      resolveScheduledGhostPosition({
+        routeId: "337",
+        journey: scheduleJourney,
+        nowSeconds: 10 * 3600 + 3 * 60,
+        direction: "outbound",
+        route: nameRoute,
+        layout: LOOP_LAYOUT,
+      }).status,
+    ).toBe("available");
+  });
+
+  it("treats previous-day night journeys as valid after midnight", () => {
+    const saturdayNightJourney = {
+      ...scheduleJourney,
+      startSeconds: 23 * 3600 + 55 * 60,
+      endSeconds: 24 * 3600 + 15 * 60,
+      serviceDays: [6],
+    };
+    const sundayAfterMidnight = new Date("2026-06-13T23:10:00.000Z");
+
+    expect(
+      isJourneyScheduledForServiceWindow(
+        saturdayNightJourney,
+        sundayAfterMidnight,
+        10 * 60,
+      ),
+    ).toBe(true);
   });
 
   it("does not create ghosts before scheduled start or after scheduled end", () => {
@@ -503,6 +688,42 @@ describe("scheduledGhostBuses", () => {
     expect(vehicle.isScheduledGhostCandidate).toBe(true);
     expect(vehicle.nextPrediction.tripId).toBe("9001");
     expect(scheduleJourney.tripId).toBe("9001");
+  });
+
+  it("dedupes overlapping displayed schedule ghosts for the same route and run", () => {
+    const first = {
+      ...scheduleJourney,
+      tripId: "9001",
+      runningNo: "568",
+      blockNo: "123568",
+    };
+    const second = {
+      ...scheduleJourney,
+      tripId: "9002",
+      runningNo: "568",
+      blockNo: "123568",
+    };
+    const candidates = getScheduledGhostCandidates({
+      routeId: "337",
+      now: new Date("2026-06-12T09:03:00.000Z"),
+      liveVehicles: [],
+      scheduledJourneys: [first, second],
+      route: sampleRoute,
+      layout: LOOP_LAYOUT,
+      scheduleBaseVersion: "20260606",
+    });
+    const guarded = applyScheduleGhostDuplicateGuard(
+      "337",
+      [],
+      candidates,
+      true,
+    );
+
+    expect(candidates).toHaveLength(2);
+    expect(guarded.candidates).toHaveLength(1);
+    expect(guarded.diagnostics[0]).toContain(
+      "overlapping scheduled run is already displayed",
+    );
   });
 
   it("snaps scheduled ghost markers instead of animating them", () => {

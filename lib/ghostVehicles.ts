@@ -46,6 +46,9 @@ export function appendTrackedGhostVehicles(
 
     ghostVehicles.push({
       vehicleId: state.vehicleId,
+      vehicleRegistration: state.lastVehicleRegistration,
+      ibusRunningNo: state.lastIbusRunningNo,
+      ibusBlockNo: state.lastIbusBlockNo,
       routeNumber: prediction.routeNumber,
       direction: prediction.direction,
       destinationName: prediction.destinationName,

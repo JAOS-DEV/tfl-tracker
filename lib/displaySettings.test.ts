@@ -99,6 +99,5 @@ describe("displaySettings", () => {
 
     expect(prefs.routeId).toBe("337");
     expect(prefs.warnEstimatedLateBus).toBe(true);
-    expect(prefs.warnLargeGap).toBe(true);
   });
 });

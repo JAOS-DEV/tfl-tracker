@@ -42,6 +42,9 @@ export interface ScheduledGhostCandidate {
   y: number;
   confidence: ScheduledGhostConfidence;
   reason: string;
+  positionStatus?: ScheduledGhostPositionStatus;
+  positionSource?: ScheduledGhostPositionSource;
+  positionDiagnostics?: ScheduledGhostPositionDiagnostics;
 }
 
 export interface GetScheduledGhostCandidatesInput {
@@ -56,6 +59,7 @@ export interface GetScheduledGhostCandidatesInput {
   scheduleBaseVersion: string;
   isRouteDataStale?: boolean;
   includeLowConfidence?: boolean;
+  diagnostics?: ScheduledGhostPositionDiagnostics[];
 }
 
 export interface LiveVehicleMatchContext {
@@ -68,6 +72,63 @@ export interface LiveVehicleMatchContext {
   destinationName: string;
   nextStopNaptanId?: string;
   expectedArrival?: string;
+}
+
+export type ScheduledGhostPositionSource =
+  | "interpolated"
+  | "exact-scheduled-stop"
+  | "first-stop-genuinely"
+  | "final-stop-genuinely"
+  | "one-sided-fallback"
+  | "pattern-fallback"
+  | "unavailable";
+
+export type ScheduledGhostPositionStatus = "available" | "unavailable";
+
+export interface MatchedScheduledRouteStop {
+  stop: IbusScheduledStop;
+  routeStop: NormalizedStop;
+  routeStopIndex: number;
+  matchType: "naptan" | "stop-code" | "name";
+}
+
+export interface ScheduledGhostPositionDiagnostics {
+  routeId: string;
+  runningNo: string;
+  tripId: string;
+  direction: RouteDirection | null;
+  active: boolean;
+  previousStopName: string | null;
+  previousStopCode: string | null;
+  previousStopNaptanId: string | null;
+  nextStopName: string | null;
+  nextStopCode: string | null;
+  nextStopNaptanId: string | null;
+  previousScheduledSeconds: number | null;
+  nextScheduledSeconds: number | null;
+  previousScheduledTime: string | null;
+  nextScheduledTime: string | null;
+  interpolationFraction: number | null;
+  matchedPreviousRouteStop: boolean;
+  matchedNextRouteStop: boolean;
+  calculatedProgress: number | null;
+  positionSource: ScheduledGhostPositionSource;
+  confidence: ScheduledGhostConfidence | null;
+  displayed: boolean;
+  reason: string | null;
+  suppressionReason?: string | null;
+}
+
+export interface ScheduledGhostPositionResult {
+  status: ScheduledGhostPositionStatus;
+  source: ScheduledGhostPositionSource;
+  confidence: ScheduledGhostConfidence;
+  progress: number | null;
+  x: number | null;
+  y: number | null;
+  expectedStop: IbusScheduledStop | null;
+  routeStopIndex: number;
+  diagnostics: ScheduledGhostPositionDiagnostics;
 }
 
 export function extractLiveRunningNo(
@@ -143,16 +204,55 @@ export function isJourneyScheduledForToday(
   return journey.serviceDays.includes(getLondonWeekday(now));
 }
 
+export function isJourneyScheduledForServiceWindow(
+  journey: IbusScheduledJourney,
+  now: Date,
+  nowSeconds: number,
+): boolean {
+  if (isJourneyScheduledForToday(journey, now)) {
+    return true;
+  }
+
+  if (journey.serviceDays.length === 0) {
+    return true;
+  }
+
+  const endGrace = SCHEDULED_END_GRACE_MINUTES * 60;
+  const continuesAfterMidnight =
+    journey.endSeconds + endGrace >= 24 * 60 * 60 ||
+    journey.endSeconds < journey.startSeconds;
+  if (!continuesAfterMidnight || nowSeconds > (journey.endSeconds + endGrace) % (24 * 60 * 60)) {
+    return false;
+  }
+
+  const previousDay = (getLondonWeekday(now) + 6) % 7;
+  return journey.serviceDays.includes(previousDay);
+}
+
 export function isJourneyActiveAtTime(
   journey: IbusScheduledJourney,
   nowSeconds: number,
 ): boolean {
   const startGrace = SCHEDULED_START_GRACE_MINUTES * 60;
   const endGrace = SCHEDULED_END_GRACE_MINUTES * 60;
-  return (
-    nowSeconds >= journey.startSeconds - startGrace &&
-    nowSeconds <= journey.endSeconds + endGrace
-  );
+  const start = journey.startSeconds - startGrace;
+  const end = journey.endSeconds + endGrace;
+  const daySeconds = 24 * 60 * 60;
+
+  if (start < 0) {
+    return nowSeconds >= start + daySeconds || nowSeconds <= end;
+  }
+
+  if (end >= daySeconds) {
+    return nowSeconds >= start || nowSeconds <= end - daySeconds;
+  }
+
+  if (end >= start) {
+    return nowSeconds >= start && nowSeconds <= end;
+  }
+
+  // Some night journeys wrap through local midnight.
+  return nowSeconds >= start || nowSeconds <= end;
 }
 
 export function findCurrentScheduledStop(
@@ -170,6 +270,104 @@ export function findCurrentScheduledStop(
   }
 
   return current ?? journey.stops[0] ?? null;
+}
+
+function normalizeStopName(value: string | null | undefined): string {
+  return (value ?? "")
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/\b(bus station|station|stop|stand)\b/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizeScheduleSecondsForJourney(
+  journey: IbusScheduledJourney,
+  nowSeconds: number,
+): number {
+  const daySeconds = 24 * 60 * 60;
+  const wrapsAfterMidnight =
+    journey.endSeconds >= daySeconds || journey.endSeconds < journey.startSeconds;
+  if (wrapsAfterMidnight && nowSeconds < (journey.endSeconds % daySeconds)) {
+    return nowSeconds + daySeconds;
+  }
+  return nowSeconds;
+}
+
+function stopScheduledSecondsOnJourney(
+  journey: IbusScheduledJourney,
+  stop: IbusScheduledStop,
+  index: number,
+): number {
+  if (stop.scheduledSeconds >= journey.startSeconds || index === 0) {
+    return stop.scheduledSeconds;
+  }
+  return stop.scheduledSeconds + 24 * 60 * 60;
+}
+
+export function findScheduledStopPair(
+  journey: IbusScheduledJourney,
+  nowSeconds: number,
+): {
+  nowJourneySeconds: number;
+  previous: IbusScheduledStop | null;
+  next: IbusScheduledStop | null;
+  previousSeconds: number | null;
+  nextSeconds: number | null;
+  fraction: number | null;
+} {
+  const nowJourneySeconds = normalizeScheduleSecondsForJourney(journey, nowSeconds);
+  let previous: IbusScheduledStop | null = null;
+  let next: IbusScheduledStop | null = null;
+  let previousSeconds: number | null = null;
+  let nextSeconds: number | null = null;
+
+  for (let index = 0; index < journey.stops.length; index += 1) {
+    const stop = journey.stops[index]!;
+    const stopSeconds = stopScheduledSecondsOnJourney(journey, stop, index);
+    if (stopSeconds <= nowJourneySeconds) {
+      previous = stop;
+      previousSeconds = stopSeconds;
+      continue;
+    }
+    next = stop;
+    nextSeconds = stopSeconds;
+    break;
+  }
+
+  if (!previous && journey.stops[0]) {
+    next = journey.stops[0];
+    nextSeconds = stopScheduledSecondsOnJourney(journey, journey.stops[0], 0);
+  }
+
+  if (!next && journey.stops.length > 0) {
+    const finalIndex = journey.stops.length - 1;
+    previous = journey.stops[finalIndex]!;
+    previousSeconds = stopScheduledSecondsOnJourney(
+      journey,
+      journey.stops[finalIndex]!,
+      finalIndex,
+    );
+  }
+
+  const fraction =
+    previousSeconds !== null &&
+    nextSeconds !== null &&
+    nextSeconds > previousSeconds
+      ? (nowJourneySeconds - previousSeconds) / (nextSeconds - previousSeconds)
+      : previousSeconds !== null && nextSeconds !== null
+        ? 0
+        : null;
+
+  return {
+    nowJourneySeconds,
+    previous,
+    next,
+    previousSeconds,
+    nextSeconds,
+    fraction:
+      fraction === null ? null : Math.max(0, Math.min(1, fraction)),
+  };
 }
 
 export function mapIbusDirectionToRouteDirection(
@@ -242,6 +440,299 @@ export function findStopIndexOnRoute(
   return leg.findIndex((routeStop) => routeStop.naptanId === stop.naptanId);
 }
 
+function matchScheduledStopOnRoute(
+  stop: IbusScheduledStop | null,
+  direction: RouteDirection,
+  route: NormalizedRoute,
+): MatchedScheduledRouteStop | null {
+  if (!stop) {
+    return null;
+  }
+  const leg = direction === "outbound" ? route.outbound : route.inbound;
+  const byNaptan =
+    stop.naptanId !== null
+      ? leg.findIndex((routeStop) => routeStop.naptanId === stop.naptanId)
+      : -1;
+  if (byNaptan >= 0) {
+    return {
+      stop,
+      routeStop: leg[byNaptan]!,
+      routeStopIndex: byNaptan,
+      matchType: "naptan",
+    };
+  }
+
+  const byCode =
+    stop.stopCode !== null
+      ? leg.findIndex(
+          (routeStop) =>
+            routeStop.id === stop.stopCode || routeStop.naptanId === stop.stopCode,
+        )
+      : -1;
+  if (byCode >= 0) {
+    return {
+      stop,
+      routeStop: leg[byCode]!,
+      routeStopIndex: byCode,
+      matchType: "stop-code",
+    };
+  }
+
+  const normalizedName = normalizeStopName(stop.stopName);
+  if (normalizedName) {
+    const byName = leg.findIndex(
+      (routeStop) => normalizeStopName(routeStop.name) === normalizedName,
+    );
+    if (byName >= 0) {
+      return {
+        stop,
+        routeStop: leg[byName]!,
+        routeStopIndex: byName,
+        matchType: "name",
+      };
+    }
+  }
+
+  return null;
+}
+
+function interpolateProgress(
+  direction: RouteDirection,
+  previousIndex: number,
+  nextIndex: number,
+  totalStops: number,
+  fraction: number,
+): number {
+  const previousProgress = stopProgress(direction, previousIndex, totalStops);
+  const nextProgress = stopProgress(direction, nextIndex, totalStops);
+  return previousProgress + (nextProgress - previousProgress) * fraction;
+}
+
+function buildUnavailablePositionDiagnostics({
+  routeId,
+  journey,
+  direction,
+  pair,
+  reason,
+}: {
+  routeId: string;
+  journey: IbusScheduledJourney;
+  direction: RouteDirection | null;
+  pair: ReturnType<typeof findScheduledStopPair>;
+  reason: string;
+}): ScheduledGhostPositionDiagnostics {
+  return {
+    routeId,
+    runningNo: journey.runningNo,
+    tripId: journey.tripId,
+    direction,
+    active: false,
+    previousStopName: pair.previous?.stopName ?? null,
+    previousStopCode: pair.previous?.stopCode ?? null,
+    previousStopNaptanId: pair.previous?.naptanId ?? null,
+    nextStopName: pair.next?.stopName ?? null,
+    nextStopCode: pair.next?.stopCode ?? null,
+    nextStopNaptanId: pair.next?.naptanId ?? null,
+    previousScheduledSeconds: pair.previousSeconds,
+    nextScheduledSeconds: pair.nextSeconds,
+    previousScheduledTime: pair.previous?.scheduledTime ?? null,
+    nextScheduledTime: pair.next?.scheduledTime ?? null,
+    interpolationFraction: pair.fraction,
+    matchedPreviousRouteStop: false,
+    matchedNextRouteStop: false,
+    calculatedProgress: null,
+    positionSource: "unavailable",
+    confidence: null,
+    displayed: false,
+    reason,
+  };
+}
+
+export function resolveScheduledGhostPosition({
+  routeId,
+  journey,
+  nowSeconds,
+  direction,
+  route,
+  layout,
+}: {
+  routeId: string;
+  journey: IbusScheduledJourney;
+  nowSeconds: number;
+  direction: RouteDirection;
+  route: NormalizedRoute;
+  layout: LoopLayoutConfig;
+}): ScheduledGhostPositionResult {
+  const pair = findScheduledStopPair(journey, nowSeconds);
+  const leg = direction === "outbound" ? route.outbound : route.inbound;
+  const previousMatch = matchScheduledStopOnRoute(pair.previous, direction, route);
+  const nextMatch = matchScheduledStopOnRoute(pair.next, direction, route);
+  let source: ScheduledGhostPositionSource = "unavailable";
+  let confidence: ScheduledGhostConfidence = "low";
+  let progress: number | null = null;
+  let expectedStop: IbusScheduledStop | null = pair.next ?? pair.previous;
+  let routeStopIndex = -1;
+
+  if (leg.length === 0) {
+    const diagnostics = buildUnavailablePositionDiagnostics({
+      routeId,
+      journey,
+      direction,
+      pair,
+      reason: "route has no displayed stops for direction",
+    });
+    return {
+      status: "unavailable",
+      source: "unavailable",
+      confidence,
+      progress: null,
+      x: null,
+      y: null,
+      expectedStop,
+      routeStopIndex,
+      diagnostics,
+    };
+  }
+
+  if (
+    previousMatch &&
+    nextMatch &&
+    pair.previousSeconds !== null &&
+    pair.nextSeconds !== null &&
+    pair.fraction !== null
+  ) {
+    if (pair.fraction <= 0) {
+      progress = stopProgress(direction, previousMatch.routeStopIndex, leg.length);
+      routeStopIndex = previousMatch.routeStopIndex;
+      source =
+        previousMatch.routeStopIndex === 0
+          ? "first-stop-genuinely"
+          : previousMatch.routeStopIndex === leg.length - 1
+            ? "final-stop-genuinely"
+            : "exact-scheduled-stop";
+    } else if (pair.fraction >= 1) {
+      progress = stopProgress(direction, nextMatch.routeStopIndex, leg.length);
+      routeStopIndex = nextMatch.routeStopIndex;
+      source =
+        nextMatch.routeStopIndex === 0
+          ? "first-stop-genuinely"
+          : nextMatch.routeStopIndex === leg.length - 1
+            ? "final-stop-genuinely"
+            : "exact-scheduled-stop";
+    } else if (previousMatch.routeStopIndex === nextMatch.routeStopIndex) {
+      progress = stopProgress(direction, previousMatch.routeStopIndex, leg.length);
+      routeStopIndex = previousMatch.routeStopIndex;
+      source =
+        previousMatch.routeStopIndex === 0
+          ? "first-stop-genuinely"
+          : previousMatch.routeStopIndex === leg.length - 1
+            ? "final-stop-genuinely"
+            : "exact-scheduled-stop";
+    } else {
+      progress = interpolateProgress(
+        direction,
+        previousMatch.routeStopIndex,
+        nextMatch.routeStopIndex,
+        leg.length,
+        pair.fraction,
+      );
+      routeStopIndex =
+        pair.fraction < 0.5
+          ? previousMatch.routeStopIndex
+          : nextMatch.routeStopIndex;
+      source = "interpolated";
+    }
+    confidence =
+      previousMatch.matchType === "naptan" && nextMatch.matchType === "naptan"
+        ? "high"
+        : "medium";
+    expectedStop = pair.fraction < 0.5 ? pair.previous : pair.next;
+  } else if (previousMatch || nextMatch) {
+    const match = previousMatch ?? nextMatch!;
+    progress = stopProgress(direction, match.routeStopIndex, leg.length);
+    routeStopIndex = match.routeStopIndex;
+    const exactSingleStopTime =
+      (previousMatch &&
+        pair.previousSeconds !== null &&
+        pair.previousSeconds === pair.nowJourneySeconds) ||
+      (nextMatch &&
+        pair.nextSeconds !== null &&
+        pair.nextSeconds === pair.nowJourneySeconds);
+    source =
+      exactSingleStopTime && match.routeStopIndex === 0
+        ? "first-stop-genuinely"
+        : exactSingleStopTime && match.routeStopIndex === leg.length - 1
+          ? "final-stop-genuinely"
+          : "one-sided-fallback";
+    confidence = exactSingleStopTime && match.matchType === "naptan" ? "medium" : "low";
+    expectedStop = match.stop;
+  }
+
+  if (progress === null || !Number.isFinite(progress)) {
+    const diagnostics = buildUnavailablePositionDiagnostics({
+      routeId,
+      journey,
+      direction,
+      pair,
+      reason: "no usable scheduled stop could be matched to route stops",
+    });
+    return {
+      status: "unavailable",
+      source: "unavailable",
+      confidence,
+      progress: null,
+      x: null,
+      y: null,
+      expectedStop,
+      routeStopIndex,
+      diagnostics,
+    };
+  }
+
+  if (!journey.runningNo || !journey.blockNo) {
+    confidence = "low";
+  }
+
+  const coordinates = mapProgressToLoopCoordinates(progress, layout);
+  const diagnostics: ScheduledGhostPositionDiagnostics = {
+    routeId,
+    runningNo: journey.runningNo,
+    tripId: journey.tripId,
+    direction,
+    active: true,
+    previousStopName: pair.previous?.stopName ?? null,
+    previousStopCode: pair.previous?.stopCode ?? null,
+    previousStopNaptanId: pair.previous?.naptanId ?? null,
+    nextStopName: pair.next?.stopName ?? null,
+    nextStopCode: pair.next?.stopCode ?? null,
+    nextStopNaptanId: pair.next?.naptanId ?? null,
+    previousScheduledSeconds: pair.previousSeconds,
+    nextScheduledSeconds: pair.nextSeconds,
+    previousScheduledTime: pair.previous?.scheduledTime ?? null,
+    nextScheduledTime: pair.next?.scheduledTime ?? null,
+    interpolationFraction: pair.fraction,
+    matchedPreviousRouteStop: Boolean(previousMatch),
+    matchedNextRouteStop: Boolean(nextMatch),
+    calculatedProgress: progress,
+    positionSource: source,
+    confidence,
+    displayed: confidence !== "low",
+    reason: null,
+  };
+
+  return {
+    status: "available",
+    source,
+    confidence,
+    progress,
+    x: coordinates.x,
+    y: coordinates.y,
+    expectedStop,
+    routeStopIndex,
+    diagnostics,
+  };
+}
+
 export function estimateScheduledProgress(
   journey: IbusScheduledJourney,
   currentStop: IbusScheduledStop | null,
@@ -299,14 +790,21 @@ function minutesBetweenScheduledAndExpected(
   return Math.abs(expectedSeconds - scheduledSeconds) / 60;
 }
 
-export function hasPlausibleLiveMatch(
+export type LiveScheduleMatchReason =
+  | "tripId/baseVersion"
+  | "runningNo/blockNo"
+  | "same route/runningNo"
+  | "direction"
+  | "next-stop/time";
+
+export function getPlausibleLiveMatchReason(
   journey: IbusScheduledJourney,
   live: LiveVehicleMatchContext,
   currentStop: IbusScheduledStop | null,
   now: Date,
   route: NormalizedRoute,
   scheduleBaseVersion?: string,
-): boolean {
+): LiveScheduleMatchReason | null {
   if (
     live.tripId &&
     live.baseVersion &&
@@ -314,7 +812,7 @@ export function hasPlausibleLiveMatch(
     live.baseVersion === scheduleBaseVersion &&
     journey.tripId === live.tripId
   ) {
-    return true;
+    return "tripId/baseVersion";
   }
 
   const journeyRunning = normalizeRunningNumber(journey.runningNo);
@@ -332,7 +830,7 @@ export function hasPlausibleLiveMatch(
     journeyRunning === liveRunning &&
     journeyBlock === liveBlock
   ) {
-    return true;
+    return "runningNo/blockNo";
   }
 
   if (
@@ -341,7 +839,7 @@ export function hasPlausibleLiveMatch(
     liveRunning &&
     journeyRunning === liveRunning
   ) {
-    return true;
+    return "same route/runningNo";
   }
 
   const journeyDirection = mapIbusDirectionToRouteDirection(
@@ -357,7 +855,7 @@ export function hasPlausibleLiveMatch(
     journeyDirection &&
     live.direction === journeyDirection
   ) {
-    return true;
+    return "direction";
   }
 
   if (
@@ -377,11 +875,29 @@ export function hasPlausibleLiveMatch(
       minutes !== null &&
       minutes <= LIVE_MATCH_TIME_TOLERANCE_MINUTES
     ) {
-      return true;
+      return "next-stop/time";
     }
   }
 
-  return false;
+  return null;
+}
+
+export function hasPlausibleLiveMatch(
+  journey: IbusScheduledJourney,
+  live: LiveVehicleMatchContext,
+  currentStop: IbusScheduledStop | null,
+  now: Date,
+  route: NormalizedRoute,
+  scheduleBaseVersion?: string,
+): boolean {
+  return getPlausibleLiveMatchReason(
+    journey,
+    live,
+    currentStop,
+    now,
+    route,
+    scheduleBaseVersion,
+  ) !== null;
 }
 
 export function calculateScheduledGhostConfidence(
@@ -417,7 +933,7 @@ export function getScheduledGhostCandidates(
   const seen = new Set<string>();
 
   for (const journey of input.scheduledJourneys) {
-    if (!isJourneyScheduledForToday(journey, input.now)) {
+    if (!isJourneyScheduledForServiceWindow(journey, input.now, nowSeconds)) {
       continue;
     }
 
@@ -438,27 +954,44 @@ export function getScheduledGhostCandidates(
       continue;
     }
 
-    const currentStop = findCurrentScheduledStop(journey, nowSeconds);
-    const stopIndex = findStopIndexOnRoute(currentStop, direction, input.route);
-    if (stopIndex < 0 && !currentStop?.naptanId) {
+    const position = resolveScheduledGhostPosition({
+      routeId: input.routeId,
+      journey,
+      nowSeconds,
+      direction,
+      route: input.route,
+      layout: input.layout,
+    });
+    if (position.status === "unavailable") {
+      input.diagnostics?.push(position.diagnostics);
       continue;
     }
+    const currentStop = position.expectedStop;
 
     const liveContexts: LiveVehicleMatchContext[] = input.liveVehicles.map(
       buildLiveVehicleMatchContext,
     );
 
-    const hasLiveMatch = liveContexts.some((live) =>
-      hasPlausibleLiveMatch(
-        journey,
-        live,
-        currentStop,
-        input.now,
-        input.route,
-        input.scheduleBaseVersion,
-      ),
-    );
-    if (hasLiveMatch) {
+    const liveMatchReason = liveContexts
+      .map((live) =>
+        getPlausibleLiveMatchReason(
+          journey,
+          live,
+          currentStop,
+          input.now,
+          input.route,
+          input.scheduleBaseVersion,
+        ),
+      )
+      .find((reason): reason is LiveScheduleMatchReason => reason !== null);
+    if (liveMatchReason) {
+      input.diagnostics?.push({
+        ...position.diagnostics,
+        confidence: position.confidence,
+        displayed: false,
+        reason: "suppressed by plausible live match",
+        suppressionReason: liveMatchReason,
+      });
       continue;
     }
 
@@ -468,23 +1001,30 @@ export function getScheduledGhostCandidates(
     }
     seen.add(dedupeKey);
 
-    const confidence = calculateScheduledGhostConfidence(
-      journey,
-      currentStop,
-      stopIndex,
-    );
+    const confidence = position.confidence;
 
-    if (confidence === "low" && !input.includeLowConfidence) {
+    if (position.source !== "interpolated" && !input.includeLowConfidence) {
+      input.diagnostics?.push({
+        ...position.diagnostics,
+        confidence,
+        displayed: false,
+        reason:
+          position.source === "one-sided-fallback"
+            ? "grace-only hidden"
+            : "non-interpolated position hidden",
+      });
       continue;
     }
 
-    const progress = estimateScheduledProgress(
-      journey,
-      currentStop,
-      direction,
-      input.route,
-    );
-    const { x, y } = mapProgressToLoopCoordinates(progress, input.layout);
+    if (confidence === "low" && !input.includeLowConfidence) {
+      input.diagnostics?.push({
+        ...position.diagnostics,
+        confidence,
+        displayed: false,
+        reason: "low confidence hidden",
+      });
+      continue;
+    }
 
     candidates.push({
       kind: "scheduled-ghost-candidate",
@@ -500,11 +1040,18 @@ export function getScheduledGhostCandidates(
       expectedStopName: currentStop?.stopName ?? "Unknown stop",
       expectedStopCode: currentStop?.stopCode ?? null,
       expectedScheduledTime: currentStop?.scheduledTime ?? journey.startTime,
-      progress,
-      x,
-      y,
+      progress: position.progress ?? 0,
+      x: position.x ?? 0,
+      y: position.y ?? 0,
       confidence,
       reason: "scheduled-journey-active-but-no-live-match",
+      positionStatus: position.status,
+      positionSource: position.source,
+      positionDiagnostics: {
+        ...position.diagnostics,
+        confidence,
+        displayed: true,
+      },
     });
   }
 
@@ -535,6 +1082,7 @@ export function applyScheduleGhostDuplicateGuard(
   }
 
   const seenGhosts = new Set<string>();
+  const seenDisplayedRuns = new Set<string>();
   const filtered: ScheduledGhostCandidate[] = [];
 
   for (const candidate of candidates) {
@@ -557,6 +1105,25 @@ export function applyScheduleGhostDuplicateGuard(
       continue;
     }
     seenGhosts.add(ghostKey);
+
+    if (normalizedRunning) {
+      const displayedRunKey = [
+        routeId,
+        normalizedRunning,
+        candidate.blockNo.trim(),
+        candidate.direction,
+      ].join(":");
+      if (seenDisplayedRuns.has(displayedRunKey)) {
+        if (collectDiagnostics) {
+          diagnostics.push(
+            `Suppressed schedule ghost ${candidate.runningNo} trip ${candidate.tripId} because an overlapping scheduled run is already displayed.`,
+          );
+        }
+        continue;
+      }
+      seenDisplayedRuns.add(displayedRunKey);
+    }
+
     filtered.push(candidate);
   }
 

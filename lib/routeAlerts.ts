@@ -1,4 +1,3 @@
-import { SERVICE_INTELLIGENCE_THRESHOLDS } from "@/lib/constants";
 import type { ServiceHealthMetrics } from "@/lib/tfl/types";
 
 export type RouteAlertTone = "warning" | "danger" | "neutral";
@@ -11,8 +10,6 @@ export interface RouteAlert {
 
 export interface RouteAlertPreferences {
   routeId: string;
-  warnLargeGap: boolean;
-  largeGapMinutes: number;
   warnBunching: boolean;
   warnNoLiveBuses: boolean;
   warnStaleData: boolean;
@@ -22,8 +19,6 @@ export interface RouteAlertPreferences {
   estimatedLateMinutes: number;
 }
 
-export const DEFAULT_LARGE_GAP_MINUTES =
-  SERVICE_INTELLIGENCE_THRESHOLDS.LARGE_GAP_THRESHOLD_MINUTES;
 export const DEFAULT_ESTIMATED_LATE_MINUTES = 4;
 
 export function createDefaultAlertPreferences(
@@ -31,8 +26,6 @@ export function createDefaultAlertPreferences(
 ): RouteAlertPreferences {
   return {
     routeId,
-    warnLargeGap: true,
-    largeGapMinutes: DEFAULT_LARGE_GAP_MINUTES,
     warnBunching: true,
     warnNoLiveBuses: true,
     warnStaleData: true,
@@ -63,10 +56,6 @@ export function normalizeAlertPreferencesMap(
       ...defaults,
       ...raw,
       routeId,
-      largeGapMinutes:
-        typeof raw.largeGapMinutes === "number" && raw.largeGapMinutes > 0
-          ? raw.largeGapMinutes
-          : defaults.largeGapMinutes,
       estimatedLateMinutes:
         typeof raw.estimatedLateMinutes === "number" &&
         raw.estimatedLateMinutes > 0
@@ -111,18 +100,6 @@ export function evaluateRouteAlerts(
       tone: "neutral",
     });
     return alerts;
-  }
-
-  if (
-    preferences.warnLargeGap &&
-    metrics.largestGapMinutes !== null &&
-    metrics.largestGapMinutes >= preferences.largeGapMinutes
-  ) {
-    alerts.push({
-      id: "large-gap",
-      label: "Large predicted gap",
-      tone: "warning",
-    });
   }
 
   if (preferences.warnBunching && metrics.bunchingClusterCount > 0) {

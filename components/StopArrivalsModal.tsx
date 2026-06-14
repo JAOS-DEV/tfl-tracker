@@ -159,11 +159,6 @@ export function StopArrivalsModal({
               Possible bunching — multiple buses predicted within a few minutes.
             </p>
           ) : null}
-          {stopAnalysis.hasLargeGap ? (
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-              Large predicted gap — a longer wait may be likely between arrivals.
-            </p>
-          ) : null}
 
           {highlightedGroups.length > 0 ? (
             <div className="space-y-3">

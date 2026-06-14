@@ -22,13 +22,13 @@ export interface LoopInfoBadgeMetrics {
 }
 
 export const LOOP_INFO_BADGE_METRICS: LoopInfoBadgeMetrics = {
-  rowHeight: 12,
-  rowGap: 1,
-  paddingX: 7,
-  paddingY: 5,
-  fontSize: 8.5,
-  minWidth: 78,
-  charWidth: 5.2,
+  rowHeight: 16,
+  rowGap: 2,
+  paddingX: 9,
+  paddingY: 6,
+  fontSize: 12,
+  minWidth: 104,
+  charWidth: 7.2,
 };
 
 export function measureLoopInfoBadgeWidth(

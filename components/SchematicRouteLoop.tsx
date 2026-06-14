@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useMemo } from "react";
+import { GhostComparisonDiagnostics } from "@/components/GhostComparisonDiagnostics";
 import { LoopIntelligenceOverlay } from "@/components/LoopIntelligenceOverlay";
 import type { LoopMarkerLabelSettings } from "@/components/LoopMarkerInfoBadges";
 import { RouteLoopBusMarker } from "@/components/RouteLoopBusMarker";
@@ -21,10 +22,11 @@ import {
 } from "@/lib/routePositioning";
 import {
   detectBunchingClusters,
-  detectLargeGaps,
 } from "@/lib/serviceIntelligence";
 import type {
   EstimatedVehiclePosition,
+  GhostComparisonSummary,
+  GhostRunDiagnostics,
   LoopStopNode,
   NormalizedRoute,
   NormalizedStop,
@@ -38,9 +40,10 @@ interface SchematicRouteLoopProps {
   movementDecisions?: Record<string, SmoothMovementDecision>;
   showAdvancedDiagnostics?: boolean;
   loopLabelSettings?: LoopMarkerLabelSettings;
-  largeGapThresholdMinutes?: number | null;
   stopDisruptionsByNaptanId?: Map<string, StopDisruption>;
   scheduleGhostDiagnostics?: string[];
+  ghostComparisonSummary?: GhostComparisonSummary;
+  ghostRunDiagnostics?: GhostRunDiagnostics[];
   onStopSelect: (stop: NormalizedStop) => void;
   onBusSelect: (vehicle: EstimatedVehiclePosition) => void;
   selectedStopId: string | null;
@@ -98,8 +101,9 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
   movementDecisions,
   showAdvancedDiagnostics = false,
   loopLabelSettings,
-  largeGapThresholdMinutes,
   scheduleGhostDiagnostics,
+  ghostComparisonSummary,
+  ghostRunDiagnostics,
   stopDisruptionsByNaptanId,
   onStopSelect,
   onBusSelect,
@@ -115,13 +119,6 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
   const bunchingClusters = useMemo(
     () => detectBunchingClusters(vehicles),
     [vehicles],
-  );
-  const largeGapSegments = useMemo(
-    () =>
-      largeGapThresholdMinutes
-        ? detectLargeGaps(vehicles, largeGapThresholdMinutes)
-        : [],
-    [vehicles, largeGapThresholdMinutes],
   );
 
   const nearbyStopIds = useMemo(() => {
@@ -204,34 +201,13 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
             <span className="h-3 w-3 rounded-full border-2 border-dashed border-violet-400 bg-violet-400/15 dark:border-violet-300 dark:bg-violet-500/15" />
             Possible ghost
           </span>
-          <span className="inline-flex items-center gap-2">
-            <svg
-              width="28"
-              height="12"
-              viewBox="0 0 28 12"
-              aria-hidden="true"
-              className="shrink-0"
-            >
-              <line
-                x1="2"
-                y1="6"
-                x2="26"
-                y2="6"
-                stroke="#F59E0B"
-                strokeWidth="5"
-                strokeLinecap="round"
-                strokeDasharray="6 4"
-              />
-            </svg>
-            Large predicted gap
-          </span>
         </div>
-        {showAdvancedDiagnostics && scheduleGhostDiagnostics?.length ? (
-          <div className="rounded-lg border border-dashed border-zinc-300 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
-            {scheduleGhostDiagnostics.map((message) => (
-              <p key={message}>{message}</p>
-            ))}
-          </div>
+        {showAdvancedDiagnostics ? (
+          <GhostComparisonDiagnostics
+            summary={ghostComparisonSummary}
+            runDiagnostics={ghostRunDiagnostics}
+            legacyDiagnostics={scheduleGhostDiagnostics}
+          />
         ) : null}
       </div>
 
@@ -261,9 +237,7 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
           />
 
           <LoopIntelligenceOverlay
-            layout={layout}
             bunchingClusters={bunchingClusters}
-            largeGapSegments={largeGapSegments}
           />
 
           <RouteLoopDirectionChevrons

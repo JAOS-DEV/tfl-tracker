@@ -10,7 +10,6 @@ import type {
   BunchingCluster,
   DirectionIntelligence,
   EstimatedVehiclePosition,
-  LargeGapSegment,
   NormalizedVehiclePrediction,
   PredictionTrackingState,
   RouteDirection,
@@ -158,23 +157,6 @@ export function detectBunching(
   return detectBunchingClusters(vehicles, thresholdMinutes).length > 0;
 }
 
-export function detectLargeGaps(
-  vehicles: EstimatedVehiclePosition[],
-  thresholdMinutes: number =
-    SERVICE_INTELLIGENCE_THRESHOLDS.LARGE_GAP_THRESHOLD_MINUTES,
-): LargeGapSegment[] {
-  return calculateVehicleGaps(vehicles)
-    .filter((gap) => gap.gapMinutes >= thresholdMinutes)
-    .map((gap) => ({
-      direction: gap.direction,
-      fromProgress: gap.fromProgress,
-      toProgress: gap.toProgress,
-      gapMinutes: gap.gapMinutes,
-      fromVehicleId: gap.fromVehicleId,
-      toVehicleId: gap.toVehicleId,
-    }));
-}
-
 function summarizeGaps(gaps: VehicleGap[]): {
   averageGapMinutes: number | null;
   largestGapMinutes: number | null;
@@ -189,12 +171,14 @@ function summarizeGaps(gaps: VehicleGap[]): {
   }
 
   const gapMinutes = gaps.map((gap) => gap.gapMinutes);
+  const roundGapMinutes = (value: number): number => Math.round(value * 10) / 10;
+
   return {
     averageGapMinutes: Math.round(
       gapMinutes.reduce((sum, gap) => sum + gap, 0) / gapMinutes.length,
     ),
-    largestGapMinutes: Math.max(...gapMinutes),
-    smallestGapMinutes: Math.min(...gapMinutes),
+    largestGapMinutes: roundGapMinutes(Math.max(...gapMinutes)),
+    smallestGapMinutes: roundGapMinutes(Math.min(...gapMinutes)),
   };
 }
 
@@ -206,7 +190,6 @@ export function calculateDirectionIntelligence(
   const gaps = calculateVehicleGaps(directionVehicles);
   const gapSummary = summarizeGaps(gaps);
   const bunchingClusters = detectBunchingClusters(directionVehicles);
-  const largeGaps = detectLargeGaps(directionVehicles);
 
   return {
     direction,
@@ -215,7 +198,7 @@ export function calculateDirectionIntelligence(
     largestGapMinutes: gapSummary.largestGapMinutes,
     smallestGapMinutes: gapSummary.smallestGapMinutes,
     bunchingClusterCount: bunchingClusters.length,
-    largeGapCount: largeGaps.length,
+    largeGapCount: 0,
   };
 }
 
@@ -247,7 +230,6 @@ export function calculateServiceHealthScore(
 ): number {
   let score = 100;
 
-  score -= Math.min(input.largeGapCount * 15, 45);
   score -= Math.min(input.bunchingClusterCount * 10, 30);
   score -= Math.min(input.disappearedPredictionCount * 5, 20);
   score -= Math.min(input.missingFromRefreshCount * 3, 12);
@@ -282,7 +264,6 @@ export function buildServiceHealthMetrics(
   const gaps = calculateVehicleGaps(vehicles);
   const gapSummary = summarizeGaps(gaps);
   const bunchingClusters = detectBunchingClusters(vehicles);
-  const largeGaps = detectLargeGaps(vehicles);
   const confidenceCounts = countPredictionConfidenceStates(
     options.trackingStates,
     options.dataUpdatedAt,
@@ -298,7 +279,7 @@ export function buildServiceHealthMetrics(
 
   const healthScore = calculateServiceHealthScore({
     liveVehicleCount: vehicles.length,
-    largeGapCount: largeGaps.length,
+    largeGapCount: 0,
     bunchingClusterCount: bunchingClusters.length,
     isDataStale,
     disappearedPredictionCount: confidenceCounts.disappeared,
@@ -312,7 +293,7 @@ export function buildServiceHealthMetrics(
     largestGapMinutes: gapSummary.largestGapMinutes,
     smallestGapMinutes: gapSummary.smallestGapMinutes,
     bunchingClusterCount: bunchingClusters.length,
-    largeGapCount: largeGaps.length,
+    largeGapCount: 0,
     stalePredictionCount: confidenceCounts.stale,
     disappearedPredictionCount: confidenceCounts.disappeared,
     missingFromRefreshCount: confidenceCounts.missing,
@@ -368,17 +349,6 @@ export function buildServiceAlertBadges(
     label: `${metrics.liveVehicleCount} live`,
     tone: "info",
   });
-
-  if (metrics.largeGapCount > 0) {
-    badges.push({
-      id: "large-gap",
-      label:
-        metrics.largeGapCount === 1
-          ? "Large predicted gap"
-          : `${metrics.largeGapCount} large predicted gaps`,
-      tone: "warning",
-    });
-  }
 
   if (metrics.bunchingClusterCount > 0) {
     badges.push({
@@ -444,7 +414,6 @@ export function analyzeStopPredictions(
   routePredictions: NormalizedVehiclePrediction[],
 ): {
   hasPossibleBunching: boolean;
-  hasLargeGap: boolean;
   sortedPredictions: NormalizedVehiclePrediction[];
 } {
   const sortedPredictions = [...routePredictions].sort((a, b) => {
@@ -458,7 +427,6 @@ export function analyzeStopPredictions(
   });
 
   let hasPossibleBunching = false;
-  let hasLargeGap = false;
 
   for (let index = 1; index < sortedPredictions.length; index += 1) {
     const previous = sortedPredictions[index - 1];
@@ -482,13 +450,7 @@ export function analyzeStopPredictions(
     ) {
       hasPossibleBunching = true;
     }
-
-    if (
-      gapMinutes >= SERVICE_INTELLIGENCE_THRESHOLDS.LARGE_GAP_THRESHOLD_MINUTES
-    ) {
-      hasLargeGap = true;
-    }
   }
 
-  return { hasPossibleBunching, hasLargeGap, sortedPredictions };
+  return { hasPossibleBunching, sortedPredictions };
 }

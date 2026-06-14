@@ -13,15 +13,13 @@ export interface ServiceHealthSummaryChip {
     | "early"
     | "onTime"
     | "unknown"
-    | "muted"
-    | "live";
+    | "live"
+    | "muted";
 }
 
 export interface ServiceHealthSummary {
-  healthLabel: string;
-  healthScore: number;
-  topWarning: string | null;
   chips: ServiceHealthSummaryChip[];
+  topWarning: string | null;
 }
 
 function healthVariant(score: number): ServiceHealthSummaryChip["variant"] {
@@ -40,7 +38,6 @@ function healthVariant(score: number): ServiceHealthSummaryChip["variant"] {
 interface BuildServiceHealthSummaryOptions {
   isFetching?: boolean;
   isStale?: boolean;
-  largeGapThresholdMinutes?: number | null;
 }
 
 export function buildServiceHealthSummary(
@@ -48,14 +45,6 @@ export function buildServiceHealthSummary(
   options?: BuildServiceHealthSummaryOptions,
 ): ServiceHealthSummary {
   const chips: ServiceHealthSummaryChip[] = [];
-  const largeGapThresholdMinutes =
-    options?.largeGapThresholdMinutes === undefined
-      ? 12
-      : options.largeGapThresholdMinutes;
-  const showLargeGap =
-    largeGapThresholdMinutes !== null &&
-    metrics.largestGapMinutes !== null &&
-    metrics.largestGapMinutes >= largeGapThresholdMinutes;
 
   if (options?.isFetching) {
     chips.push({ id: "refreshing", label: "Refreshing…", variant: "info" });
@@ -113,32 +102,17 @@ export function buildServiceHealthSummary(
     });
   }
 
-  if (showLargeGap) {
-    chips.push({
-      id: "gap",
-      label: `${metrics.largestGapMinutes} min gap`,
-      variant: "warning",
-    });
-  }
-
   let topWarning: string | null = null;
   if (metrics.possibleGhostCount > 0) {
     topWarning = `${metrics.possibleGhostCount} possible ghost${metrics.possibleGhostCount === 1 ? "" : "s"}`;
   } else if (metrics.estimatedLateCount > 0) {
     topWarning = `${metrics.estimatedLateCount} estimated late`;
-  } else if (
-    showLargeGap &&
-    metrics.largestGapMinutes !== null
-  ) {
-    topWarning = `Largest gap ${metrics.largestGapMinutes} min`;
   } else if (metrics.liveVehicleCount === 0) {
     topWarning = "No live buses detected";
   }
 
   return {
-    healthLabel: metrics.healthLabel,
-    healthScore: metrics.healthScore,
-    topWarning,
     chips,
+    topWarning,
   };
 }

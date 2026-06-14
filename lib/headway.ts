@@ -92,13 +92,6 @@ export function detectBunching(
   );
 }
 
-export function detectLargeGap(
-  predictions: NormalizedVehiclePrediction[],
-): boolean {
-  const gaps = calculateGapsMinutes(predictions);
-  return gaps.some((gap) => gap >= HEADWAY_THRESHOLDS.LARGE_GAP_MINUTES);
-}
-
 export function calculateRouteSummary(
   predictions: NormalizedVehiclePrediction[],
 ): RouteSummaryStats {
@@ -109,7 +102,6 @@ export function calculateRouteSummary(
       largestGapMinutes: null,
       busiestStopName: null,
       busiestStopCount: 0,
-      hasLargeGap: false,
       hasBunching: false,
     };
   }
@@ -135,7 +127,6 @@ export function calculateRouteSummary(
     largestGapMinutes,
     busiestStopName: busiest.name,
     busiestStopCount: busiest.count,
-    hasLargeGap: detectLargeGap(predictions),
     hasBunching: detectBunching(predictions),
   };
 }
@@ -159,14 +150,6 @@ export function buildRouteAlertBadges(
       id: "live-count",
       label: `${summary.liveVehicleCount} bus${summary.liveVehicleCount === 1 ? "" : "es"} live`,
       tone: "info",
-    });
-  }
-
-  if (summary.hasLargeGap) {
-    badges.push({
-      id: "large-gap",
-      label: "Large predicted gap",
-      tone: "warning",
     });
   }
 

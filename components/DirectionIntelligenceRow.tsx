@@ -30,23 +30,10 @@ function DirectionStat({
         {intelligence.averageGapMinutes !== null
           ? ` · avg gap ${intelligence.averageGapMinutes} min`
           : ""}
-        {intelligence.largestGapMinutes !== null
-          ? ` · largest gap ${intelligence.largestGapMinutes} min`
-          : ""}
       </p>
-      {intelligence.bunchingClusterCount > 0 ||
-      intelligence.largeGapCount > 0 ? (
+      {intelligence.bunchingClusterCount > 0 ? (
         <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-          {intelligence.bunchingClusterCount > 0
-            ? `${intelligence.bunchingClusterCount} possible bunching`
-            : null}
-          {intelligence.bunchingClusterCount > 0 &&
-          intelligence.largeGapCount > 0
-            ? " · "
-            : null}
-          {intelligence.largeGapCount > 0
-            ? `${intelligence.largeGapCount} large predicted gap${intelligence.largeGapCount === 1 ? "" : "s"}`
-            : null}
+          {intelligence.bunchingClusterCount} possible bunching
         </p>
       ) : null}
     </div>

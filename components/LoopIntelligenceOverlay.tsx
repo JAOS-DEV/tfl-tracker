@@ -1,40 +1,14 @@
-import type { LoopLayoutConfig } from "@/lib/constants";
-import { mapProgressToLoopCoordinates } from "@/lib/routePositioning";
-import type { BunchingCluster, LargeGapSegment } from "@/lib/tfl/types";
+import type { BunchingCluster } from "@/lib/tfl/types";
 
 interface LoopIntelligenceOverlayProps {
-  layout: LoopLayoutConfig;
   bunchingClusters: BunchingCluster[];
-  largeGapSegments: LargeGapSegment[];
 }
 
 export function LoopIntelligenceOverlay({
-  layout,
   bunchingClusters,
-  largeGapSegments,
 }: LoopIntelligenceOverlayProps): React.ReactElement {
   return (
     <g aria-hidden="true">
-      {largeGapSegments.map((segment) => {
-        const start = mapProgressToLoopCoordinates(segment.fromProgress, layout);
-        const end = mapProgressToLoopCoordinates(segment.toProgress, layout);
-
-        return (
-          <line
-            key={`gap-${segment.direction}-${segment.fromVehicleId}-${segment.toVehicleId}`}
-            x1={start.x}
-            y1={start.y}
-            x2={end.x}
-            y2={end.y}
-            stroke="#F59E0B"
-            strokeWidth={layout.orientation === "portrait" ? 8 : 6}
-            strokeLinecap="round"
-            opacity={0.95}
-            strokeDasharray="10 8"
-          />
-        );
-      })}
-
       {bunchingClusters.map((cluster, index) => (
         <g
           key={`bunching-${cluster.direction}-${cluster.vehicleIds.join("-")}-${index}`}

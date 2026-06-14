@@ -80,7 +80,7 @@ export function decodeCompactJourney(
   journey: CompactJourneyRecord,
 ): IbusScheduledJourney {
   const stops = decodeCompactJourneyStops(schedule, journey);
-  const direction = schedule.dirs?.[journey.p] ?? journey.d;
+  const direction = journey.d ?? schedule.dirs?.[journey.p] ?? "";
 
   return {
     tripId: journey.t,

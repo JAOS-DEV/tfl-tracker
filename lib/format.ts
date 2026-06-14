@@ -90,6 +90,11 @@ export function wrapStopLabel(
   return lines;
 }
 
+export function formatGapMinutes(minutes: number): string {
+  const rounded = Math.round(minutes * 10) / 10;
+  return Number.isInteger(rounded) ? `${rounded}` : `${rounded}`;
+}
+
 export function formatCountdown(target: Date, now: Date): string {
   const diffMs = Math.max(0, target.getTime() - now.getTime());
   const seconds = Math.ceil(diffMs / 1000);

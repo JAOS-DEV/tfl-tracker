@@ -31,6 +31,24 @@ interface UseRouteIntelligenceResult {
   isCheckingSchedule: boolean;
 }
 
+function parseDebugScheduleRunningNos(): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const single = params.get("debugRun")?.trim();
+  const many = params.get("debugRuns")?.trim();
+  return Array.from(
+    new Set(
+      [single]
+        .concat(many ? many.split(",") : [])
+        .map((run) => run?.trim())
+        .filter((run): run is string => Boolean(run)),
+    ),
+  );
+}
+
 export function useRouteIntelligence(
   routeId: string,
   options: UseRouteIntelligenceOptions = {},
@@ -65,6 +83,13 @@ export function useRouteIntelligence(
     () => getLoopLayout(isMobile, route),
     [isMobile, route],
   );
+  const debugScheduleRunningNos = useMemo(
+    () =>
+      includeLowConfidenceScheduleGhosts
+        ? parseDebugScheduleRunningNos()
+        : [],
+    [includeLowConfidenceScheduleGhosts],
+  );
 
   const intelligenceQuery = useQuery({
     queryKey: [
@@ -79,6 +104,7 @@ export function useRouteIntelligence(
       showScheduleGhosts ? routeScheduleQuery.dataUpdatedAt : null,
       showScheduleGhosts ? routeScheduleQuery.status : null,
       showScheduleGhosts ? routeScheduleQuery.data?.journeys.length : null,
+      debugScheduleRunningNos.join(","),
     ],
     queryFn: async () => {
       const manifest = await loadIbusManifestClient();
@@ -111,6 +137,8 @@ export function useRouteIntelligence(
         liveBaseVersion,
         liveIbusRunningDetails,
         collectScheduleGhostDiagnostics: includeLowConfidenceScheduleGhosts,
+        debugScheduleRunningNo: debugScheduleRunningNos[0],
+        debugScheduleRunningNos,
       });
     },
     enabled: Boolean(routeId && route),

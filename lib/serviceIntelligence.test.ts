@@ -5,7 +5,6 @@ import {
   calculateVehicleGaps,
   detectBunching,
   detectBunchingClusters,
-  detectLargeGaps,
   getServiceHealthLabel,
 } from "@/lib/serviceIntelligence";
 import type { EstimatedVehiclePosition } from "@/lib/tfl/types";
@@ -108,7 +107,7 @@ describe("calculateVehicleGaps", () => {
   });
 });
 
-describe("bunching and large gap detection", () => {
+describe("bunching detection", () => {
   it("detects possible bunching for nearby vehicles within threshold", () => {
     const vehicles = [
       vehicle({
@@ -128,42 +127,6 @@ describe("bunching and large gap detection", () => {
     expect(detectBunching(vehicles)).toBe(true);
     expect(detectBunchingClusters(vehicles)).toHaveLength(1);
   });
-
-  it("detects large predicted gaps", () => {
-    const vehicles = [
-      vehicle({
-        vehicleId: "BUS1",
-        progress: 0.1,
-        expectedArrival: "2026-06-11T12:00:00Z",
-      }),
-      vehicle({
-        vehicleId: "BUS2",
-        progress: 0.5,
-        expectedArrival: "2026-06-11T12:20:00Z",
-      }),
-    ];
-
-    expect(detectLargeGaps(vehicles)).toHaveLength(1);
-    expect(detectLargeGaps(vehicles)[0]?.gapMinutes).toBe(20);
-  });
-
-  it("detects large predicted gaps with sub-minute thresholds", () => {
-    const vehicles = [
-      vehicle({
-        vehicleId: "BUS1",
-        progress: 0.1,
-        expectedArrival: "2026-06-11T12:00:00Z",
-      }),
-      vehicle({
-        vehicleId: "BUS2",
-        progress: 0.5,
-        expectedArrival: "2026-06-11T12:00:45Z",
-      }),
-    ];
-
-    expect(detectLargeGaps(vehicles, 0.5)).toHaveLength(1);
-    expect(detectLargeGaps(vehicles, 1)).toHaveLength(0);
-  });
 });
 
 describe("service health score", () => {
@@ -182,10 +145,10 @@ describe("service health score", () => {
     expect(getServiceHealthLabel(score)).toBe("Good service");
   });
 
-  it("reduces score for gaps, bunching, and stale data", () => {
+  it("reduces score for bunching and stale data", () => {
     const score = calculateServiceHealthScore({
       liveVehicleCount: 1,
-      largeGapCount: 2,
+      largeGapCount: 0,
       bunchingClusterCount: 2,
       isDataStale: true,
       disappearedPredictionCount: 2,

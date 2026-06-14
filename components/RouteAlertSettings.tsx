@@ -22,27 +22,6 @@ export function RouteAlertSettings({
         In-app alerts
       </p>
 
-      <div className="flex min-h-11 items-center justify-between gap-3">
-        <span>Warn if largest gap is over</span>
-        <div className="flex items-center gap-2">
-          <ThresholdMinutesInput
-            value={preferences.largeGapMinutes}
-            min={0.1}
-            max={60}
-            ariaLabel="Large gap threshold in minutes"
-            onChange={(largeGapMinutes) => update({ largeGapMinutes })}
-          />
-          <span className="text-zinc-500">min</span>
-          <input
-            type="checkbox"
-            checked={preferences.warnLargeGap}
-            onChange={(event) => update({ warnLargeGap: event.target.checked })}
-            aria-label="Enable large gap warning"
-            className="h-5 w-5"
-          />
-        </div>
-      </div>
-
       <label className="flex min-h-11 items-center justify-between gap-3">
         <span>Warn if possible bunching is detected</span>
         <input

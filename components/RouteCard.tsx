@@ -174,9 +174,6 @@ export function RouteCard({
     const summary = buildServiceHealthSummary(serviceHealth, {
       isFetching: arrivalsQuery.isFetching,
       isStale: serviceHealth.isDataStale,
-      largeGapThresholdMinutes: preferences.warnLargeGap
-        ? preferences.largeGapMinutes
-        : null,
     });
     return summary.chips.map((chip) => ({
       id: chip.id,
@@ -187,8 +184,6 @@ export function RouteCard({
   }, [
     serviceHealth,
     arrivalsQuery.isFetching,
-    preferences.largeGapMinutes,
-    preferences.warnLargeGap,
   ]);
 
   useRouteHistoryRecorder(
@@ -434,9 +429,8 @@ export function RouteCard({
                   movementDecisions={movementDecisions}
                   showAdvancedDiagnostics={displaySettings.showAdvancedDiagnostics}
                   scheduleGhostDiagnostics={intelligence?.scheduleGhostDiagnostics}
-                  largeGapThresholdMinutes={
-                    preferences.warnLargeGap ? preferences.largeGapMinutes : null
-                  }
+                  ghostComparisonSummary={intelligence?.ghostComparisonSummary}
+                  ghostRunDiagnostics={intelligence?.ghostRunDiagnostics}
                   loopLabelSettings={{
                     showRegistration: displaySettings.showBusRegistrationOnLoop,
                     showFleetNumber: displaySettings.showBusFleetNumberOnLoop,

@@ -10,8 +10,6 @@ export type DefaultVisualMode = "loop" | "list";
 type LegacyDisplayMode = "simple" | "advanced";
 
 export interface GlobalAlertDefaults {
-  warnLargeGap: boolean;
-  largeGapMinutes: number;
   warnBunching: boolean;
   warnNoLiveBuses: boolean;
   warnStaleData: boolean;
@@ -47,8 +45,6 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showBusFleetNumberOnLoop: false,
   showBusRunningNumberOnLoop: false,
   globalAlertDefaults: {
-    warnLargeGap: DEFAULT_ROUTE_ALERTS.warnLargeGap,
-    largeGapMinutes: DEFAULT_ROUTE_ALERTS.largeGapMinutes,
     warnBunching: DEFAULT_ROUTE_ALERTS.warnBunching,
     warnNoLiveBuses: DEFAULT_ROUTE_ALERTS.warnNoLiveBuses,
     warnStaleData: DEFAULT_ROUTE_ALERTS.warnStaleData,
@@ -78,14 +74,6 @@ function normalizeGlobalAlertDefaults(value: unknown): GlobalAlertDefaults {
 
   const raw = value as Partial<GlobalAlertDefaults>;
   return {
-    warnLargeGap:
-      typeof raw.warnLargeGap === "boolean"
-        ? raw.warnLargeGap
-        : defaults.warnLargeGap,
-    largeGapMinutes:
-      typeof raw.largeGapMinutes === "number" && raw.largeGapMinutes > 0
-        ? raw.largeGapMinutes
-        : defaults.largeGapMinutes,
     warnBunching:
       typeof raw.warnBunching === "boolean"
         ? raw.warnBunching

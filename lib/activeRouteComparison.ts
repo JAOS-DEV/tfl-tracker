@@ -28,9 +28,6 @@ function topWarningForSummary(summary: RouteDashboardSummary): string | null {
   if (summary.estimatedLateCount > 0) {
     return `${summary.estimatedLateCount} late`;
   }
-  if (summary.largeGapCount > 0) {
-    return "Large gap";
-  }
   if (summary.isDataStale) {
     return "Stale data";
   }

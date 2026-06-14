@@ -125,14 +125,6 @@ export function RouteHistoryPanel({
                 {dailyStats.totalBunchingEvents}
               </p>
             </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                Large gap detections today
-              </p>
-              <p className="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                {dailyStats.totalLargeGapEvents}
-              </p>
-            </div>
           </div>
           <p
             className="text-xs text-zinc-500 dark:text-zinc-400"

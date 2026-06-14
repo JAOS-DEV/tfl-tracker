@@ -57,20 +57,6 @@ function metrics(
 }
 
 describe("evaluateRouteAlerts", () => {
-  it("warns when the largest gap exceeds the user threshold", () => {
-    const alerts = evaluateRouteAlerts(
-      metrics({ largestGapMinutes: 15, largeGapCount: 1 }),
-      createDefaultAlertPreferences("337"),
-    );
-
-    expect(alerts).toEqual([
-      expect.objectContaining({
-        id: "large-gap",
-        label: "Large predicted gap",
-      }),
-    ]);
-  });
-
   it("warns about bunching, stale data, and no live vehicles", () => {
     expect(
       evaluateRouteAlerts(
@@ -111,7 +97,6 @@ describe("evaluateRouteAlerts", () => {
       warnBunching: false,
       warnStaleData: false,
       warnNoLiveBuses: false,
-      warnLargeGap: false,
     };
 
     expect(
@@ -138,8 +123,6 @@ describe("alert preference storage helpers", () => {
       expect.objectContaining({
         routeId: "337",
         warnBunching: false,
-        warnLargeGap: true,
-        largeGapMinutes: 12,
       }),
     );
   });
@@ -149,10 +132,10 @@ describe("alert preference storage helpers", () => {
     const prefs = createDefaultAlertPreferences("220");
     const next = setAlertPreferencesForRoute(map, {
       ...prefs,
-      largeGapMinutes: 18,
+      estimatedLateMinutes: 6,
     });
 
-    expect(getAlertPreferencesForRoute(next, "220").largeGapMinutes).toBe(18);
+    expect(getAlertPreferencesForRoute(next, "220").estimatedLateMinutes).toBe(6);
     expect(getAlertPreferencesForRoute(next, "337").routeId).toBe("337");
   });
 });
@@ -161,9 +144,9 @@ describe("formatAlertSummary", () => {
   it("joins alert labels for dashboard summaries", () => {
     expect(
       formatAlertSummary([
-        { id: "a", label: "Large predicted gap", tone: "warning" },
-        { id: "b", label: "Possible bunching", tone: "warning" },
+        { id: "a", label: "Possible bunching", tone: "warning" },
+        { id: "b", label: "TfL data may be stale", tone: "warning" },
       ]),
-    ).toBe("Large predicted gap · Possible bunching");
+    ).toBe("Possible bunching · TfL data may be stale");
   });
 });

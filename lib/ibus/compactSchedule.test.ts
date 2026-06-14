@@ -17,7 +17,13 @@ import {
   serviceDaysToBitmask,
 } from "@/lib/ibus/compactScheduleTypes";
 import { buildRouteSchedule } from "@/lib/ibus/scheduleBuilder";
+import { LOOP_LAYOUT } from "@/lib/constants";
+import {
+  findScheduledStopPair,
+  resolveScheduledGhostPosition,
+} from "@/lib/scheduledGhostBuses";
 import type { IbusRouteSchedule } from "@/lib/ibus/scheduleTypes";
+import type { NormalizedRoute } from "@/lib/tfl/types";
 
 const legacySchedule: IbusRouteSchedule = {
   baseVersion: "20260606",
@@ -62,6 +68,16 @@ const legacySchedule: IbusRouteSchedule = {
   ],
 };
 
+const legacyPositionRoute: NormalizedRoute = {
+  routeId: "337",
+  routeName: "337",
+  outbound: [
+    { id: "1", name: "Stop A", naptanId: "490000001A", isTimingPoint: false },
+    { id: "2", name: "Stop B", naptanId: "490000002B", isTimingPoint: false },
+  ],
+  inbound: [],
+};
+
 describe("compact route schedules", () => {
   it("writes schemaVersion 2 with deduped stops and patterns", () => {
     const compact = buildCompactRouteSchedule(legacySchedule);
@@ -92,6 +108,93 @@ describe("compact route schedules", () => {
     expect(decoded.journeys[0]?.stops[1]?.scheduledSeconds).toBe(36300);
     expect(decoded.journeys[0]?.stops[1]?.naptanId).toBe("490000002B");
     expect(decoded.journeys[0]?.destination).toBe("towards Stop B");
+  });
+
+  it("preserves positioning fields through compact encode/decode", () => {
+    const compact = buildCompactRouteSchedule(legacySchedule);
+    const decoded = decodeCompactRouteSchedule(compact);
+    const originalJourney = legacySchedule.journeys[0]!;
+    const decodedJourney = decoded.journeys[0]!;
+
+    expect(compact.journeys[0]?.w).toHaveLength(compact.patterns["10"]?.length);
+    expect(compact.patterns["10"]).toEqual(["490000001A", "490000002B"]);
+    expect(decodedJourney.runningNo).toBe(originalJourney.runningNo);
+    expect(decodedJourney.blockNo).toBe(originalJourney.blockNo);
+    expect(decodedJourney.tripId).toBe(originalJourney.tripId);
+    expect(decodedJourney.direction).toBe(originalJourney.direction);
+    expect(decodedJourney.startSeconds).toBe(originalJourney.startSeconds);
+    expect(decodedJourney.endSeconds).toBe(originalJourney.endSeconds);
+    expect(decodedJourney.stops.map((stop) => stop.naptanId)).toEqual(
+      originalJourney.stops.map((stop) => stop.naptanId),
+    );
+    expect(decodedJourney.stops.map((stop) => stop.stopCode)).toEqual(
+      originalJourney.stops.map((stop) => stop.stopCode),
+    );
+    expect(decodedJourney.stops.map((stop) => stop.stopName)).toEqual(
+      originalJourney.stops.map((stop) => stop.stopName),
+    );
+    expect(decodedJourney.stops.map((stop) => stop.scheduledSeconds)).toEqual(
+      originalJourney.stops.map((stop) => stop.scheduledSeconds),
+    );
+
+    const originalPair = findScheduledStopPair(originalJourney, 36150);
+    const decodedPair = findScheduledStopPair(decodedJourney, 36150);
+    expect(decodedPair.previous?.naptanId).toBe(originalPair.previous?.naptanId);
+    expect(decodedPair.next?.naptanId).toBe(originalPair.next?.naptanId);
+    expect(decodedPair.fraction).toBe(originalPair.fraction);
+
+    const originalPosition = resolveScheduledGhostPosition({
+      routeId: "337",
+      journey: originalJourney,
+      nowSeconds: 36150,
+      direction: "outbound",
+      route: legacyPositionRoute,
+      layout: LOOP_LAYOUT,
+    });
+    const decodedPosition = resolveScheduledGhostPosition({
+      routeId: "337",
+      journey: decodedJourney,
+      nowSeconds: 36150,
+      direction: "outbound",
+      route: legacyPositionRoute,
+      layout: LOOP_LAYOUT,
+    });
+    expect(decodedPosition.progress).toBe(originalPosition.progress);
+    expect(decodedPosition.source).toBe(originalPosition.source);
+  });
+
+  it("preserves per-journey direction and post-midnight stop offsets", () => {
+    const postMidnightSchedule: IbusRouteSchedule = {
+      ...legacySchedule,
+      journeys: [
+        {
+          ...legacySchedule.journeys[0]!,
+          direction: "2",
+          startTime: "23:55",
+          startSeconds: 86100,
+          endSeconds: 87000,
+          stops: [
+            {
+              ...legacySchedule.journeys[0]!.stops[0]!,
+              scheduledTime: "23:55",
+              scheduledSeconds: 86100,
+            },
+            {
+              ...legacySchedule.journeys[0]!.stops[1]!,
+              scheduledTime: "00:10",
+              scheduledSeconds: 87000,
+            },
+          ],
+        },
+      ],
+    };
+    const compact = buildCompactRouteSchedule(postMidnightSchedule);
+    compact.dirs = { "10": "1" };
+    const decoded = decodeCompactRouteSchedule(compact);
+
+    expect(compact.journeys[0]?.w).toEqual([0, 900]);
+    expect(decoded.journeys[0]?.direction).toBe("2");
+    expect(decoded.journeys[0]?.stops[1]?.scheduledSeconds).toBe(87000);
   });
 
   it("supports service day bitmask round trip", () => {

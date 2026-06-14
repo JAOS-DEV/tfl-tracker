@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { StatusPill } from "@/components/StatusPill";
+import { formatGapMinutes } from "@/lib/format";
 import { buildActiveRouteComparison } from "@/lib/activeRouteComparison";
 import type { RouteDashboardSummary } from "@/lib/tfl/types";
 
@@ -44,7 +45,7 @@ function ComparisonEntryCard({
       <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
         {entry.liveVehicleCount} live
         {entry.largestGapMinutes !== null
-          ? ` · gap ${entry.largestGapMinutes} min`
+          ? ` · gap ${formatGapMinutes(entry.largestGapMinutes)} min`
           : ""}
         {entry.estimatedLateCount > 0 ? ` · ${entry.estimatedLateCount} late` : ""}
         {entry.possibleGhostCount > 0
@@ -115,12 +116,6 @@ export function ActiveRouteComparison({
                 </p>
               ) : null}
             </div>
-          ) : null}
-
-          {comparison.largestGapRouteId ? (
-            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-              Largest gap among active routes: {comparison.largestGapRouteId}
-            </p>
           ) : null}
 
           <div className="mt-3 grid gap-2 sm:grid-cols-2">

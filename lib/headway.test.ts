@@ -4,7 +4,6 @@ import {
   calculateHeadway,
   calculateRouteSummary,
   detectBunching,
-  detectLargeGap,
 } from "@/lib/headway";
 import type { NormalizedVehiclePrediction } from "@/lib/tfl/types";
 
@@ -79,22 +78,7 @@ describe("calculateRouteSummary", () => {
   });
 });
 
-describe("gap and bunching detection", () => {
-  it("detects large predicted gaps", () => {
-    const predictions = [
-      basePrediction,
-      {
-        ...basePrediction,
-        id: "2",
-        vehicleId: "BUS2",
-        expectedArrival: "2026-06-11T12:20:00Z",
-      },
-    ];
-
-    expect(detectLargeGap(predictions)).toBe(true);
-    expect(detectBunching(predictions)).toBe(false);
-  });
-
+describe("bunching detection", () => {
   it("detects possible bunching", () => {
     const predictions = [
       basePrediction,

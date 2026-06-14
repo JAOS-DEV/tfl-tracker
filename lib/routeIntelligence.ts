@@ -37,6 +37,8 @@ export interface BuildRouteIntelligenceInput {
   liveBaseVersion?: string;
   liveIbusRunningDetails?: Map<string, LiveIbusRunningDetail>;
   collectScheduleGhostDiagnostics?: boolean;
+  debugScheduleRunningNo?: string;
+  debugScheduleRunningNos?: string[];
 }
 
 export function toRouteDashboardSummary(
@@ -154,6 +156,9 @@ export function buildRouteIntelligence(
       lastProgress: vehicle.progress,
       lastX: vehicle.x,
       lastY: vehicle.y,
+      lastVehicleRegistration: vehicle.vehicleRegistration,
+      lastIbusRunningNo: vehicle.ibusRunningNo,
+      lastIbusBlockNo: vehicle.ibusBlockNo,
     });
   }
 
@@ -182,9 +187,13 @@ export function buildRouteIntelligence(
     now: input.now,
     dataUpdatedAt: input.dataUpdatedAt,
     liveBaseVersion: input.liveBaseVersion,
+    livePredictionCount: input.predictions.length,
     showScheduleGhosts: input.showScheduleGhosts ?? true,
     includeLowConfidence: input.includeLowConfidenceScheduleGhosts ?? false,
     collectDiagnostics: input.collectScheduleGhostDiagnostics ?? false,
+    debugRunningNo: input.debugScheduleRunningNo,
+    debugRunningNos: input.debugScheduleRunningNos,
+    liveEnrichmentComplete: true,
   });
 
   const vehicles = attachPredictionAndGhostState(
@@ -212,5 +221,7 @@ export function buildRouteIntelligence(
       scheduledGhostResult.diagnostics.length > 0
         ? scheduledGhostResult.diagnostics
         : undefined,
+    ghostComparisonSummary: scheduledGhostResult.ghostComparisonSummary,
+    ghostRunDiagnostics: scheduledGhostResult.ghostRunDiagnostics,
   };
 }

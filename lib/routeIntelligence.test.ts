@@ -260,6 +260,40 @@ describe("buildRouteIntelligence", () => {
               },
             ],
           },
+          {
+            tripId: "scheduled-ghost-trip-2",
+            operatorCode: "CX",
+            blockNo: "123569",
+            blockIdx: "",
+            runningNo: "569",
+            garageNo: "123",
+            direction: "1",
+            destination: "towards Stop B",
+            patternIdx: "10",
+            startTime: "10:00",
+            startSeconds: 36000,
+            endSeconds: 36300,
+            journeyType: 1,
+            serviceDays: [5],
+            stops: [
+              {
+                sequence: 1,
+                stopName: "Stop A",
+                stopCode: "A1",
+                naptanId: "490000001A",
+                scheduledTime: "10:00",
+                scheduledSeconds: 36000,
+              },
+              {
+                sequence: 2,
+                stopName: "Stop B",
+                stopCode: "B1",
+                naptanId: "490000002B",
+                scheduledTime: "10:05",
+                scheduledSeconds: 36300,
+              },
+            ],
+          },
         ],
       },
     });
@@ -267,8 +301,9 @@ describe("buildRouteIntelligence", () => {
     const scheduleGhosts = withSchedule.vehicles.filter(
       (vehicle) => vehicle.isScheduledGhostCandidate,
     );
-    expect(scheduleGhosts).toHaveLength(1);
+    expect(scheduleGhosts).toHaveLength(2);
     expect(scheduleGhosts[0]?.scheduledGhostRunningNo).toBe("568");
-    expect(withSchedule.dashboardSummary.possibleGhostCount).toBe(1);
+    expect(scheduleGhosts[1]?.scheduledGhostRunningNo).toBe("569");
+    expect(withSchedule.dashboardSummary.possibleGhostCount).toBe(2);
   });
 });

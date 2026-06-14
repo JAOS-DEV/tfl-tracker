@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useAllRouteHistory } from "@/hooks/useRouteHistory";
-import { formatLastUpdated } from "@/lib/format";
+import { formatGapMinutes, formatLastUpdated } from "@/lib/format";
 import { buildComparisonRows } from "@/lib/localRouteHistory";
 import type { ActiveRoute } from "@/lib/tfl/types";
 
@@ -52,7 +52,6 @@ export function MultiRouteHistoryComparison({
                 <th className="px-2 py-1 font-medium">Worst health today</th>
                 <th className="px-2 py-1 font-medium">Worst gap today</th>
                 <th className="px-2 py-1 font-medium">Bunching detections</th>
-                <th className="px-2 py-1 font-medium">Large gap detections</th>
                 <th className="px-2 py-1 font-medium">Last snapshot</th>
               </tr>
             </thead>
@@ -76,14 +75,11 @@ export function MultiRouteHistoryComparison({
                   </td>
                   <td className="px-2 py-2 text-zinc-600 dark:text-zinc-300">
                     {row.worstLargestGapMinutes !== null
-                      ? `${row.worstLargestGapMinutes} min`
+                      ? `${formatGapMinutes(row.worstLargestGapMinutes)} min`
                       : "—"}
                   </td>
                   <td className="px-2 py-2 text-zinc-600 dark:text-zinc-300">
                     {row.totalBunchingEvents}
-                  </td>
-                  <td className="px-2 py-2 text-zinc-600 dark:text-zinc-300">
-                    {row.totalLargeGapEvents}
                   </td>
                   <td className="px-2 py-2 text-zinc-600 dark:text-zinc-300">
                     {row.lastSnapshotAt

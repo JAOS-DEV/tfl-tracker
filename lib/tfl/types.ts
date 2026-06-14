@@ -141,7 +141,6 @@ export interface RouteSummaryStats {
   largestGapMinutes: number | null;
   busiestStopName: string | null;
   busiestStopCount: number;
-  hasLargeGap: boolean;
   hasBunching: boolean;
 }
 
@@ -298,6 +297,9 @@ export interface PredictionTrackingState {
   lastProgress?: number;
   lastX?: number;
   lastY?: number;
+  lastVehicleRegistration?: string;
+  lastIbusRunningNo?: string;
+  lastIbusBlockNo?: string;
 }
 
 export interface VehicleGap {
@@ -315,15 +317,6 @@ export interface BunchingCluster {
   centerProgress: number;
   centerX: number;
   centerY: number;
-}
-
-export interface LargeGapSegment {
-  direction: RouteDirection;
-  fromProgress: number;
-  toProgress: number;
-  gapMinutes: number;
-  fromVehicleId: string;
-  toVehicleId: string;
 }
 
 export interface DirectionIntelligence {
@@ -383,9 +376,91 @@ export interface RouteDashboardSummary {
   missingLatestCount: number;
 }
 
+export interface GhostComparisonSummary {
+  routeId: string;
+  currentLondonTime: string;
+  routeScheduleBaseVersion: string | null;
+  liveBaseVersion: string | null;
+  routeScheduleLoaded: boolean;
+  routeSequenceLoaded: boolean;
+  liveEnrichmentComplete: boolean;
+  liveTflVehicleCount: number;
+  liveTflPredictionCount: number;
+  uniqueLiveVehicleRegistrations: string[];
+  uniqueLiveIbusRunningNumbers: string[];
+  activeScheduledJourneyCount: number;
+  activeScheduledRunningNumbers: string[];
+  scheduledActiveRunningNumbers: string[];
+  liveRunningNumbers: string[];
+  matchedActiveScheduledRunningNumbers: string[];
+  scheduledMissingLiveRunningNumbers: string[];
+  liveRunningNumbersNotActiveInSchedule: string[];
+  liveVehiclesWithoutResolvedRunningNumber: number;
+  visibleScheduleGhostRunningNumbers: string[];
+  visibleFeedGhostRunningNumbers: string[];
+  visibleDisappearedGhostRunningNumbers: string[];
+  hiddenScheduleCandidateRunningNumbers: string[];
+  hiddenWeakCandidateRunningNumbers: string[];
+  suppressedScheduleCandidateRunningNumbers: string[];
+  routeLevelSanityCapValue: number;
+  routeLevelSanityCapHiddenRunningNumbers: string[];
+  sanityWarnings: string[];
+  hiddenSuppressionReasonCounts: Record<string, number>;
+  feedGhostLifecycleNote: string;
+}
+
+export interface GhostRunLiveMatch {
+  registration?: string;
+  vehicleId: string;
+  tripId?: string;
+  baseVersion?: string;
+  blockNo?: string;
+  direction: RouteDirection;
+  nextStop?: string;
+  expectedArrival?: string;
+  displayedAsLive: boolean;
+}
+
+export interface GhostRunScheduleJourneyDiagnostic {
+  tripId: string;
+  blockNo: string;
+  direction: string;
+  startTime: string;
+  endTime: string;
+  active: boolean;
+  inactiveReason: string | null;
+  previousStopName?: string | null;
+  nextStopName?: string | null;
+  positionSource?: string | null;
+  confidence?: string | null;
+  candidateCreated: boolean;
+}
+
+export interface GhostRunDiagnostics {
+  routeId: string;
+  runningNo: string;
+  liveMatches: GhostRunLiveMatch[];
+  presentInSchedule: boolean;
+  scheduleJourneyCount: number;
+  activeScheduleJourneyCount: number;
+  scheduleJourneys: GhostRunScheduleJourneyDiagnostic[];
+  candidateCreated: boolean;
+  suppressed: boolean;
+  suppressionReasons: string[];
+  hidden: boolean;
+  hiddenReasons: string[];
+  displayedAsLive: boolean;
+  displayedAsScheduleGhost: boolean;
+  displayedAsFeedGhost: boolean;
+  displayedAsDisappearedGhost: boolean;
+  finalDecision: string;
+}
+
 export interface RouteIntelligenceResult {
   vehicles: EstimatedVehiclePosition[];
   metrics: ServiceHealthMetrics;
   dashboardSummary: RouteDashboardSummary;
   scheduleGhostDiagnostics?: string[];
+  ghostComparisonSummary?: GhostComparisonSummary;
+  ghostRunDiagnostics?: GhostRunDiagnostics[];
 }

@@ -4,6 +4,7 @@ import { ActiveRouteComparison } from "@/components/ActiveRouteComparison";
 import { MultiRouteHistoryComparison } from "@/components/MultiRouteHistoryComparison";
 import { StatusPill } from "@/components/StatusPill";
 import { useActiveRouteIntelligences } from "@/hooks/useRouteIntelligence";
+import { formatGapMinutes } from "@/lib/format";
 import { possibleGhostCountLabel } from "@/lib/ghostDisplay";
 import {
   createRouteAlertPreferences,
@@ -41,9 +42,6 @@ function compactAlertLabel(summary: RouteDashboardSummary | undefined): string |
   }
   if (summary.estimatedLateCount > 0) {
     return `${summary.estimatedLateCount} late`;
-  }
-  if (summary.largeGapCount > 0) {
-    return "Large gap";
   }
   if (summary.isDataStale) {
     return "Stale";
@@ -130,7 +128,7 @@ function DashboardRouteItem({
     <button
       type="button"
       onClick={() => onSelect(route.routeId)}
-      className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-left hover:border-sky-400 sm:min-w-[220px] sm:flex-none dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-sky-500"
+      className="flex w-[min(100%,260px)] shrink-0 flex-col gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-left hover:border-sky-400 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-sky-500"
     >
       <div className="flex items-center gap-2">
         <span className="rounded-lg bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
@@ -142,10 +140,10 @@ function DashboardRouteItem({
           size="sm"
         />
       </div>
-      <p className="text-xs text-zinc-600 dark:text-zinc-300">
+      <p className="mt-1 line-clamp-2 text-xs text-zinc-600 dark:text-zinc-300">
         {summary.liveVehicleCount} live
         {summary.largestGapMinutes !== null
-          ? ` · gap ${summary.largestGapMinutes} min`
+          ? ` · gap ${formatGapMinutes(summary.largestGapMinutes)} min`
           : ""}
         {summary.possibleGhostCount > 0
           ? ` · ${possibleGhostCountLabel(summary.possibleGhostCount)}`
