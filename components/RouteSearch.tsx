@@ -6,6 +6,10 @@ import { ShareLinkButton } from "@/components/ShareLinkButton";
 import type { FavouriteRoute } from "@/lib/favouriteRoutes";
 import type { FavouriteStop } from "@/lib/favouriteStops";
 import {
+  formatStopSearchSubtitle,
+  formatStopTitle,
+} from "@/lib/stopDisplay";
+import {
   looksLikeRouteNumber,
   normalizeDiscoveryQuery,
 } from "@/lib/discoverySearch";
@@ -273,6 +277,14 @@ export function RouteSearch({
     setErrorAction(null);
   };
 
+  const handleClearResults = () => {
+    setResults(EMPTY_RESULTS);
+    setHasSearched(false);
+    setNearbyVisibleCount(NEARBY_STOPS_PAGE_SIZE);
+    setError(null);
+    setErrorAction(null);
+  };
+
   const handleLoadMoreNearby = () => {
     setNearbyVisibleCount((current) =>
       getNextNearbyStopsVisibleCount(current, results.nearby.length),
@@ -393,31 +405,40 @@ export function RouteSearch({
 
       {hasSearched ? (
         <div className="mt-4">
-          <div className="inline-flex w-full rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800">
-            {(["routes", "stops", "nearby"] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-                aria-pressed={visibleTab === tab}
-                className={`min-h-10 flex-1 rounded-md px-3 py-2 text-sm font-medium capitalize ${
-                  visibleTab === tab
-                    ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100"
-                    : "text-zinc-600 dark:text-zinc-300"
-                }`}
-              >
-                {tab}
-                {tab === "routes" && results.routes.length > 0
-                  ? ` (${results.routes.length})`
-                  : ""}
-                {tab === "stops" && results.stops.length > 0
-                  ? ` (${results.stops.length})`
-                  : ""}
-                {tab === "nearby" && results.nearby.length > 0
-                  ? ` (${results.nearby.length})`
-                  : ""}
-              </button>
-            ))}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="inline-flex w-full rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800 sm:w-auto sm:flex-1">
+              {(["routes", "stops", "nearby"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  aria-pressed={visibleTab === tab}
+                  className={`min-h-10 flex-1 rounded-md px-3 py-2 text-sm font-medium capitalize ${
+                    visibleTab === tab
+                      ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100"
+                      : "text-zinc-600 dark:text-zinc-300"
+                  }`}
+                >
+                  {tab}
+                  {tab === "routes" && results.routes.length > 0
+                    ? ` (${results.routes.length})`
+                    : ""}
+                  {tab === "stops" && results.stops.length > 0
+                    ? ` (${results.stops.length})`
+                    : ""}
+                  {tab === "nearby" && results.nearby.length > 0
+                    ? ` (${results.nearby.length})`
+                    : ""}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={handleClearResults}
+              className="min-h-11 shrink-0 rounded-xl border border-red-300 px-4 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/40"
+            >
+              Clear results
+            </button>
           </div>
 
           {visibleTab === "routes" ? (
@@ -435,9 +456,11 @@ export function RouteSearch({
                         <span className="rounded-lg bg-red-600 px-2 py-0.5 text-sm font-bold text-white">
                           {route.id}
                         </span>
-                        <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                          {route.name}
-                        </p>
+                        {route.name !== route.id ? (
+                          <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                            {route.name}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -474,22 +497,23 @@ export function RouteSearch({
               {results.stops.length === 0 ? (
                 <p className="text-sm text-zinc-500">No matching stops.</p>
               ) : (
-                results.stops.map((stop) => (
+                results.stops.map((stop) => {
+                  const subtitle = formatStopSearchSubtitle(stop);
+
+                  return (
                   <div
                     key={stop.stopPointId}
                     className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700"
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                        {stop.name}
-                        {stop.stopLetter ? ` (${stop.stopLetter})` : ""}
+                        {formatStopTitle(stop.name, stop.stopLetter)}
                       </p>
-                      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        {stop.stopPointId}
-                        {stop.routesServed.length > 0
-                          ? ` · ${stop.routesServed.slice(0, 6).join(", ")}`
-                          : ""}
-                      </p>
+                      {subtitle ? (
+                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                          {subtitle}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -517,7 +541,8 @@ export function RouteSearch({
                       </button>
                     </div>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           ) : null}
@@ -544,21 +569,21 @@ export function RouteSearch({
                     </button>
                   </div>
 
-                  {nearbyPage.visible.map((stop) => (
+                  {nearbyPage.visible.map((stop) => {
+                    const subtitle = formatStopSearchSubtitle(stop);
+
+                    return (
                     <div
                       key={stop.stopPointId}
                       className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700"
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                          {stop.name}
-                          {stop.stopLetter ? ` (${stop.stopLetter})` : ""}
+                          {formatStopTitle(stop.name, stop.stopLetter)}
                         </p>
                         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                           {Math.round(stop.distanceMetres)} m away
-                          {stop.routesServed.length > 0
-                            ? ` · ${stop.routesServed.slice(0, 6).join(", ")}`
-                            : ""}
+                          {subtitle ? ` · ${subtitle}` : ""}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -587,7 +612,8 @@ export function RouteSearch({
                         </button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
 
                   {nearbyPage.hasMore ? (
                     <button

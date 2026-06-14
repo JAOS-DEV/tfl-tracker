@@ -18,8 +18,9 @@ export function AboutDataContent(): React.ReactElement {
           branches or when timetables are partial or unavailable.
         </li>
         <li>
-          Ghost bus detection is inferred from repeated prediction disappearance.
-          Ghost status means <strong>possible</strong>, not confirmed.
+          Ghost bus detection is inferred from repeated prediction
+          disappearance. Ghost status means <strong>possible</strong>, not
+          confirmed.
         </li>
         <li>
           Local history only records while the app is open on this device.
@@ -31,7 +32,9 @@ export function AboutDataContent(): React.ReactElement {
         <li>
           The loop view is schematic and does not match real road geography.
         </li>
-        <li>Predictions refresh roughly every 30 seconds while the app is open.</li>
+        <li>
+          Predictions refresh roughly every 30 seconds while the app is open.
+        </li>
         <li>
           Share routes with a URL like{" "}
           <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
@@ -40,25 +43,13 @@ export function AboutDataContent(): React.ReactElement {
           .
         </li>
         <li>
-          Favourites, recent routes, alert preferences, and history stay on
-          this device. Your TfL API key is never stored in the browser.
+          Favourites, recent routes, alert preferences, and history stay on this
+          device.
         </li>
         <li>
           Fleet numbers are primarily matched from TfL iBus static Vehicle data
-          using the vehicle registration. If no TfL iBus match is found, Bustimes
-          may be used as an optional fallback where available.
-        </li>
-        <li>
-          Running numbers are matched from TfL iBus static Journey/Block schedule
-          data using live tripId + baseVersion. The app never matches running
-          numbers by tripId alone.
-        </li>
-        <li>
-          iBus static data is manually refreshed by running{" "}
-          <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
-            npm run import:ibus
-          </code>{" "}
-          and committing the generated JSON files.
+          using the vehicle registration. If no TfL iBus match is found,
+          Bustimes may be used as an optional fallback where available.
         </li>
         <li>
           Data may be stale, missing, or incomplete. Do not use this app for

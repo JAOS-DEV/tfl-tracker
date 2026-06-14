@@ -5,9 +5,9 @@ import { MobileBottomSheet } from "@/components/MobileBottomSheet";
 import { useIbusVehicleDetails } from "@/hooks/useIbusVehicleDetails";
 import { formatLastUpdated, formatLocalTime, formatMinutes } from "@/lib/format";
 import {
-  formatFleetNumberLabel,
-  formatRunningNumberLabel,
+  FLEET_NUMBER_LABEL,
   resolveDisplayFleetNumber,
+  RUNNING_NUMBER_LABEL,
 } from "@/lib/vehicleLabels";
 import {
   formatGhostDestination,
@@ -101,6 +101,74 @@ function headerStatusChip(
   return predictionConfidenceLabel(confidence);
 }
 
+interface BusIdentityHighlightProps {
+  registration: string | null;
+  fleetNumber: string | null;
+  runningNumber: string | null;
+}
+
+function BusDetailsSheetTitle({
+  routeNumber,
+  destinationName,
+}: {
+  routeNumber: string;
+  destinationName: string;
+}): React.ReactElement {
+  return (
+    <h2 className="space-y-2">
+      <div>
+        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          Bus
+        </span>
+        <span className="mt-0.5 block text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+          {routeNumber}
+        </span>
+      </div>
+      <div>
+        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          Destination
+        </span>
+        <span className="mt-0.5 block text-base font-semibold leading-snug text-zinc-900 dark:text-zinc-50">
+          {destinationName}
+        </span>
+      </div>
+    </h2>
+  );
+}
+
+function BusIdentityHighlight({
+  registration,
+  fleetNumber,
+  runningNumber,
+}: BusIdentityHighlightProps): React.ReactElement | null {
+  if (!registration && !fleetNumber && !runningNumber) {
+    return null;
+  }
+
+  const rows = [
+    { key: "registration", label: "Registration", value: registration },
+    { key: "fleet", label: FLEET_NUMBER_LABEL, value: fleetNumber },
+    { key: "running", label: RUNNING_NUMBER_LABEL, value: runningNumber },
+  ].filter((row): row is { key: string; label: string; value: string } =>
+    Boolean(row.value),
+  );
+
+  return (
+    <dl className="mt-3 grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
+      {rows.map((row) => (
+        <div key={row.key}>
+          <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            {row.label}
+          </dt>
+          <dd className="mt-0.5 text-lg font-semibold tracking-wide text-zinc-900 dark:text-zinc-50">
+            {row.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export function BusDetailsModal({
   vehicle,
   predictionConfidence = "normal",
@@ -157,23 +225,19 @@ export function BusDetailsModal({
     vehicle.scheduledGhostRunningNo ??
     null;
 
-  const identityParts = [
-    headerRegistration ? `Registration: ${headerRegistration}` : null,
-    headerFleet ? formatFleetNumberLabel(headerFleet) : null,
-    headerRunning ? formatRunningNumberLabel(headerRunning) : null,
-  ].filter(Boolean);
-
   return (
     <MobileBottomSheet
-      title={`Bus ${vehicle.routeNumber}`}
+      title={
+        <BusDetailsSheetTitle
+          routeNumber={vehicle.routeNumber}
+          destinationName={vehicle.destinationName}
+        />
+      }
       titleId="bus-details-title"
       onClose={onClose}
     >
       <div className="text-zinc-900 dark:text-zinc-100">
         <section className="space-y-2">
-          <p className="text-sm font-medium">
-            {vehicle.routeNumber} · {vehicle.destinationName}
-          </p>
           <div className="flex flex-wrap gap-2">
             <span
               className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -194,11 +258,11 @@ export function BusDetailsModal({
               </span>
             ) : null}
           </div>
-          {identityParts.length > 0 ? (
-            <p className="text-sm text-zinc-700 dark:text-zinc-300">
-              {identityParts.join(" · ")}
-            </p>
-          ) : null}
+          <BusIdentityHighlight
+            registration={headerRegistration}
+            fleetNumber={headerFleet}
+            runningNumber={headerRunning}
+          />
           {!isGhost && vehicle.markerState === "terminus-layover" ? (
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
               {vehicle.terminusLayoverLabel ??

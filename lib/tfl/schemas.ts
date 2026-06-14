@@ -187,6 +187,7 @@ const rawStopSearchItemSchema = z
     stopLetter: z.string().optional(),
     towards: z.string().optional(),
     modes: z.array(z.string()).optional(),
+    stopType: z.string().optional(),
     lines: z.array(z.union([z.string(), z.object({ id: z.string().optional() }).passthrough()])).optional(),
     children: z.array(z.unknown()).optional(),
     lat: z.number().optional(),

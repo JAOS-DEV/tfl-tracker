@@ -89,9 +89,19 @@ describe("BusDetailsModal", () => {
       />,
     );
 
-    expect(screen.getByText(/Registration: LV24EWY/)).toBeInTheDocument();
-    expect(screen.getByText(/Fleet number: 3085/)).toBeInTheDocument();
-    expect(screen.getByText(/Running number: 568/)).toBeInTheDocument();
+    const title = document.getElementById("bus-details-title");
+    expect(title).not.toBeNull();
+    expect(title).toHaveTextContent("Bus");
+    expect(title).toHaveTextContent("156");
+    expect(title).toHaveTextContent("Destination");
+    expect(title).toHaveTextContent("Richmond");
+    expect(screen.queryByText("156 · Richmond")).not.toBeInTheDocument();
+    expect(screen.getByText("Registration")).toBeInTheDocument();
+    expect(screen.getByText("LV24EWY")).toBeInTheDocument();
+    expect(screen.getByText("Fleet number")).toBeInTheDocument();
+    expect(screen.getByText("3085")).toBeInTheDocument();
+    expect(screen.getByText("Running number")).toBeInTheDocument();
+    expect(screen.getByText("568")).toBeInTheDocument();
     expect(screen.queryByText("iBus base version")).not.toBeInTheDocument();
     expect(screen.getByText("Block")).toBeInTheDocument();
   });

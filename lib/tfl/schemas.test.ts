@@ -26,7 +26,7 @@ describe("rawStopSearchResponseSchema", () => {
     expect(results[0]?.name).toBe("Clapham Common Station");
   });
 
-  it("accepts TfL stop search wrapper responses", () => {
+  it("excludes TfL transport hub matches from bus stop search", () => {
     const raw = {
       matches: [
         {
@@ -40,8 +40,6 @@ describe("rawStopSearchResponseSchema", () => {
     const parsed = rawStopSearchResponseSchema.parse(raw);
     const results = normalizeStopSearch(extractStopSearchItems(parsed));
 
-    expect(results).toHaveLength(1);
-    expect(results[0]?.stopPointId).toBe("HUBCLJ");
-    expect(results[0]?.name).toBe("Clapham Junction");
+    expect(results).toHaveLength(0);
   });
 });

@@ -41,9 +41,9 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showAdvancedDiagnostics: false,
   smoothBusMovement: true,
   showScheduleGhosts: true,
-  showBusRegistrationOnLoop: false,
-  showBusFleetNumberOnLoop: false,
-  showBusRunningNumberOnLoop: false,
+  showBusRegistrationOnLoop: true,
+  showBusFleetNumberOnLoop: true,
+  showBusRunningNumberOnLoop: true,
   globalAlertDefaults: {
     warnBunching: DEFAULT_ROUTE_ALERTS.warnBunching,
     warnNoLiveBuses: DEFAULT_ROUTE_ALERTS.warnNoLiveBuses,

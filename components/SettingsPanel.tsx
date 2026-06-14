@@ -12,16 +12,13 @@ import {
 } from "@/lib/displaySettings";
 import {
   exportSnapshotsAsJson,
-  clearAllRouteHistory,
   loadAllSnapshots,
 } from "@/lib/localRouteHistory";
-import type { FavouriteStop } from "@/lib/favouriteStops";
+import { resetAppToDefaults } from "@/lib/resetAppDefaults";
 
 interface SettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
-  favouriteStops?: FavouriteStop[];
-  onClearFavouriteStops?: () => void;
 }
 
 function downloadTextFile(filename: string, content: string, mimeType: string): void {
@@ -64,8 +61,6 @@ function SegmentedOption<T extends string>({
 export function SettingsPanel({
   isOpen,
   onClose,
-  favouriteStops = [],
-  onClearFavouriteStops,
 }: SettingsPanelProps): React.ReactElement | null {
   const [settings, setSettings] = useDisplaySettings();
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -317,54 +312,6 @@ export function SettingsPanel({
               className="h-5 w-5"
             />
           </label>
-
-          <button
-            type="button"
-            onClick={() =>
-              setSettings((current) => ({
-                ...current,
-                globalAlertDefaults: DEFAULT_DISPLAY_SETTINGS.globalAlertDefaults,
-              }))
-            }
-            className="text-sm text-zinc-600 underline dark:text-zinc-300"
-          >
-            Reset alert defaults
-          </button>
-        </section>
-
-        <section className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            Favourite stops
-          </h3>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Favourite stops are stored locally on this device only.
-          </p>
-          {favouriteStops.length > 0 ? (
-            <p className="text-sm text-zinc-700 dark:text-zinc-300">
-              {favouriteStops.length} saved stop
-              {favouriteStops.length === 1 ? "" : "s"}
-            </p>
-          ) : (
-            <p className="text-sm text-zinc-500">No favourite stops saved yet.</p>
-          )}
-          {onClearFavouriteStops ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    "Clear all favourite stops on this device?",
-                  )
-                ) {
-                  onClearFavouriteStops();
-                }
-              }}
-              disabled={favouriteStops.length === 0}
-              className="min-h-11 rounded-lg border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
-            >
-              Clear favourite stops
-            </button>
-          ) : null}
         </section>
 
         <section className="space-y-3">
@@ -391,11 +338,13 @@ export function SettingsPanel({
 
         <section className="space-y-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            Local history
+            Reset app
           </h3>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            History is stored locally for up to 24 hours and only while the app
-            was open on this device.
+            Reset this app to factory defaults on this device. This clears
+            active routes, recent routes, favourite routes and stops, alert
+            preferences, performance history, and restores all display and theme
+            settings.
           </p>
           <div className="flex flex-wrap gap-2">
             <button
@@ -409,22 +358,23 @@ export function SettingsPanel({
               }
               className="min-h-11 rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
             >
-              Export all JSON
+              Export performance history
             </button>
             <button
               type="button"
               onClick={() => {
                 if (
                   window.confirm(
-                    "Clear all local route history on this device?",
+                    "Reset this app to factory defaults on this device? This clears active routes, favourites, recent routes, alert preferences, performance history, and restores all settings.",
                   )
                 ) {
-                  clearAllRouteHistory();
+                  resetAppToDefaults();
+                  setSettings(DEFAULT_DISPLAY_SETTINGS);
                 }
               }}
-              className="min-h-11 rounded-lg border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+              className="min-h-11 rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
             >
-              Clear all history
+              Reset app to defaults
             </button>
           </div>
         </section>

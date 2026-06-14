@@ -1,5 +1,6 @@
 import { handleApiErrorResponse, jsonResponse } from "@/lib/api";
 import { TIMETABLE_CACHE_TTL_MS } from "@/lib/constants";
+import { sortLineSearchResults } from "@/lib/discoverySearch";
 import {
   filterStopDisruptionsForIds,
   normalizeStopDisruptions,
@@ -11,6 +12,7 @@ import {
   normalizeLineStatus,
   normalizeNearbyStops,
   normalizePredictions,
+  normalizeBusPredictions,
   normalizeRouteSequence,
   normalizeStopSearch,
 } from "@/lib/tfl/normalizers";
@@ -70,7 +72,7 @@ async function handleLineSearch(
   );
 
   const parsed = rawLineSearchResponseSchema.parse(raw);
-  const results = normalizeLineSearch(parsed);
+  const results = sortLineSearchResults(normalizeLineSearch(parsed), query);
 
   return jsonResponse({ results });
 }
@@ -146,7 +148,7 @@ async function handleStopArrivals(
   );
 
   const parsed = rawArrivalsResponseSchema.parse(raw);
-  const predictions = normalizePredictions(parsed);
+  const predictions = normalizeBusPredictions(parsed);
 
   return jsonResponse({
     stopPointId,

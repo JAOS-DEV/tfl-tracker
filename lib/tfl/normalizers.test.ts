@@ -3,6 +3,7 @@ import {
   normalizeLineSearch,
   normalizeNearbyStops,
   normalizePredictions,
+  normalizeBusPredictions,
   normalizeRouteSequence,
   normalizeStopSearch,
   predictionsForStop,
@@ -272,6 +273,42 @@ describe("predictionsForStop", () => {
   });
 });
 
+describe("normalizeBusPredictions", () => {
+  it("drops non-bus arrivals such as overground trains", () => {
+    const normalized = normalizeBusPredictions([
+      {
+        id: "rail-1",
+        lineId: "mildmay",
+        lineName: "Mildmay",
+        naptanId: "HUBCLJ",
+        stationName: "Clapham Junction Rail Station",
+        destinationName: "Stratford (London) Rail Station",
+        direction: "",
+        timeToStation: 120,
+        expectedArrival: "2026-06-14T19:26:07Z",
+        modeName: "overground",
+        timestamp: "2026-06-14T19:26:02Z",
+      },
+      {
+        id: "bus-1",
+        lineId: "37",
+        lineName: "37",
+        naptanId: "490000050D",
+        stationName: "Clapham Common Station",
+        destinationName: "Putney Heath",
+        direction: "outbound",
+        timeToStation: 240,
+        expectedArrival: "2026-06-14T19:30:00Z",
+        modeName: "bus",
+        timestamp: "2026-06-14T19:26:02Z",
+      },
+    ]);
+
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0]?.routeNumber).toBe("37");
+  });
+});
+
 describe("normalizeLineSearch", () => {
   it("filters to bus routes only from TfL search response", () => {
     const results = normalizeLineSearch({
@@ -314,6 +351,24 @@ describe("normalizeStopSearch", () => {
       routesServed: ["37", "337"],
     });
   });
+
+  it("excludes transport hub matches from bus stop search", () => {
+    const results = normalizeStopSearch([
+      {
+        id: "HUBCLJ",
+        name: "Clapham Junction",
+        modes: ["bus", "overground", "national-rail"],
+      },
+      {
+        id: "490000050D",
+        name: "Clapham Common Station",
+        modes: ["bus"],
+      },
+    ]);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.stopPointId).toBe("490000050D");
+  });
 });
 
 describe("normalizeNearbyStops", () => {
@@ -353,12 +408,31 @@ describe("normalizeNearbyStops", () => {
       {
         stopPointId: "490000050G",
         name: "Clapham Common Station",
-        stopLetter: "Stop G",
+        stopLetter: "G",
         towards: undefined,
         modes: ["bus"],
         routesServed: ["37"],
         distanceMetres: 120,
       },
     ]);
+  });
+
+  it("derives stop letters from NaPTAN ids when TfL omits indicator data", () => {
+    const results = normalizeStopSearch([
+      {
+        id: "4900000050D",
+        name: "Clapham Common Station",
+        modes: ["bus"],
+        lines: ["37", "345"],
+      },
+      {
+        id: "4900000050E",
+        name: "Clapham Common Station",
+        modes: ["bus"],
+        lines: ["49"],
+      },
+    ]);
+
+    expect(results.map((stop) => stop.stopLetter)).toEqual(["D", "E"]);
   });
 });

@@ -1,5 +1,7 @@
 import { extractVehicleRegistration } from "@/lib/vehicles/registration";
 import { extractVehicleFleetReference } from "@/lib/vehicles/lookupKey";
+import { isBusModePrediction, isTfLBusStopCandidate } from "@/lib/busStops";
+import { normalizeStopLetterDisplay } from "@/lib/stopDisplay";
 import type {
   LineSearchResult,
   NearbyStopResult,
@@ -146,6 +148,12 @@ export function normalizePredictions(
     baseVersion: prediction.baseVersion,
     currentLocation: prediction.currentLocation,
   }));
+}
+
+export function normalizeBusPredictions(
+  predictions: TflPrediction[],
+): NormalizedVehiclePrediction[] {
+  return normalizePredictions(predictions.filter(isBusModePrediction));
 }
 
 export function groupPredictionsByVehicle(
@@ -315,6 +323,7 @@ interface RawStopSearchItem {
   stopLetter?: string;
   towards?: string;
   modes?: string[];
+  stopType?: string;
   lines?: Array<string | { id?: string; name?: string }>;
   distance?: number;
 }
@@ -347,10 +356,15 @@ function extractRoutesServed(lines: RawStopSearchItem["lines"]): string[] {
 }
 
 function normalizeStopSearchItem(stop: RawStopSearchItem): StopSearchResult {
+  const stopPointId = stop.id ?? stop.naptanId ?? "";
+
   return {
-    stopPointId: stop.id ?? stop.naptanId ?? "",
+    stopPointId,
     name: stop.name ?? stop.commonName ?? "Unknown stop",
-    stopLetter: stop.stopLetter ?? stop.indicator,
+    stopLetter: normalizeStopLetterDisplay(
+      stop.stopLetter ?? stop.indicator,
+      stopPointId,
+    ),
     towards: stop.towards,
     modes: stop.modes ?? [],
     routesServed: extractRoutesServed(stop.lines),
@@ -358,7 +372,7 @@ function normalizeStopSearchItem(stop: RawStopSearchItem): StopSearchResult {
 }
 
 function isBusStop(stop: RawStopSearchItem): boolean {
-  return (stop.modes ?? []).some((mode) => mode.toLowerCase() === "bus");
+  return isTfLBusStopCandidate(stop);
 }
 
 export function normalizeStopSearch(

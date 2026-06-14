@@ -275,8 +275,6 @@ export default function HomePage(): React.ReactElement {
           onClose={() => {
             startTransition(() => setSettingsOpen(false));
           }}
-          favouriteStops={favouriteStops}
-          onClearFavouriteStops={clearFavouriteStops}
         />
       ) : null}
     </div>
