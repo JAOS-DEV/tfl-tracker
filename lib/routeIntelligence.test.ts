@@ -306,4 +306,126 @@ describe("buildRouteIntelligence", () => {
     expect(scheduleGhosts[1]?.scheduledGhostRunningNo).toBe("569");
     expect(withSchedule.dashboardSummary.possibleGhostCount).toBe(2);
   });
+
+  it("keeps live marker timing unknown before compact schedule data is available", () => {
+    const now = new Date("2026-06-12T09:04:00.000Z").getTime();
+    const result = buildRouteIntelligence({
+      routeId: "337",
+      route: sampleRoute,
+      predictions: [
+        {
+          ...basePrediction,
+          tripId: "trip-568",
+          baseVersion: "20260606",
+        },
+      ],
+      layout: LOOP_LAYOUT,
+      dataUpdatedAt: now,
+      now,
+      trackingStates: new Map<string, PredictionTrackingState>(),
+      timetables: {},
+      includeScheduleMatching: true,
+    });
+
+    const liveVehicle = result.vehicles.find(
+      (vehicle) => !vehicle.isScheduledGhostCandidate,
+    );
+    expect(liveVehicle?.scheduleStatus).toBe("unknown");
+    expect(liveVehicle?.adherence).toBe("unknown");
+  });
+
+  it("derives early/late/on-time marker status from compact route schedule without timetable data", () => {
+    const now = new Date("2026-06-12T09:04:00.000Z").getTime();
+    const result = buildRouteIntelligence({
+      routeId: "337",
+      route: sampleRoute,
+      predictions: [
+        {
+          ...basePrediction,
+          tripId: "trip-568",
+          baseVersion: "20260606",
+          expectedArrival: "2026-06-12T09:05:00.000Z",
+        },
+      ],
+      layout: LOOP_LAYOUT,
+      dataUpdatedAt: now,
+      now,
+      trackingStates: new Map<string, PredictionTrackingState>(),
+      timetables: {},
+      includeScheduleMatching: true,
+      showScheduleGhosts: false,
+      liveBaseVersion: "20260606",
+      routeSchedule: {
+        baseVersion: "20260606",
+        routeId: "337",
+        generatedAt: "2026-06-13T00:00:00.000Z",
+        journeys: [
+          {
+            tripId: "trip-568",
+            operatorCode: "CX",
+            blockNo: "123568",
+            blockIdx: "",
+            runningNo: "568",
+            garageNo: "123",
+            direction: "1",
+            destination: "towards Stop B",
+            patternIdx: "10",
+            startTime: "10:00",
+            startSeconds: 36_000,
+            endSeconds: 36_900,
+            journeyType: 1,
+            serviceDays: [5],
+            stops: [
+              {
+                sequence: 1,
+                stopName: "Stop A",
+                stopCode: "A1",
+                naptanId: "490000001A",
+                scheduledTime: "10:00",
+                scheduledSeconds: 36_000,
+              },
+              {
+                sequence: 2,
+                stopName: "Stop B",
+                stopCode: "B1",
+                naptanId: "490000002B",
+                scheduledTime: "10:10",
+                scheduledSeconds: 36_600,
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const liveVehicle = result.vehicles.find(
+      (vehicle) => !vehicle.isScheduledGhostCandidate,
+    );
+    expect(liveVehicle?.scheduleStatus).toBe("late");
+    expect(liveVehicle?.adherence).toBe("late");
+    expect(liveVehicle?.scheduleDeviationMinutes).toBeGreaterThanOrEqual(2);
+  });
+
+  it("does not compute schedule timing for collapsed routes", () => {
+    const now = Date.now();
+    const result = buildRouteIntelligence({
+      routeId: "337",
+      route: sampleRoute,
+      predictions: [basePrediction],
+      layout: LOOP_LAYOUT,
+      dataUpdatedAt: now,
+      now,
+      trackingStates: new Map<string, PredictionTrackingState>(),
+      includeScheduleMatching: false,
+      routeSchedule: {
+        baseVersion: "20260606",
+        routeId: "337",
+        generatedAt: "2026-06-13T00:00:00.000Z",
+        journeys: [],
+      },
+    });
+
+    expect(result.vehicles[0]?.adherence).toBe("unknown");
+    expect(result.vehicles[0]?.scheduleStatus).toBe("unknown");
+  });
 });

@@ -297,6 +297,11 @@ export function useSmoothBusMarkers(
       }
     };
 
+    if (!options.smoothBusMovementEnabled) {
+      publishDisplay();
+      return undefined;
+    }
+
     if (animations.size > 0) {
       const activeFrame = frameRef.current;
       if (activeFrame !== null) {

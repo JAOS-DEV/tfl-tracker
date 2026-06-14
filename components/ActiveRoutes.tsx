@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { RouteCard } from "@/components/RouteCard";
 import { MultiRouteDashboard } from "@/components/MultiRouteDashboard";
 import type { DisplaySettings } from "@/lib/displaySettings";
@@ -27,7 +27,7 @@ interface ActiveRoutesProps {
   onAlertPreferencesChange: (preferences: RouteAlertPreferences) => void;
 }
 
-export function ActiveRoutes({
+export const ActiveRoutes = memo(function ActiveRoutes({
   activeRoutes,
   favouriteRoutes,
   alertPreferences,
@@ -50,35 +50,29 @@ export function ActiveRoutes({
   );
 
   const allRoutesExpanded = areAllRoutesExpanded(expandedByRouteId, routeIds);
-  const anyRouteExpanded = routeIds.some((routeId, index) =>
-    isRouteExpanded(
-      expandedByRouteId,
-      routeId,
-      index,
-      activeRoutes.length,
-    ),
+  const handleRemove = useCallback(
+    (routeId: string) => {
+      onActiveRoutesChange(
+        activeRoutes.filter((route) => route.routeId !== routeId),
+      );
+    },
+    [activeRoutes, onActiveRoutesChange],
   );
 
-  const handleRemove = (routeId: string) => {
-    onActiveRoutesChange(
-      activeRoutes.filter((route) => route.routeId !== routeId),
-    );
-  };
-
-  const handleClearAll = () => {
+  const handleClearAll = useCallback(() => {
     onActiveRoutesChange([]);
-  };
+  }, [onActiveRoutesChange]);
 
-  const handleToggleAllExpanded = () => {
+  const handleToggleAllExpanded = useCallback(() => {
     setExpansionOverrides(setAllRoutesExpanded(routeIds, !allRoutesExpanded));
-  };
+  }, [allRoutesExpanded, routeIds]);
 
-  const handleRouteExpandedChange = (routeId: string, expanded: boolean) => {
+  const handleRouteExpandedChange = useCallback((routeId: string, expanded: boolean) => {
     setExpansionOverrides((current) => ({
       ...current,
       [routeId]: expanded,
     }));
-  };
+  }, []);
 
   if (activeRoutes.length === 0) {
     return (
@@ -100,7 +94,6 @@ export function ActiveRoutes({
         activeRoutes={activeRoutes}
         alertPreferences={alertPreferences}
         displaySettings={displaySettings}
-        anyRouteExpanded={anyRouteExpanded}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -144,12 +137,10 @@ export function ActiveRoutes({
               index,
               activeRoutes.length,
             )}
-            onExpandedChange={(expanded) =>
-              handleRouteExpandedChange(route.routeId, expanded)
-            }
+            onExpandedChange={handleRouteExpandedChange}
           />
         ))}
       </div>
     </section>
   );
-}
+});

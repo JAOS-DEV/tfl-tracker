@@ -268,7 +268,7 @@ export function buildVehiclePositions(
       x: coordinates.x,
       y: coordinates.y,
       matched: estimate.matched,
-      adherence: "onTime",
+      adherence: "unknown",
       scheduleDeviationMinutes: null,
       scheduleStatus: "unknown",
       scheduleStatusLabel: "Schedule ?",

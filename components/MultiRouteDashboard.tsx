@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useCallback } from "react";
 import { ActiveRouteComparison } from "@/components/ActiveRouteComparison";
 import { MultiRouteHistoryComparison } from "@/components/MultiRouteHistoryComparison";
 import { StatusPill } from "@/components/StatusPill";
@@ -58,7 +59,7 @@ interface DashboardRouteItemProps {
   onSelect: (routeId: string) => void;
 }
 
-function DashboardRouteItem({
+const DashboardRouteItem = memo(function DashboardRouteItem({
   route,
   intelligence,
   alertPreferences,
@@ -157,40 +158,38 @@ function DashboardRouteItem({
       ) : null}
     </button>
   );
-}
+});
 
 interface MultiRouteDashboardProps {
   activeRoutes: ActiveRoute[];
   alertPreferences: Record<string, RouteAlertPreferences>;
   displaySettings: DisplaySettings;
-  anyRouteExpanded: boolean;
 }
 
 export function MultiRouteDashboard({
   activeRoutes,
   alertPreferences,
   displaySettings,
-  anyRouteExpanded,
 }: MultiRouteDashboardProps): React.ReactElement | null {
   const showDiagnostics = displaySettings.showAdvancedDiagnostics;
   const routeIntelligences = useActiveRouteIntelligences(activeRoutes, {
-    includeScheduleMatching: anyRouteExpanded,
-    fetchTimetable: anyRouteExpanded,
-    showScheduleGhosts: displaySettings.showScheduleGhosts,
-    includeLowConfidenceScheduleGhosts: showDiagnostics,
+    includeScheduleMatching: false,
+    fetchTimetable: false,
+    showScheduleGhosts: false,
+    includeLowConfidenceScheduleGhosts: false,
+    enrichLiveIbusDetails: false,
   });
   const summaries = routeIntelligences
     .map((entry) => entry.intelligence?.dashboardSummary)
     .filter((summary): summary is RouteDashboardSummary => summary !== undefined);
+  const handleSelect = useCallback((routeId: string) => {
+    const element = document.getElementById(`route-card-${routeId}`);
+    element?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   if (activeRoutes.length < 2) {
     return null;
   }
-
-  const handleSelect = (routeId: string) => {
-    const element = document.getElementById(`route-card-${routeId}`);
-    element?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
 
   return (
     <div className="space-y-3">

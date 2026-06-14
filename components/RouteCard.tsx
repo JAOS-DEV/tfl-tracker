@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { memo, useCallback, useMemo, useState, type KeyboardEvent } from "react";
 import { BusDetailsModal } from "@/components/BusDetailsModal";
 import { DirectionSegmentedControl } from "@/components/DirectionSegmentedControl";
 import { ErrorState } from "@/components/ErrorState";
@@ -65,12 +65,12 @@ interface RouteCardProps {
   alertPreferences?: RouteAlertPreferences;
   onAlertPreferencesChange: (preferences: RouteAlertPreferences) => void;
   isExpanded: boolean;
-  onExpandedChange: (expanded: boolean) => void;
+  onExpandedChange: (routeId: string, expanded: boolean) => void;
 }
 
 type SheetType = "service" | "history" | "alerts" | "routeInfo" | null;
 
-export function RouteCard({
+export const RouteCard = memo(function RouteCard({
   activeRoute,
   allActiveRoutes,
   displaySettings,
@@ -102,10 +102,12 @@ export function RouteCard({
     isCheckingSchedule,
   } = useRouteIntelligence(activeRoute.routeId, {
     includeScheduleMatching: isExpanded,
-    fetchTimetable: isExpanded,
+    fetchTimetable: false,
     showScheduleGhosts: displaySettings.showScheduleGhosts,
     includeLowConfidenceScheduleGhosts:
       displaySettings.showAdvancedDiagnostics,
+    enrichLiveIbusDetails:
+      isExpanded || displaySettings.showAdvancedDiagnostics,
   });
   const statusQuery = useLineStatus(activeRoute.routeId, isExpanded);
   const routeStopIds = useMemo(() => {
@@ -147,7 +149,7 @@ export function RouteCard({
     activeRoute.routeId,
     vehicles,
     {
-      smoothBusMovementEnabled: displaySettings.smoothBusMovement,
+      smoothBusMovementEnabled: isExpanded && displaySettings.smoothBusMovement,
       prefersReducedMotion,
     },
   );
@@ -213,19 +215,36 @@ export function RouteCard({
       ? `${dailyStats.snapshotCount} today`
       : undefined;
 
+  const activeRouteIds = useMemo(
+    () => allActiveRoutes.map((item) => item.routeId),
+    [allActiveRoutes],
+  );
   const shareUrl =
     typeof window !== "undefined"
       ? new URL(
           buildRoutesSearchUrl(
-            allActiveRoutes.map((item) => item.routeId),
+            activeRouteIds,
             visualMode,
           ),
           window.location.origin,
         ).toString()
       : buildRoutesSearchUrl(
-          allActiveRoutes.map((item) => item.routeId),
+          activeRouteIds,
           visualMode,
         );
+
+  const loopLabelSettings = useMemo(
+    () => ({
+      showRegistration: displaySettings.showBusRegistrationOnLoop,
+      showFleetNumber: displaySettings.showBusFleetNumberOnLoop,
+      showRunningNumber: displaySettings.showBusRunningNumberOnLoop,
+    }),
+    [
+      displaySettings.showBusFleetNumberOnLoop,
+      displaySettings.showBusRegistrationOnLoop,
+      displaySettings.showBusRunningNumberOnLoop,
+    ],
+  );
 
   const handleShare = async () => {
     try {
@@ -234,6 +253,17 @@ export function RouteCard({
       window.prompt("Copy this link:", shareUrl);
     }
   };
+
+  const handleHeaderActivate = useCallback(() => {
+    onExpandedChange(activeRoute.routeId, !isExpanded);
+  }, [activeRoute.routeId, isExpanded, onExpandedChange]);
+
+  const handleHeaderKeyDown = useCallback((event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onExpandedChange(activeRoute.routeId, !isExpanded);
+    }
+  }, [activeRoute.routeId, isExpanded, onExpandedChange]);
 
   if (sequenceQuery.isLoading) {
     return <RouteCardSkeleton />;
@@ -273,22 +303,11 @@ export function RouteCard({
   const showHistoryInline = displaySettings.showHistoryInline;
   const showServiceInline = displaySettings.showServiceDetailsInline;
 
-  const handleHeaderActivate = () => {
-    onExpandedChange(!isExpanded);
-  };
-
-  const handleHeaderKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      onExpandedChange(!isExpanded);
-    }
-  };
-
   return (
     <>
       <article
         id={`route-card-${activeRoute.routeId}`}
-        className="min-w-0 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+        className="min-h-[220px] min-w-0 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
       >
         <header
           className="sticky top-0 z-20 cursor-pointer border-b border-zinc-200 bg-white/95 px-4 py-4 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95"
@@ -340,7 +359,9 @@ export function RouteCard({
             <div onClick={(event) => event.stopPropagation()}>
               <RouteCardMoreMenu
                 isExpanded={isExpanded}
-                onToggleExpanded={() => onExpandedChange(!isExpanded)}
+                onToggleExpanded={() =>
+                  onExpandedChange(activeRoute.routeId, !isExpanded)
+                }
               isFavourite={isFavourite}
               onToggleFavourite={() =>
                 onToggleFavourite({
@@ -431,11 +452,7 @@ export function RouteCard({
                   scheduleGhostDiagnostics={intelligence?.scheduleGhostDiagnostics}
                   ghostComparisonSummary={intelligence?.ghostComparisonSummary}
                   ghostRunDiagnostics={intelligence?.ghostRunDiagnostics}
-                  loopLabelSettings={{
-                    showRegistration: displaySettings.showBusRegistrationOnLoop,
-                    showFleetNumber: displaySettings.showBusFleetNumberOnLoop,
-                    showRunningNumber: displaySettings.showBusRunningNumberOnLoop,
-                  }}
+                  loopLabelSettings={loopLabelSettings}
                   stopDisruptionsByNaptanId={stopDisruptionsByNaptanId}
                   onStopSelect={setSelectedStop}
                   onBusSelect={setSelectedVehicle}
@@ -595,7 +612,7 @@ export function RouteCard({
             ? stopDisruptionsByNaptanId.get(selectedStop.naptanId)
             : undefined
         }
-        activeRouteIds={allActiveRoutes.map((item) => item.routeId)}
+        activeRouteIds={activeRouteIds}
         highlightRouteId={activeRoute.routeId}
         vehicles={vehicles}
         onClose={() => setSelectedStop(null)}
@@ -613,4 +630,4 @@ export function RouteCard({
       />
     </>
   );
-}
+});

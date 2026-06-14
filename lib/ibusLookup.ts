@@ -24,7 +24,9 @@ const runningShardCache = new Map<string, Promise<Record<string, IbusRunningReco
 
 async function fetchJson<T>(url: string): Promise<T | null> {
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      cache: url.includes("/data/ibus/current.json") ? "default" : "force-cache",
+    });
     if (!response.ok) {
       return null;
     }

@@ -6,6 +6,10 @@ import { appendScheduledGhostVehicles } from "@/lib/scheduledGhostVehicles";
 import { resolvePredictionConfidence } from "@/lib/predictionTracking";
 import { buildVehiclePositions } from "@/lib/routePositioning";
 import { matchVehicleToSchedule } from "@/lib/scheduleDeviation";
+import {
+  matchVehiclesToIbusRouteSchedule,
+  resolveAdherenceFromScheduleStatus,
+} from "@/lib/ibusScheduleDeviation";
 import { buildServiceHealthMetrics } from "@/lib/serviceIntelligence";
 import { attachTerminusLayoverState } from "@/lib/terminusLayover";
 import type { IbusRouteSchedule } from "@/lib/ibus/scheduleTypes";
@@ -67,6 +71,44 @@ export function toRouteDashboardSummary(
   };
 }
 
+function timetablesAvailable(
+  timetables?: Partial<Record<RouteDirection, NormalizedTimetable | null>>,
+): boolean {
+  return Boolean(
+    timetables?.outbound?.available || timetables?.inbound?.available,
+  );
+}
+
+function attachScheduleTiming(
+  positions: EstimatedVehiclePosition[],
+  input: BuildRouteIntelligenceInput,
+): EstimatedVehiclePosition[] {
+  if (input.includeScheduleMatching === false) {
+    return positions;
+  }
+
+  if (timetablesAvailable(input.timetables)) {
+    return matchVehicleToSchedule(
+      positions,
+      input.timetables ?? {},
+      input.predictions,
+      input.route,
+    );
+  }
+
+  if (input.routeSchedule) {
+    return matchVehiclesToIbusRouteSchedule(
+      positions,
+      input.routeSchedule,
+      input.route,
+      input.now,
+      input.liveBaseVersion,
+    );
+  }
+
+  return positions;
+}
+
 function attachLiveIbusRunningDetails(
   vehicles: EstimatedVehiclePosition[],
   details: Map<string, LiveIbusRunningDetail> | undefined,
@@ -122,12 +164,7 @@ function attachPredictionAndGhostState(
       missedRefreshCount: ghost.missedRefreshCount,
       reappearedAt: ghost.reappearedAt,
       isSuspectedGhost: ghost.isSuspectedGhost,
-      adherence:
-        vehicle.scheduleStatus === "late"
-          ? "late"
-          : vehicle.scheduleStatus === "early"
-            ? "early"
-            : "onTime",
+      adherence: resolveAdherenceFromScheduleStatus(vehicle.scheduleStatus),
     };
   });
 }
@@ -162,14 +199,7 @@ export function buildRouteIntelligence(
     });
   }
 
-  const withSchedule = input.includeScheduleMatching === false
-    ? positions
-    : matchVehicleToSchedule(
-        positions,
-        input.timetables ?? {},
-        input.predictions,
-        input.route,
-      );
+  const withSchedule = attachScheduleTiming(positions, input);
 
   const withGhosts = appendTrackedGhostVehicles(
     withSchedule,

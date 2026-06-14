@@ -44,6 +44,8 @@ const adherenceRingClasses = {
   late: "fill-red-500/25 stroke-red-500 dark:fill-red-400/30 dark:stroke-red-400",
   early:
     "fill-amber-400/30 stroke-amber-500 dark:fill-amber-300/30 dark:stroke-amber-300",
+  unknown:
+    "fill-sky-500/20 stroke-sky-500 dark:fill-sky-400/20 dark:stroke-sky-400",
 } as const;
 
 const terminusRingClass =

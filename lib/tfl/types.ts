@@ -166,7 +166,7 @@ export interface LoopStopsLayout {
   inbound: LoopStopNode[];
 }
 
-export type ScheduleAdherence = "onTime" | "late" | "early";
+export type ScheduleAdherence = "onTime" | "late" | "early" | "unknown";
 export type ScheduleStatus = "early" | "onTime" | "late" | "unknown";
 export type ScheduleMatchConfidence = "high" | "medium" | "low" | "unknown";
 export type GhostStatus =

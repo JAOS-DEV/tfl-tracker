@@ -243,4 +243,70 @@ describe("resolveLiveRunningDetailsForPredictions", () => {
       fleetNo: "WHV142",
     });
   });
+
+  it("reuses the same running shard promise for duplicate concurrent lookups", async () => {
+    clearIbusLookupCache();
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith("/data/ibus/current.json")) {
+        return {
+          ok: true,
+          json: async () => ({
+            baseVersion: "20260606",
+            vehicleLookupPath: "/data/ibus/20260606/vehicle-lookup.json",
+            garageLookupPath: "/data/ibus/20260606/garage-lookup.json",
+            runningShardPathTemplate:
+              "/data/ibus/20260606/running-shards/{shard}.json",
+          }),
+        };
+      }
+
+      if (url.endsWith("/data/ibus/20260606/vehicle-lookup.json")) {
+        return {
+          ok: true,
+          json: async () => ({}),
+        };
+      }
+
+      if (url.endsWith("/data/ibus/20260606/running-shards/222.json")) {
+        return {
+          ok: true,
+          json: async () => ({
+            "20260606:527326": {
+              runningNo: "94",
+              blockNo: "35094",
+              blockIdx: "23224",
+              garageNo: "350",
+              operatorCode: "LG",
+              source: "tfl-ibus-static",
+            },
+          }),
+        };
+      }
+
+      return { ok: false };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await Promise.all([
+      resolveLiveRunningDetailsForPredictions([
+        {
+          vehicleId: "BUS1",
+          tripId: "527326",
+          baseVersion: "20260606",
+        },
+      ]),
+      resolveLiveRunningDetailsForPredictions([
+        {
+          vehicleId: "BUS2",
+          tripId: "527326",
+          baseVersion: "20260606",
+        },
+      ]),
+    ]);
+
+    const shardCalls = fetchMock.mock.calls.filter((call) =>
+      String(call[0]).endsWith("/data/ibus/20260606/running-shards/222.json"),
+    );
+    expect(shardCalls).toHaveLength(1);
+  });
 });
