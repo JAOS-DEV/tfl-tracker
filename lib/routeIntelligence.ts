@@ -10,6 +10,7 @@ import {
   matchVehiclesToIbusRouteSchedule,
   resolveAdherenceFromScheduleStatus,
 } from "@/lib/ibusScheduleDeviation";
+import { buildVehicleRegistrationDiagnostics } from "@/lib/vehicleRegistrationDiagnostics";
 import { buildServiceHealthMetrics } from "@/lib/serviceIntelligence";
 import { attachTerminusLayoverState } from "@/lib/terminusLayover";
 import type { IbusRouteSchedule } from "@/lib/ibus/scheduleTypes";
@@ -43,6 +44,9 @@ export interface BuildRouteIntelligenceInput {
   collectScheduleGhostDiagnostics?: boolean;
   debugScheduleRunningNo?: string;
   debugScheduleRunningNos?: string[];
+  collectRegistrationDiagnostics?: boolean;
+  showRegistrationEnabled?: boolean;
+  enrichmentLoaded?: boolean;
 }
 
 export function toRouteDashboardSummary(
@@ -128,6 +132,15 @@ function attachLiveIbusRunningDetails(
       ...(detail.runningNo ? { ibusRunningNo: detail.runningNo } : {}),
       ...(detail.blockNo ? { ibusBlockNo: detail.blockNo } : {}),
       ...(detail.fleetNo ? { ibusFleetNo: detail.fleetNo } : {}),
+      ...(detail.registration && !vehicle.vehicleRegistration
+        ? {
+            vehicleRegistration: detail.registration,
+            vehicleRegistrationSource: detail.registrationSource,
+          }
+        : {}),
+      ...(vehicle.vehicleRegistration && !vehicle.vehicleRegistrationSource
+        ? { vehicleRegistrationSource: "live-tfl-prediction" as const }
+        : {}),
     };
   });
 }
@@ -243,6 +256,16 @@ export function buildRouteIntelligence(
     trackingStates: input.trackingStates,
   });
 
+  const registrationDiagnostics = input.collectRegistrationDiagnostics
+    ? buildVehicleRegistrationDiagnostics({
+        routeId: input.routeId,
+        vehicles,
+        showRegistrationEnabled: input.showRegistrationEnabled ?? true,
+        enrichmentLoaded: input.enrichmentLoaded ?? Boolean(input.liveIbusRunningDetails),
+        liveDetails: input.liveIbusRunningDetails,
+      })
+    : undefined;
+
   return {
     vehicles,
     metrics,
@@ -253,5 +276,6 @@ export function buildRouteIntelligence(
         : undefined,
     ghostComparisonSummary: scheduledGhostResult.ghostComparisonSummary,
     ghostRunDiagnostics: scheduledGhostResult.ghostRunDiagnostics,
+    registrationDiagnostics,
   };
 }

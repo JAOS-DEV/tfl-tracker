@@ -69,6 +69,24 @@ describe("buildLoopMarkerLabels", () => {
     expect(labels).toEqual([{ key: "registration", text: "Reg: LV24EWY" }]);
   });
 
+  it("shows reverse-lookup registration on loop labels", () => {
+    const labels = buildLoopMarkerLabels(
+      vehicle({
+        vehicleRegistration: "LX75ZGV",
+        vehicleRegistrationSource: "ibus-fleet-reverse-lookup",
+        vehicleFleetReference: "DEL92",
+        ibusFleetNo: "DEL92",
+      }),
+      {
+        showRegistration: true,
+        showFleetNumber: false,
+        showRunningNumber: false,
+      },
+    );
+
+    expect(labels).toEqual([{ key: "registration", text: "Reg: LX75ZGV" }]);
+  });
+
   it("shows fleet and running labels when enabled and available", () => {
     const labels = buildLoopMarkerLabels(
       vehicle({

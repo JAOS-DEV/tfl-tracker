@@ -252,6 +252,9 @@ export function buildVehiclePositions(
     positions.push({
       vehicleId,
       vehicleRegistration: nextPrediction.vehicleRegistration,
+      vehicleRegistrationSource: nextPrediction.vehicleRegistration
+        ? "live-tfl-prediction"
+        : undefined,
       vehicleFleetReference: nextPrediction.vehicleFleetReference,
       tripId: nextPrediction.tripId,
       baseVersion: nextPrediction.baseVersion,

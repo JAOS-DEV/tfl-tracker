@@ -21,6 +21,8 @@ export interface UseRouteIntelligenceOptions {
   showScheduleGhosts?: boolean;
   includeLowConfidenceScheduleGhosts?: boolean;
   enrichLiveIbusDetails?: boolean;
+  collectRegistrationDiagnostics?: boolean;
+  showRegistrationEnabled?: boolean;
 }
 
 interface UseRouteIntelligenceResult {
@@ -38,6 +40,8 @@ export interface ResolvedRouteIntelligenceOptions {
   showScheduleGhosts: boolean;
   includeLowConfidenceScheduleGhosts: boolean;
   enrichLiveIbusDetails: boolean;
+  collectRegistrationDiagnostics: boolean;
+  showRegistrationEnabled: boolean;
 }
 
 export function resolveRouteIntelligenceOptions(
@@ -51,6 +55,9 @@ export function resolveRouteIntelligenceOptions(
   const enrichLiveIbusDetails =
     options.enrichLiveIbusDetails ??
     (includeScheduleMatching || includeLowConfidenceScheduleGhosts);
+  const collectRegistrationDiagnostics =
+    options.collectRegistrationDiagnostics ?? false;
+  const showRegistrationEnabled = options.showRegistrationEnabled ?? true;
 
   return {
     includeScheduleMatching,
@@ -58,6 +65,8 @@ export function resolveRouteIntelligenceOptions(
     showScheduleGhosts,
     includeLowConfidenceScheduleGhosts,
     enrichLiveIbusDetails,
+    collectRegistrationDiagnostics,
+    showRegistrationEnabled,
   };
 }
 
@@ -89,6 +98,8 @@ export function useRouteIntelligence(
     showScheduleGhosts,
     includeLowConfidenceScheduleGhosts,
     enrichLiveIbusDetails,
+    collectRegistrationDiagnostics,
+    showRegistrationEnabled,
   } = resolveRouteIntelligenceOptions(options);
   const isMobile = useMediaQuery("(max-width: 640px)");
   const sequenceQuery = useRouteSequence(routeId);
@@ -177,6 +188,9 @@ export function useRouteIntelligence(
         collectScheduleGhostDiagnostics: includeLowConfidenceScheduleGhosts,
         debugScheduleRunningNo: debugScheduleRunningNos[0],
         debugScheduleRunningNos,
+        collectRegistrationDiagnostics,
+        showRegistrationEnabled,
+        enrichmentLoaded: enrichLiveIbusDetails,
       });
     },
     enabled: Boolean(routeId && route),

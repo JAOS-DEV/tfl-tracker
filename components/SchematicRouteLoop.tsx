@@ -2,6 +2,7 @@
 
 import { memo, useMemo } from "react";
 import { GhostComparisonDiagnostics } from "@/components/GhostComparisonDiagnostics";
+import { VehicleRegistrationDiagnostics } from "@/components/VehicleRegistrationDiagnostics";
 import { LoopIntelligenceOverlay } from "@/components/LoopIntelligenceOverlay";
 import type { LoopMarkerLabelSettings } from "@/components/LoopMarkerInfoBadges";
 import { RouteLoopBusMarker } from "@/components/RouteLoopBusMarker";
@@ -31,6 +32,7 @@ import type {
   NormalizedRoute,
   NormalizedStop,
   StopDisruption,
+  VehicleRegistrationDiagnostic,
 } from "@/lib/tfl/types";
 
 interface SchematicRouteLoopProps {
@@ -44,6 +46,7 @@ interface SchematicRouteLoopProps {
   scheduleGhostDiagnostics?: string[];
   ghostComparisonSummary?: GhostComparisonSummary;
   ghostRunDiagnostics?: GhostRunDiagnostics[];
+  registrationDiagnostics?: VehicleRegistrationDiagnostic[];
   onStopSelect: (stop: NormalizedStop) => void;
   onBusSelect: (vehicle: EstimatedVehiclePosition) => void;
   selectedStopId: string | null;
@@ -104,6 +107,7 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
   scheduleGhostDiagnostics,
   ghostComparisonSummary,
   ghostRunDiagnostics,
+  registrationDiagnostics,
   stopDisruptionsByNaptanId,
   onStopSelect,
   onBusSelect,
@@ -203,11 +207,16 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
           </span>
         </div>
         {showAdvancedDiagnostics ? (
-          <GhostComparisonDiagnostics
-            summary={ghostComparisonSummary}
-            runDiagnostics={ghostRunDiagnostics}
-            legacyDiagnostics={scheduleGhostDiagnostics}
-          />
+          <>
+            <GhostComparisonDiagnostics
+              summary={ghostComparisonSummary}
+              runDiagnostics={ghostRunDiagnostics}
+              legacyDiagnostics={scheduleGhostDiagnostics}
+            />
+            <VehicleRegistrationDiagnostics
+              diagnostics={registrationDiagnostics}
+            />
+          </>
         ) : null}
       </div>
 

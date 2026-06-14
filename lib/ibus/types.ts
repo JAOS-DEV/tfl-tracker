@@ -99,6 +99,10 @@ export interface IbusPredictionInput {
 
 export interface IbusDetailsResult {
   registration?: string;
+  registrationSource?:
+    | "live-tfl-prediction"
+    | "ibus-registration-lookup"
+    | "ibus-fleet-reverse-lookup";
   fleetNo?: string;
   bonnetNo?: string;
   runningNo?: string;

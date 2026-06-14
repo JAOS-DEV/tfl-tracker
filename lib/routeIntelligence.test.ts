@@ -428,4 +428,74 @@ describe("buildRouteIntelligence", () => {
     expect(result.vehicles[0]?.adherence).toBe("unknown");
     expect(result.vehicles[0]?.scheduleStatus).toBe("unknown");
   });
+
+  it("attaches live TfL registration from normalized prediction without iBus match", () => {
+    const now = Date.now();
+    const result = buildRouteIntelligence({
+      routeId: "74",
+      route: sampleRoute,
+      predictions: [
+        {
+          ...basePrediction,
+          routeId: "74",
+          routeNumber: "74",
+          vehicleId: "YY66OZO",
+          vehicleRegistration: "YY66OZO",
+        },
+      ],
+      layout: LOOP_LAYOUT,
+      dataUpdatedAt: now,
+      now,
+      trackingStates: new Map<string, PredictionTrackingState>(),
+      includeScheduleMatching: true,
+    });
+
+    expect(result.vehicles[0]?.vehicleRegistration).toBe("YY66OZO");
+    expect(result.vehicles[0]?.vehicleRegistrationSource).toBe(
+      "live-tfl-prediction",
+    );
+  });
+
+  it("attaches reverse-lookup registration from iBus enrichment", () => {
+    const now = Date.now();
+    const liveDetails = new Map([
+      [
+        "DEL92",
+        {
+          runningNo: "61",
+          fleetNo: "DEL92",
+          registration: "LX75ZGV",
+          registrationSource: "ibus-fleet-reverse-lookup" as const,
+          registrationLookupStatus: "matched" as const,
+        },
+      ],
+    ]);
+
+    const result = buildRouteIntelligence({
+      routeId: "22",
+      route: sampleRoute,
+      predictions: [
+        {
+          ...basePrediction,
+          routeId: "22",
+          routeNumber: "22",
+          vehicleId: "DEL92",
+          vehicleFleetReference: "DEL92",
+        },
+      ],
+      layout: LOOP_LAYOUT,
+      dataUpdatedAt: now,
+      now,
+      trackingStates: new Map<string, PredictionTrackingState>(),
+      liveIbusRunningDetails: liveDetails,
+      includeScheduleMatching: true,
+    });
+
+    expect(result.vehicles[0]?.vehicleRegistration).toBe("LX75ZGV");
+    expect(result.vehicles[0]?.vehicleRegistrationSource).toBe(
+      "ibus-fleet-reverse-lookup",
+    );
+    expect(result.vehicles[0]?.ibusRunningNo).toBe("61");
+    expect(result.vehicles[0]?.ibusFleetNo).toBe("DEL92");
+  });
 });

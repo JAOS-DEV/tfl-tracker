@@ -167,6 +167,28 @@ export interface LoopStopsLayout {
 }
 
 export type ScheduleAdherence = "onTime" | "late" | "early" | "unknown";
+
+export type VehicleRegistrationSource =
+  | "live-tfl-prediction"
+  | "ibus-registration-lookup"
+  | "ibus-fleet-reverse-lookup"
+  | "unavailable";
+
+export interface VehicleRegistrationDiagnostic {
+  routeId: string;
+  vehicleId: string;
+  rawTflVehicleId?: string;
+  normalizedRegistration?: string;
+  vehicleFleetReference?: string;
+  ibusFleetNo?: string;
+  ibusRunningNo?: string;
+  ibusBlockNo?: string;
+  operatorCode?: string;
+  ibusLookupStatus: string;
+  registrationSource: VehicleRegistrationSource;
+  missingReason?: string;
+  lookupNote?: string;
+}
 export type ScheduleStatus = "early" | "onTime" | "late" | "unknown";
 export type ScheduleMatchConfidence = "high" | "medium" | "low" | "unknown";
 export type GhostStatus =
@@ -222,6 +244,7 @@ export type MarkerState = "live" | "possible-ghost" | "terminus-layover";
 export interface EstimatedVehiclePosition {
   vehicleId: string;
   vehicleRegistration?: string;
+  vehicleRegistrationSource?: VehicleRegistrationSource;
   vehicleFleetReference?: string;
   ibusRunningNo?: string;
   ibusBlockNo?: string;
@@ -463,4 +486,5 @@ export interface RouteIntelligenceResult {
   scheduleGhostDiagnostics?: string[];
   ghostComparisonSummary?: GhostComparisonSummary;
   ghostRunDiagnostics?: GhostRunDiagnostics[];
+  registrationDiagnostics?: VehicleRegistrationDiagnostic[];
 }

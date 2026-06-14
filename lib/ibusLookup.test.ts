@@ -241,7 +241,168 @@ describe("resolveLiveRunningDetailsForPredictions", () => {
       runningNo: "94",
       blockNo: "35094",
       fleetNo: "WHV142",
+      operatorCode: "LG",
+      registration: "BT66MSU",
+      registrationSource: "live-tfl-prediction",
+      registrationLookupStatus: "matched",
     });
+  });
+
+  it("resolves registration from fleet-only TfL vehicle ids via reverse lookup", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("/data/ibus/current.json")) {
+          return {
+            ok: true,
+            json: async () => ({
+              baseVersion: "20260606",
+              vehicleLookupPath: "/data/ibus/20260606/vehicle-lookup.json",
+              garageLookupPath: "/data/ibus/20260606/garage-lookup.json",
+              runningShardPathTemplate:
+                "/data/ibus/20260606/running-shards/{shard}.json",
+            }),
+          };
+        }
+
+        if (url.endsWith("/data/ibus/20260606/vehicle-lookup.json")) {
+          return {
+            ok: true,
+            json: async () => ({
+              LX75ZGV: {
+                fleetNo: "DEL92",
+                bonnetNo: "DEL92",
+                operatorAgency: "Go-Ahead",
+                baseVersion: "20260606",
+                source: "tfl-ibus-static",
+              },
+            }),
+          };
+        }
+
+        if (url.endsWith("/data/ibus/20260606/running-shards/222.json")) {
+          return {
+            ok: true,
+            json: async () => ({
+              "20260606:527326": {
+                runningNo: "61",
+                blockNo: "22061",
+                blockIdx: "23224",
+                garageNo: "220",
+                operatorCode: "CX",
+                source: "tfl-ibus-static",
+              },
+            }),
+          };
+        }
+
+        return { ok: true, json: async () => ({}) };
+      }),
+    );
+
+    const result = await resolveLiveRunningDetailsForPredictions([
+      {
+        vehicleId: "DEL92",
+        tripId: "527326",
+        baseVersion: "20260606",
+      },
+    ]);
+
+    expect(result.get("DEL92")).toEqual({
+      runningNo: "61",
+      blockNo: "22061",
+      operatorCode: "CX",
+      fleetNo: "DEL92",
+      registration: "LX75ZGV",
+      registrationSource: "ibus-fleet-reverse-lookup",
+      registrationLookupStatus: "matched",
+    });
+  });
+
+  it("keeps live TfL registration when iBus static lookup does not match", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("/data/ibus/current.json")) {
+          return {
+            ok: true,
+            json: async () => ({
+              baseVersion: "20260606",
+              vehicleLookupPath: "/data/ibus/20260606/vehicle-lookup.json",
+              garageLookupPath: "/data/ibus/20260606/garage-lookup.json",
+              runningShardPathTemplate:
+                "/data/ibus/20260606/running-shards/{shard}.json",
+            }),
+          };
+        }
+
+        if (url.endsWith("/data/ibus/20260606/vehicle-lookup.json")) {
+          return {
+            ok: true,
+            json: async () => ({}),
+          };
+        }
+
+        return { ok: true, json: async () => ({}) };
+      }),
+    );
+
+    const result = await resolveLiveRunningDetailsForPredictions([
+      {
+        vehicleId: "LV25XUA",
+        tripId: "527326",
+        baseVersion: "20260606",
+      },
+    ]);
+
+    expect(result.get("LV25XUA")).toEqual({
+      registration: "LV25XUA",
+      registrationSource: "live-tfl-prediction",
+      registrationLookupStatus: "not-found",
+    });
+  });
+
+  it("keeps fleet id and leaves registration unavailable when reverse lookup fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("/data/ibus/current.json")) {
+          return {
+            ok: true,
+            json: async () => ({
+              baseVersion: "20260606",
+              vehicleLookupPath: "/data/ibus/20260606/vehicle-lookup.json",
+              garageLookupPath: "/data/ibus/20260606/garage-lookup.json",
+              runningShardPathTemplate:
+                "/data/ibus/20260606/running-shards/{shard}.json",
+            }),
+          };
+        }
+
+        if (url.endsWith("/data/ibus/20260606/vehicle-lookup.json")) {
+          return {
+            ok: true,
+            json: async () => ({}),
+          };
+        }
+
+        return { ok: true, json: async () => ({}) };
+      }),
+    );
+
+    const result = await resolveLiveRunningDetailsForPredictions([
+      {
+        vehicleId: "DEL99",
+        tripId: "527326",
+        baseVersion: "20260606",
+      },
+    ]);
+
+    expect(result.get("DEL99")).toEqual({
+      fleetNo: "DEL99",
+      registrationLookupStatus: "not-found",
+    });
+    expect(result.get("DEL99")?.registration).toBeUndefined();
   });
 
   it("reuses the same running shard promise for duplicate concurrent lookups", async () => {

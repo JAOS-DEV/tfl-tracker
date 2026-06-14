@@ -1,6 +1,5 @@
 import {
   createRunningLookupKey,
-  normalizeIbusRegistration,
   runningShardForTripId,
 } from "@/lib/ibus/keys";
 import type {
@@ -11,7 +10,14 @@ import type {
   IbusRunningRecord,
   IbusVehicleRecord,
 } from "@/lib/ibus/types";
+import {
+  clearIbusVehicleReverseIndexCache,
+  getCachedIbusVehicleReverseIndex,
+  lookupRegistrationByFleetNumber,
+  lookupVehicleByRegistration,
+} from "@/lib/ibusVehicleLookup";
 import { extractVehicleRegistration } from "@/lib/vehicles/registration";
+import { extractVehicleFleetReference } from "@/lib/vehicles/lookupKey";
 
 const manifestCache = {
   promise: null as Promise<IbusCurrentManifest | null> | null,
@@ -54,6 +60,7 @@ export function clearIbusLookupCache(): void {
   vehicleLookupCache.clear();
   garageLookupCache.clear();
   runningShardCache.clear();
+  clearIbusVehicleReverseIndexCache();
 }
 
 async function loadVehicleLookup(
@@ -107,6 +114,81 @@ export interface LiveIbusRunningDetail {
   runningNo?: string;
   blockNo?: string;
   fleetNo?: string;
+  operatorCode?: string;
+  registration?: string;
+  registrationSource?:
+    | "live-tfl-prediction"
+    | "ibus-registration-lookup"
+    | "ibus-fleet-reverse-lookup";
+  registrationLookupStatus?: "matched" | "ambiguous" | "not-found" | "not-needed";
+}
+
+function enrichRegistrationFromVehicleLookup(
+  prediction: IbusPredictionInput,
+  existing: LiveIbusRunningDetail | undefined,
+  vehicleLookup: Record<string, IbusVehicleRecord>,
+  reverseIndex: ReturnType<typeof getCachedIbusVehicleReverseIndex>,
+): LiveIbusRunningDetail {
+  const vehicleKey = prediction.vehicleId;
+  if (!vehicleKey) {
+    return existing ?? {};
+  }
+
+  const liveRegistration = extractVehicleRegistration(vehicleKey);
+  const fleetReference = extractVehicleFleetReference(vehicleKey);
+  const operatorCode = existing?.operatorCode;
+
+  if (liveRegistration) {
+    const vehicle = lookupVehicleByRegistration(vehicleLookup, liveRegistration);
+    return {
+      ...existing,
+      registration: liveRegistration,
+      registrationSource: "live-tfl-prediction",
+      registrationLookupStatus: vehicle ? "matched" : "not-found",
+      ...(vehicle?.fleetNo ? { fleetNo: vehicle.fleetNo } : {}),
+    };
+  }
+
+  const fleetCandidate =
+    existing?.fleetNo ?? fleetReference ?? vehicleKey.trim().toUpperCase();
+  const reverseLookup = lookupRegistrationByFleetNumber(
+    vehicleLookup,
+    fleetCandidate,
+    operatorCode,
+    reverseIndex,
+  );
+
+  if (reverseLookup.status === "matched" && reverseLookup.registration) {
+    const vehicle = lookupVehicleByRegistration(
+      vehicleLookup,
+      reverseLookup.registration,
+    );
+    return {
+      ...existing,
+      registration: reverseLookup.registration,
+      registrationSource: "ibus-fleet-reverse-lookup",
+      registrationLookupStatus: "matched",
+      fleetNo: vehicle?.fleetNo ?? fleetCandidate,
+    };
+  }
+
+  if (reverseLookup.status === "ambiguous") {
+    return {
+      ...existing,
+      registrationLookupStatus: "ambiguous",
+      ...(fleetReference || existing?.fleetNo
+        ? { fleetNo: existing?.fleetNo ?? fleetReference }
+        : {}),
+    };
+  }
+
+  return {
+    ...existing,
+    registrationLookupStatus: fleetCandidate ? "not-found" : "not-needed",
+    ...(fleetReference || existing?.fleetNo
+      ? { fleetNo: existing?.fleetNo ?? fleetReference }
+      : {}),
+  };
 }
 
 export async function resolveLiveRunningDetailsForPredictions(
@@ -166,6 +248,7 @@ export async function resolveLiveRunningDetailsForPredictions(
       result.set(entry.vehicleKey, {
         runningNo: running.runningNo,
         blockNo: running.blockNo,
+        operatorCode: running.operatorCode ?? undefined,
       });
     }
   }
@@ -175,29 +258,24 @@ export async function resolveLiveRunningDetailsForPredictions(
     return result;
   }
 
+  const reverseIndex = getCachedIbusVehicleReverseIndex(
+    manifest.baseVersion,
+    vehicleLookup,
+  );
+
   for (const prediction of predictions) {
     const vehicleKey = prediction.vehicleId;
     if (!vehicleKey) {
       continue;
     }
 
-    const registration =
-      extractVehicleRegistration(vehicleKey) ??
-      normalizeIbusRegistration(vehicleKey);
-    if (!registration) {
-      continue;
-    }
-
-    const fleetNo = vehicleLookup[registration]?.fleetNo;
-    if (!fleetNo) {
-      continue;
-    }
-
-    const existing = result.get(vehicleKey);
-    result.set(vehicleKey, {
-      ...existing,
-      fleetNo,
-    });
+    const enriched = enrichRegistrationFromVehicleLookup(
+      prediction,
+      result.get(vehicleKey),
+      vehicleLookup,
+      reverseIndex,
+    );
+    result.set(vehicleKey, enriched);
   }
 
   return result;
@@ -217,29 +295,54 @@ export async function getIbusDetailsForPrediction(
       };
     }
 
-    const registration =
-      extractVehicleRegistration(input.vehicleId) ??
-      (input.vehicleId
-        ? normalizeIbusRegistration(input.vehicleId)
-        : undefined);
+    const liveRegistration = extractVehicleRegistration(input.vehicleId);
+    const fleetReference = extractVehicleFleetReference(input.vehicleId);
 
     const result: IbusDetailsResult = {
-      registration,
+      registration: liveRegistration,
+      registrationSource: liveRegistration ? "live-tfl-prediction" : undefined,
       sourceBaseVersion: manifest.baseVersion,
       fleetSource: "none",
       runningNumberSource: "none",
       status: "not-found",
     };
 
-    if (registration) {
-      const vehicleLookup = await loadVehicleLookup(manifest);
-      const vehicle = vehicleLookup?.[registration];
+    const vehicleLookup = await loadVehicleLookup(manifest);
+
+    if (liveRegistration && vehicleLookup) {
+      const vehicle = lookupVehicleByRegistration(vehicleLookup, liveRegistration);
       if (vehicle) {
         result.fleetNo = vehicle.fleetNo;
         result.bonnetNo = vehicle.bonnetNo;
         result.operatorAgency = vehicle.operatorAgency ?? undefined;
         result.fleetSource = "tfl-ibus-static";
         result.status = "partial";
+      }
+    } else if (vehicleLookup && (fleetReference || input.vehicleId)) {
+      const reverseIndex = getCachedIbusVehicleReverseIndex(
+        manifest.baseVersion,
+        vehicleLookup,
+      );
+      const reverseLookup = lookupRegistrationByFleetNumber(
+        vehicleLookup,
+        fleetReference ?? input.vehicleId ?? "",
+        undefined,
+        reverseIndex,
+      );
+      if (reverseLookup.status === "matched" && reverseLookup.registration) {
+        const vehicle = lookupVehicleByRegistration(
+          vehicleLookup,
+          reverseLookup.registration,
+        );
+        result.registration = reverseLookup.registration;
+        result.registrationSource = "ibus-fleet-reverse-lookup";
+        result.fleetNo = vehicle?.fleetNo ?? fleetReference;
+        result.bonnetNo = vehicle?.bonnetNo;
+        result.operatorAgency = vehicle?.operatorAgency ?? undefined;
+        result.fleetSource = "tfl-ibus-static";
+        result.status = "partial";
+      } else if (fleetReference) {
+        result.fleetNo = fleetReference;
       }
     }
 
@@ -273,6 +376,36 @@ export async function getIbusDetailsForPrediction(
     result.operatorCode = running.operatorCode ?? undefined;
     result.runningNumberSource = "tfl-ibus-static";
     result.status = result.fleetSource === "tfl-ibus-static" ? "matched" : "partial";
+
+    if (
+      !result.registration &&
+      vehicleLookup &&
+      (fleetReference || result.fleetNo || input.vehicleId)
+    ) {
+      const reverseIndex = getCachedIbusVehicleReverseIndex(
+        manifest.baseVersion,
+        vehicleLookup,
+      );
+      const reverseLookup = lookupRegistrationByFleetNumber(
+        vehicleLookup,
+        fleetReference ?? result.fleetNo ?? input.vehicleId ?? "",
+        running.operatorCode ?? undefined,
+        reverseIndex,
+      );
+      if (reverseLookup.status === "matched" && reverseLookup.registration) {
+        const vehicle = lookupVehicleByRegistration(
+          vehicleLookup,
+          reverseLookup.registration,
+        );
+        result.registration = reverseLookup.registration;
+        result.registrationSource = "ibus-fleet-reverse-lookup";
+        result.fleetNo = vehicle?.fleetNo ?? result.fleetNo ?? fleetReference;
+        result.bonnetNo = vehicle?.bonnetNo ?? result.bonnetNo;
+        result.operatorAgency = vehicle?.operatorAgency ?? result.operatorAgency;
+        result.fleetSource = "tfl-ibus-static";
+        result.status = "matched";
+      }
+    }
 
     if (running.garageNo) {
       const garageLookup = await loadGarageLookup(manifest);

@@ -380,6 +380,12 @@ export function BusDetailsModal({
                 </dd>
               </div>
             ) : null}
+            {showAdvancedDiagnostics && vehicle.vehicleRegistrationSource ? (
+              <div>
+                <dt className="text-zinc-500">Registration source</dt>
+                <dd className="font-medium">{vehicle.vehicleRegistrationSource}</dd>
+              </div>
+            ) : null}
           </dl>
         </section>
 

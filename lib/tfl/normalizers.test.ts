@@ -99,6 +99,42 @@ describe("normalizePredictions", () => {
     expect(normalized[0]?.vehicleRegistration).toBe("BV66VKT");
   });
 
+  it("extracts route 22 and 74 style registration plates from vehicle ids", () => {
+    const normalized = normalizePredictions([
+      {
+        id: "22-1",
+        lineId: "22",
+        lineName: "22",
+        naptanId: "490000001A",
+        stationName: "Stop A",
+        destinationName: "Putney Bridge",
+        direction: "outbound",
+        timeToStation: 240,
+        expectedArrival: "2026-06-11T12:04:00Z",
+        vehicleId: "LX75ZGV",
+        modeName: "bus",
+        timestamp: "2026-06-11T12:00:00Z",
+      },
+      {
+        id: "74-1",
+        lineId: "74",
+        lineName: "74",
+        naptanId: "490000002B",
+        stationName: "Stop B",
+        destinationName: "Wimbledon",
+        direction: "inbound",
+        timeToStation: 180,
+        expectedArrival: "2026-06-11T12:03:00Z",
+        vehicleId: "YY66OZO",
+        modeName: "bus",
+        timestamp: "2026-06-11T12:00:00Z",
+      },
+    ]);
+
+    expect(normalized[0]?.vehicleRegistration).toBe("LX75ZGV");
+    expect(normalized[1]?.vehicleRegistration).toBe("YY66OZO");
+  });
+
   it("extracts fleet references from operator-style vehicle ids", () => {
     const normalized = normalizePredictions([
       {
@@ -119,6 +155,58 @@ describe("normalizePredictions", () => {
 
     expect(normalized[0]?.vehicleRegistration).toBeUndefined();
     expect(normalized[0]?.vehicleFleetReference).toBe("LTZ1049");
+  });
+
+  it("keeps registration and fleet parsing mutually exclusive for live vehicle ids", () => {
+    const cases = [
+      {
+        vehicleId: "LX75ZGV",
+        registration: "LX75ZGV",
+        fleet: undefined,
+      },
+      {
+        vehicleId: "LV25XUA",
+        registration: "LV25XUA",
+        fleet: undefined,
+      },
+      {
+        vehicleId: "DEL92",
+        registration: undefined,
+        fleet: "DEL92",
+      },
+      {
+        vehicleId: "WHV162",
+        registration: undefined,
+        fleet: "WHV162",
+      },
+      {
+        vehicleId: "3047",
+        registration: undefined,
+        fleet: undefined,
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const [normalized] = normalizePredictions([
+        {
+          id: testCase.vehicleId,
+          lineId: "22",
+          lineName: "22",
+          naptanId: "490000001A",
+          stationName: "Stop A",
+          destinationName: "Putney Bridge",
+          direction: "outbound",
+          timeToStation: 120,
+          expectedArrival: "2026-06-11T12:04:00Z",
+          vehicleId: testCase.vehicleId,
+          modeName: "bus",
+          timestamp: "2026-06-11T12:00:00Z",
+        },
+      ]);
+
+      expect(normalized?.vehicleRegistration).toBe(testCase.registration);
+      expect(normalized?.vehicleFleetReference).toBe(testCase.fleet);
+    }
   });
 
   it("preserves tripId and baseVersion from live predictions", () => {

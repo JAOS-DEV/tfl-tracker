@@ -108,6 +108,8 @@ export const RouteCard = memo(function RouteCard({
       displaySettings.showAdvancedDiagnostics,
     enrichLiveIbusDetails:
       isExpanded || displaySettings.showAdvancedDiagnostics,
+    collectRegistrationDiagnostics: displaySettings.showAdvancedDiagnostics,
+    showRegistrationEnabled: displaySettings.showBusRegistrationOnLoop,
   });
   const statusQuery = useLineStatus(activeRoute.routeId, isExpanded);
   const routeStopIds = useMemo(() => {
@@ -452,6 +454,7 @@ export const RouteCard = memo(function RouteCard({
                   scheduleGhostDiagnostics={intelligence?.scheduleGhostDiagnostics}
                   ghostComparisonSummary={intelligence?.ghostComparisonSummary}
                   ghostRunDiagnostics={intelligence?.ghostRunDiagnostics}
+                  registrationDiagnostics={intelligence?.registrationDiagnostics}
                   loopLabelSettings={loopLabelSettings}
                   stopDisruptionsByNaptanId={stopDisruptionsByNaptanId}
                   onStopSelect={setSelectedStop}
