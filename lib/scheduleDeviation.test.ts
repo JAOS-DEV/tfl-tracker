@@ -4,6 +4,8 @@ import {
   calculateScheduleDeviationMinutes,
   classifyScheduleDeviation,
   findNearestScheduledTime,
+  gateScheduleStatusForConfidence,
+  resolveScheduleMatchConfidence,
   scheduleBadgeLabel,
   scheduleLoopBadgeLabel,
   scheduleStatusLabel,
@@ -89,7 +91,7 @@ describe("schedule deviation helpers", () => {
     expect(scheduleLoopBadgeLabel("late", 4, "medium")).toBe("+4");
   });
 
-  it("builds a high-confidence late match", () => {
+  it("builds a medium-confidence late match for small weak deviations", () => {
     const match = buildVehicleScheduleMatch(
       {
         vehicleId: "V1",
@@ -119,6 +121,80 @@ describe("schedule deviation helpers", () => {
         "2026-06-11T08:05:00.000Z",
       ),
     ).toBe(4);
+  });
+
+  it("keeps weak fallback matches with large lateness unknown", () => {
+    const match = buildVehicleScheduleMatch(
+      {
+        vehicleId: "V1",
+        direction: "outbound",
+        expectedArrival: "2026-06-11T08:40:00.000Z",
+        matched: true,
+        nextStop: {
+          id: "1",
+          name: "Stop B",
+          naptanId: "490000002B",
+          isTimingPoint: false,
+        },
+        destinationName: "Richmond",
+        ghostStatus: "normal",
+      },
+      timetable,
+      2,
+      route,
+    );
+
+    expect(match.deviationMinutes).toBe(35);
+    expect(match.scheduleMatchConfidence).toBe("low");
+    expect(match.scheduleStatus).toBe("unknown");
+    expect(
+      scheduleLoopBadgeLabel(
+        match.scheduleStatus,
+        match.deviationMinutes,
+        match.scheduleMatchConfidence,
+      ),
+    ).toBeNull();
+  });
+
+  it("trusts schedule match confidence by match quality and deviation size", () => {
+    expect(resolveScheduleMatchConfidence("strong", 35)).toBe("medium");
+    expect(resolveScheduleMatchConfidence("strong", 59)).toBe("medium");
+    expect(resolveScheduleMatchConfidence("strong", 61)).toBe("unknown");
+    expect(resolveScheduleMatchConfidence("exact", 61)).toBe("medium");
+    expect(resolveScheduleMatchConfidence("strong", -15)).toBe("medium");
+    expect(resolveScheduleMatchConfidence("strong", -35)).toBe("unknown");
+    expect(resolveScheduleMatchConfidence("weak", 35)).toBe("low");
+    expect(
+      scheduleLoopBadgeLabel("late", 35, resolveScheduleMatchConfidence("strong", 35)),
+    ).toBe("+35");
+    expect(
+      scheduleLoopBadgeLabel(
+        "unknown",
+        35,
+        resolveScheduleMatchConfidence("weak", 35),
+      ),
+    ).toBeNull();
+  });
+
+  it("never presents uncertain matches as on time", () => {
+    expect(
+      gateScheduleStatusForConfidence(
+        "onTime",
+        resolveScheduleMatchConfidence("weak", 0),
+      ),
+    ).toBe("onTime");
+    expect(
+      gateScheduleStatusForConfidence(
+        "onTime",
+        resolveScheduleMatchConfidence("weak", 35),
+      ),
+    ).toBe("unknown");
+    expect(
+      gateScheduleStatusForConfidence(
+        "late",
+        resolveScheduleMatchConfidence("weak", 35),
+      ),
+    ).toBe("unknown");
   });
 
   it("returns unknown when timetable is unavailable", () => {

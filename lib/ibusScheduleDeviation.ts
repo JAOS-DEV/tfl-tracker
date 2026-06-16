@@ -1,4 +1,3 @@
-import { SCHEDULE_DEVIATION_THRESHOLDS } from "@/lib/constants";
 import type {
   IbusRouteSchedule,
   IbusScheduledJourney,
@@ -17,7 +16,10 @@ import {
   buildVehicleScheduleMatch,
   calculateScheduleDeviationMinutes,
   classifyScheduleDeviation,
+  gateScheduleStatusForConfidence,
+  resolveScheduleMatchConfidence,
   scheduleStatusLabel,
+  type ScheduleMatchQuality,
 } from "@/lib/scheduleDeviation";
 import type {
   EstimatedVehiclePosition,
@@ -89,33 +91,26 @@ function findJourneyStopForVehicle(
   );
 }
 
+function matchQualityForReason(
+  reason: LiveScheduleMatchReason,
+): ScheduleMatchQuality {
+  if (reason === "tripId/baseVersion") {
+    return "exact";
+  }
+  if (reason === "runningNo/blockNo" || reason === "same route/runningNo") {
+    return "strong";
+  }
+  return "weak";
+}
+
 function confidenceForMatchReason(
   reason: LiveScheduleMatchReason,
   deviationMinutes: number | null,
 ): ScheduleMatchConfidence {
-  if (deviationMinutes === null) {
-    return "unknown";
-  }
-
-  const absDeviation = Math.abs(deviationMinutes);
-  if (reason === "tripId/baseVersion" || reason === "runningNo/blockNo") {
-    if (absDeviation <= SCHEDULE_DEVIATION_THRESHOLDS.HIGH_CONFIDENCE_MINUTES) {
-      return "high";
-    }
-    if (absDeviation <= SCHEDULE_DEVIATION_THRESHOLDS.MEDIUM_CONFIDENCE_MINUTES) {
-      return "medium";
-    }
-    return "low";
-  }
-
-  if (reason === "same route/runningNo" || reason === "next-stop/time") {
-    if (absDeviation <= SCHEDULE_DEVIATION_THRESHOLDS.MEDIUM_CONFIDENCE_MINUTES) {
-      return "medium";
-    }
-    return "low";
-  }
-
-  return "unknown";
+  return resolveScheduleMatchConfidence(
+    matchQualityForReason(reason),
+    deviationMinutes,
+  );
 }
 
 function findBestMatchingJourney(
@@ -232,10 +227,14 @@ export function buildIbusVehicleScheduleMatch(
     vehicle.expectedArrival,
     scheduledInstant.toISOString(),
   );
-  const scheduleStatus = classifyScheduleDeviation(deviationMinutes);
+  const rawScheduleStatus = classifyScheduleDeviation(deviationMinutes);
   const scheduleMatchConfidence = confidenceForMatchReason(
     match.reason,
     deviationMinutes,
+  );
+  const scheduleStatus = gateScheduleStatusForConfidence(
+    rawScheduleStatus,
+    scheduleMatchConfidence,
   );
 
   return {

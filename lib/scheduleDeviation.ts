@@ -155,33 +155,90 @@ export function scheduleAccessibleLabel(
   return `Bus estimated ${deviationMinutes} minutes late`;
 }
 
+export type ScheduleMatchQuality = "exact" | "strong" | "weak";
+
+function deviationConfidenceTier(
+  absDeviationMinutes: number,
+): ScheduleMatchConfidence {
+  if (
+    absDeviationMinutes <=
+    SCHEDULE_DEVIATION_THRESHOLDS.HIGH_CONFIDENCE_MINUTES
+  ) {
+    return "high";
+  }
+  return "medium";
+}
+
+export function resolveScheduleMatchConfidence(
+  matchQuality: ScheduleMatchQuality,
+  deviationMinutes: number | null,
+): ScheduleMatchConfidence {
+  if (deviationMinutes === null) {
+    return "unknown";
+  }
+
+  const {
+    EARLY_MINUTES,
+    LATE_MINUTES,
+    ON_TIME_MAX_MINUTES,
+    MAX_TRUSTED_STRONG_LATE_MINUTES,
+    MAX_TRUSTED_STRONG_EARLY_MINUTES,
+    MAX_TRUSTED_WEAK_DEVIATION_MINUTES,
+  } = SCHEDULE_DEVIATION_THRESHOLDS;
+
+  if (matchQuality === "exact" || matchQuality === "strong") {
+    if (deviationMinutes >= LATE_MINUTES) {
+      if (deviationMinutes <= MAX_TRUSTED_STRONG_LATE_MINUTES) {
+        return deviationConfidenceTier(deviationMinutes);
+      }
+      if (matchQuality === "exact") {
+        return "medium";
+      }
+      return "unknown";
+    }
+
+    if (deviationMinutes <= EARLY_MINUTES) {
+      const earlyAmount = Math.abs(deviationMinutes);
+      if (earlyAmount <= MAX_TRUSTED_STRONG_EARLY_MINUTES) {
+        return deviationConfidenceTier(earlyAmount);
+      }
+      return "unknown";
+    }
+
+    if (deviationMinutes >= -1 && deviationMinutes <= ON_TIME_MAX_MINUTES) {
+      return "high";
+    }
+
+    return deviationConfidenceTier(Math.abs(deviationMinutes));
+  }
+
+  const absDeviation = Math.abs(deviationMinutes);
+  if (absDeviation <= MAX_TRUSTED_WEAK_DEVIATION_MINUTES) {
+    return deviationConfidenceTier(absDeviation);
+  }
+
+  return "low";
+}
+
+export function gateScheduleStatusForConfidence(
+  scheduleStatus: ScheduleStatus,
+  confidence: ScheduleMatchConfidence,
+): ScheduleStatus {
+  if (confidence === "unknown" || confidence === "low") {
+    return "unknown";
+  }
+  return scheduleStatus;
+}
+
 function resolveConfidence(
   deviationMinutes: number | null,
   matched: boolean,
-  agreeingPredictions: number,
 ): ScheduleMatchConfidence {
   if (!matched || deviationMinutes === null) {
     return "unknown";
   }
 
-  const absDeviation = Math.abs(deviationMinutes);
-
-  if (
-    agreeingPredictions >= 2 &&
-    absDeviation <= SCHEDULE_DEVIATION_THRESHOLDS.HIGH_CONFIDENCE_MINUTES
-  ) {
-    return "high";
-  }
-
-  if (absDeviation <= SCHEDULE_DEVIATION_THRESHOLDS.HIGH_CONFIDENCE_MINUTES) {
-    return "high";
-  }
-
-  if (absDeviation <= SCHEDULE_DEVIATION_THRESHOLDS.MEDIUM_CONFIDENCE_MINUTES) {
-    return "medium";
-  }
-
-  return "low";
+  return resolveScheduleMatchConfidence("weak", deviationMinutes);
 }
 
 function scheduledTimesForStop(
@@ -332,11 +389,11 @@ export function buildVehicleScheduleMatch(
     vehicle.expectedArrival,
     nearest.scheduledArrival,
   );
-  const scheduleStatus = classifyScheduleDeviation(deviationMinutes);
-  const confidence = resolveConfidence(
-    deviationMinutes,
-    vehicle.matched,
-    agreeingPredictions,
+  const rawScheduleStatus = classifyScheduleDeviation(deviationMinutes);
+  const confidence = resolveConfidence(deviationMinutes, vehicle.matched);
+  const scheduleStatus = gateScheduleStatusForConfidence(
+    rawScheduleStatus,
+    confidence,
   );
 
   return {
