@@ -242,6 +242,27 @@ export function SettingsPanel({
               Show extra vehicle identifiers beside bus markers on the loop view.
               Too many labels may clutter small screens.
             </p>
+            <label className="flex min-h-11 items-center justify-between gap-3 text-sm opacity-60">
+              <span>Show timing points (experimental)</span>
+              <input
+                type="checkbox"
+                checked={settings.showTimingPoints}
+                disabled
+                aria-disabled="true"
+                title="No verified timing-point data is imported yet."
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    showTimingPoints: event.target.checked,
+                  }))
+                }
+                className="h-5 w-5"
+              />
+            </label>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Reserved for verified timing-point or QSI imports. Off until a
+              genuine data source is available.
+            </p>
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Service details, history, and alerts are always available from each

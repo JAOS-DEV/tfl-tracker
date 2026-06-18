@@ -214,8 +214,14 @@ export function buildRouteIntelligence(
 
   const withSchedule = attachScheduleTiming(positions, input);
 
-  const withGhosts = appendTrackedGhostVehicles(
+  const withLayover = attachTerminusLayoverState(
     withSchedule,
+    input.route,
+    input.layout,
+  );
+
+  const withGhosts = appendTrackedGhostVehicles(
+    withLayover,
     enrichedTracking,
     input.dataUpdatedAt,
     input.now,
@@ -240,11 +246,7 @@ export function buildRouteIntelligence(
   });
 
   const vehicles = attachPredictionAndGhostState(
-    attachTerminusLayoverState(
-      scheduledGhostResult.vehicles,
-      input.route,
-      input.layout,
-    ),
+    scheduledGhostResult.vehicles,
     enrichedTracking,
     input.dataUpdatedAt,
     input.now,

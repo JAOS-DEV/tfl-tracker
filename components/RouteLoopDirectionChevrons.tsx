@@ -46,9 +46,9 @@ export function RouteLoopDirectionChevrons({
     orientation === "portrait"
       ? Math.abs(legEnd.y - legStart.y)
       : Math.abs(legEnd.x - legStart.x);
-  const count = Math.min(6, Math.max(3, Math.round(legLength / 90)));
+  const count = Math.min(7, Math.max(4, Math.round(legLength / 75)));
   const chevrons: Array<{ x: number; y: number }> = [];
-  const laneOffset = direction === "outbound" ? 22 : -22;
+  const laneOffset = direction === "outbound" ? 24 : -24;
 
   for (let index = 1; index <= count; index += 1) {
     const t = index / (count + 1);
@@ -83,10 +83,10 @@ export function RouteLoopDirectionChevrons({
             point.y,
             legStart,
             legEnd,
-            10,
+            12,
           )}
           className={fillClass}
-          opacity={0.85}
+          opacity={0.95}
         />
       ))}
     </g>

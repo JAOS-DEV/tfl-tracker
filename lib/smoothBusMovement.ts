@@ -182,7 +182,7 @@ export function decideMarkerMovement(
   }
 
   if (vehicle.markerState === "terminus-layover") {
-    return { mode: "snap", reason: "ghost" };
+    return { mode: "hold", reason: "negligible-movement" };
   }
 
   if (isGhostPrediction(vehicle)) {

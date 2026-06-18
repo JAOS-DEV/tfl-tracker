@@ -45,6 +45,7 @@ import {
 import { buildServiceHealthSummary } from "@/lib/serviceHealthSummary";
 import { getDirectionLabel } from "@/lib/routePositioning";
 import { toStopDetailTarget } from "@/lib/stopDetail";
+import { enrichRouteTimingMetadata } from "@/lib/stopTimingMetadata";
 import { buildRoutesSearchUrl } from "@/lib/routeUrl";
 import type {
   ActiveRoute,
@@ -112,15 +113,20 @@ export const RouteCard = memo(function RouteCard({
     showRegistrationEnabled: displaySettings.showBusRegistrationOnLoop,
   });
   const statusQuery = useLineStatus(activeRoute.routeId, isExpanded);
+  const displayRoute = useMemo(
+    () => (route ? enrichRouteTimingMetadata(route) : null),
+    [route],
+  );
+
   const routeStopIds = useMemo(() => {
-    if (!route) {
+    if (!displayRoute) {
       return [];
     }
 
     const seen = new Set<string>();
     const ids: string[] = [];
 
-    for (const stop of [...route.inbound, ...route.outbound]) {
+    for (const stop of [...displayRoute.inbound, ...displayRoute.outbound]) {
       if (seen.has(stop.naptanId)) {
         continue;
       }
@@ -129,7 +135,7 @@ export const RouteCard = memo(function RouteCard({
     }
 
     return ids;
-  }, [route]);
+  }, [displayRoute]);
   const stopDisruptionsQuery = useStopDisruptions(
     isExpanded ? routeStopIds : [],
   );
@@ -296,7 +302,7 @@ export const RouteCard = memo(function RouteCard({
     );
   }
 
-  const listHeaderDestination = getRouteCardHeaderLabel(route, {
+  const listHeaderDestination = getRouteCardHeaderLabel(displayRoute ?? route, {
     visualMode: "list",
     selectedDirection,
     variant: isMobile ? "mobile" : "desktop",
@@ -331,7 +337,7 @@ export const RouteCard = memo(function RouteCard({
             </span>
             <div className="min-w-0 flex-1">
               {visualMode === "loop" ? (
-                <LoopHeaderDestination route={route} />
+                <LoopHeaderDestination route={displayRoute ?? route} />
               ) : (
                 <p className="truncate text-sm font-semibold text-zinc-900 sm:text-base dark:text-zinc-100">
                   {listHeaderDestination}
@@ -446,11 +452,12 @@ export const RouteCard = memo(function RouteCard({
             {visualMode === "loop" ? (
               <div className="loop-diagram-surface">
                 <SchematicRouteLoop
-                  route={route}
+                  route={displayRoute ?? route}
                   vehicles={vehicles}
                   displayPositions={displayPositions}
                   movementDecisions={movementDecisions}
                   showAdvancedDiagnostics={displaySettings.showAdvancedDiagnostics}
+                  showTimingPoints={displaySettings.showTimingPoints}
                   scheduleGhostDiagnostics={intelligence?.scheduleGhostDiagnostics}
                   ghostComparisonSummary={intelligence?.ghostComparisonSummary}
                   ghostRunDiagnostics={intelligence?.ghostRunDiagnostics}
@@ -466,20 +473,23 @@ export const RouteCard = memo(function RouteCard({
             ) : (
               <div className="px-4">
                 <DirectionSegmentedControl
-                  route={route}
+                  route={displayRoute ?? route}
                   selectedDirection={selectedDirection}
                   onChange={setSelectedDirection}
                   variant={isMobile ? "mobile" : "desktop"}
                 />
                 <div className="mt-4">
                   <h3 className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                    {getDirectionLabel(route, selectedDirection)}
+                    {getDirectionLabel(displayRoute ?? route, selectedDirection)}
                   </h3>
                   <RouteDiagram
-                    route={route}
+                    key={`${activeRoute.routeId}-${selectedDirection}`}
+                    route={displayRoute ?? route}
                     direction={selectedDirection}
                     predictions={arrivalsQuery.data?.predictions ?? []}
+                    vehicles={vehicles}
                     stopDisruptionsByNaptanId={stopDisruptionsByNaptanId}
+                    showTimingPoints={displaySettings.showTimingPoints}
                     onStopSelect={setSelectedStop}
                   />
                 </div>
@@ -589,7 +599,7 @@ export const RouteCard = memo(function RouteCard({
                 Outbound
               </p>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                {getDirectionLabel(route, "outbound")}
+                {getDirectionLabel(displayRoute ?? route, "outbound")}
               </p>
             </div>
             <div>
@@ -597,7 +607,7 @@ export const RouteCard = memo(function RouteCard({
                 Inbound
               </p>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                {getDirectionLabel(route, "inbound")}
+                {getDirectionLabel(displayRoute ?? route, "inbound")}
               </p>
             </div>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">

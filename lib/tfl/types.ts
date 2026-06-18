@@ -38,6 +38,11 @@ export interface TflRouteSequence {
   outbound: TflStopPoint[];
 }
 
+export type TimingPointSource =
+  | "ibus-timing-point"
+  | "qsi-import"
+  | "manual-static";
+
 export interface NormalizedStop {
   id: string;
   name: string;
@@ -45,6 +50,10 @@ export interface NormalizedStop {
   stopLetter?: string;
   towards?: string;
   isTimingPoint: boolean;
+  /** Reserved for verified QSI imports; never inferred from schedule alone. */
+  isQsiPoint?: boolean;
+  /** Set only when timing/QSI metadata comes from a verified import source. */
+  timingPointSource?: TimingPointSource;
 }
 
 export interface NormalizedRoute {

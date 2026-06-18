@@ -496,6 +496,45 @@ describe("smoothBusMovement", () => {
     ).toEqual({ mode: "snap", reason: "route-changed" });
   });
 
+  it("holds terminus layover markers instead of animating off-route", () => {
+    const decision = decideMarkerMovement(
+      vehicle({
+        vehicleId: "BUS1",
+        progress: 0.48,
+        x: 260,
+        y: 314,
+        markerState: "terminus-layover",
+      }),
+      buildMarkerSnapshot(
+        vehicle({ vehicleId: "BUS1", progress: 0.47, x: 250, y: 300 }),
+        "156",
+      ),
+      "156",
+      { x: 250, y: 300, progress: 0.47 },
+      baseOptions,
+    );
+
+    expect(decision).toEqual({
+      mode: "hold",
+      reason: "negligible-movement",
+    });
+  });
+
+  it("keeps interpolated progress between clamped endpoints at route end", () => {
+    const fromProgress = 0.46;
+    const toProgress = 0.48;
+
+    expect(interpolateMarkerProgress(fromProgress, toProgress, 0.5)).toBeCloseTo(
+      0.47,
+    );
+    expect(interpolateMarkerProgress(fromProgress, toProgress, 1)).toBeCloseTo(
+      toProgress,
+    );
+    expect(
+      interpolateMarkerProgress(fromProgress, toProgress, 1),
+    ).toBeLessThan(0.5);
+  });
+
   it("returns a reason for every decision branch", () => {
     const branches = [
       decideMarkerMovement(vehicle({ vehicleId: "", progress: 0.2, x: 1, y: 1 }), null, "337", null, baseOptions),

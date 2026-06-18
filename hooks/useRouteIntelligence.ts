@@ -11,6 +11,7 @@ import { useRouteTimetable } from "@/hooks/useRouteTimetable";
 import { useRouteSchedule } from "@/hooks/useRouteSchedule";
 import { loadIbusManifestClient } from "@/lib/ibusRouteSchedules";
 import { resolveLiveRunningDetailsForPredictions } from "@/lib/ibusLookup";
+import type { IbusRouteSchedule } from "@/lib/ibus/scheduleTypes";
 import { buildRouteIntelligence } from "@/lib/routeIntelligence";
 import { MAX_ACTIVE_ROUTES, POLL_INTERVAL_MS } from "@/lib/storage";
 import type { ActiveRoute, RouteIntelligenceResult } from "@/lib/tfl/types";
@@ -30,6 +31,7 @@ interface UseRouteIntelligenceResult {
   sequenceQuery: ReturnType<typeof useRouteSequence>;
   arrivalsQuery: ReturnType<typeof useLineArrivals>;
   intelligence: RouteIntelligenceResult | null;
+  routeSchedule: IbusRouteSchedule | undefined;
   now: Date;
   isCheckingSchedule: boolean;
 }
@@ -203,6 +205,9 @@ export function useRouteIntelligence(
     sequenceQuery,
     arrivalsQuery,
     intelligence: intelligenceQuery.data ?? null,
+    routeSchedule: includeScheduleMatching
+      ? (routeScheduleQuery.data ?? undefined)
+      : undefined,
     now: new Date(),
     isCheckingSchedule:
       includeScheduleMatching && routeScheduleQuery.isFetching,

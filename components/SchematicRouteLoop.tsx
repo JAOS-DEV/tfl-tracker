@@ -8,6 +8,7 @@ import type { LoopMarkerLabelSettings } from "@/components/LoopMarkerInfoBadges"
 import { RouteLoopBusMarker } from "@/components/RouteLoopBusMarker";
 import { RouteLoopDirectionChevrons } from "@/components/RouteLoopDirectionChevrons";
 import { RouteLoopDirectionGuide } from "@/components/RouteLoopDirectionGuide";
+import { RouteLoopDirectionLabels } from "@/components/RouteLoopDirectionLabels";
 import { RouteLoopStopNode } from "@/components/RouteLoopStopNode";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import type { DisplayMarkerPosition } from "@/hooks/useSmoothBusMarkers";
@@ -41,6 +42,7 @@ interface SchematicRouteLoopProps {
   displayPositions: Record<string, DisplayMarkerPosition>;
   movementDecisions?: Record<string, SmoothMovementDecision>;
   showAdvancedDiagnostics?: boolean;
+  showTimingPoints?: boolean;
   loopLabelSettings?: LoopMarkerLabelSettings;
   stopDisruptionsByNaptanId?: Map<string, StopDisruption>;
   scheduleGhostDiagnostics?: string[];
@@ -103,6 +105,7 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
   displayPositions,
   movementDecisions,
   showAdvancedDiagnostics = false,
+  showTimingPoints = true,
   loopLabelSettings,
   scheduleGhostDiagnostics,
   ghostComparisonSummary,
@@ -262,6 +265,21 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
             legEnd={legEndpoints.inboundEnd}
           />
 
+          <RouteLoopDirectionLabels
+            route={route}
+            layout={layout}
+            direction="outbound"
+            legStart={legEndpoints.outboundStart}
+            legEnd={legEndpoints.outboundEnd}
+          />
+          <RouteLoopDirectionLabels
+            route={route}
+            layout={layout}
+            direction="inbound"
+            legStart={legEndpoints.inboundStart}
+            legEnd={legEndpoints.inboundEnd}
+          />
+
           <polygon
             points={terminalArrow(layout, "outbound", legEndpoints)}
             className="fill-sky-600 dark:fill-sky-300"
@@ -278,7 +296,7 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
             );
             return (
               <RouteLoopStopNode
-                key={`${node.direction}-${node.stop.naptanId}`}
+                key={`${node.direction}-${node.index}-${node.stop.id}-${node.stop.naptanId}`}
                 node={node}
                 x={x}
                 y={y}
@@ -287,6 +305,9 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
                 isSelected={selectedStopId === node.stop.naptanId}
                 hasNearbyBus={nearbyStopIds.has(node.stop.naptanId)}
                 isClosed={Boolean(stopDisruption)}
+                isTimingPoint={
+                  showTimingPoints && node.stop.isTimingPoint === true
+                }
                 stopDisruption={stopDisruption}
                 onSelect={() => onStopSelect(node.stop)}
               />

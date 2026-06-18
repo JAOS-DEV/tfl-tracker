@@ -50,6 +50,7 @@ function normalizeStop(stop: TflStopPoint): NormalizedStop {
     towards: stop.towards,
     // TODO: mark timing points when TfL sequence metadata exposes them reliably.
     isTimingPoint: false,
+    isQsiPoint: false,
   };
 }
 

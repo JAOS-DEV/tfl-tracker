@@ -135,6 +135,7 @@ Stored in `localStorage` under `tfl-tracker:display-settings`:
 - Smooth bus movement on the loop
 - Show schedule ghosts
 - Show bus registration / fleet / running number on markers
+- Show timing points (schedule-derived; QSI reserved for verified import)
 - Service details and history panels inline
 - **Advanced diagnostics** — extra ghost detail, registration diagnostics, and low-confidence schedule ghosts
 - Global alert defaults (bunching, stale data, late buses, etc.)
@@ -161,10 +162,10 @@ The app uses official TfL iBus exports shipped as **static JSON** in the repo. T
 
 ### What the importer does
 
-1. Fetches [`Base_Version.xml`](https://ibus.data.tfl.gov.uk/Base_Version.xml) for the current base version (e.g. `20260606`).
-2. Downloads matching zip files via direct URLs such as `https://ibus.data.tfl.gov.uk/Base_Version_20260606/Vehicle_20260606.zip`.
+1. Fetches [`Base_Version.xml`](https://ibus.data.tfl.gov.uk/Base_Version.xml) for the current base version (e.g. `{baseVersion}`).
+2. Downloads matching zip files via direct URLs such as `https://ibus.data.tfl.gov.uk/Base_Version_{baseVersion}/Vehicle_{baseVersion}.zip`.
 3. Parses Vehicle, Garage, operator schedule (Journey/Block), and optional per-route compact schedules.
-4. Writes JSON under `public/data/ibus/<baseVersion>/`.
+4. Writes JSON under `public/data/ibus/{baseVersion}/`.
 5. Updates `public/data/ibus/current.json` with the active base version and the list of available route schedule files.
 
 The app reads `current.json` and only fetches a route schedule JSON when you **expand** a route that appears in `routeScheduleRoutes`. It does not load all schedules on page load.
@@ -173,15 +174,15 @@ The app reads `current.json` and only fetches a route schedule JSON when you **e
 
 | Feature | Source |
 | --- | --- |
-| Fleet numbers | `Vehicle_<baseVersion>.zip` → registration → bonnet number |
+| Fleet numbers | `Vehicle_{baseVersion}.zip` → registration → bonnet number |
 | Running / block numbers | Running-number shards keyed by `tripId` (256 shards by `tripId % 256`) |
 | Garage lookup | Garage XML |
-| Early/late/on-time | Compact per-route schedule JSON (`route-schedules/<routeId>.json`) |
+| Early/late/on-time | Compact per-route schedule JSON (`route-schedules/{routeId}.json`) |
 | Schedule ghosts | Same compact schedules + live vehicle matching |
 
 Running numbers are resolved via **tripId + baseVersion** through the journey/block chain — never from tripId alone.
 
-**Bustimes** is an optional server-side fallback for fleet number only when iBus vehicle lookup misses (`/api/vehicles/fleet-fallback`).
+**Bustimes** remains an optional server-side fallback for fleet number only when iBus vehicle lookup misses (`/api/vehicles/fleet-fallback`). It is not used for schedules or running numbers.
 
 ### Import commands
 
@@ -231,7 +232,7 @@ git push
 ```
 
 - `.ibus-cache/` is local only (gitignored) and speeds up repeated imports.
-- Commit `public/data/ibus/current.json` and `public/data/ibus/<baseVersion>/`.
+- Commit `public/data/ibus/current.json` and `public/data/ibus/{baseVersion}/`.
 - Re-run when TfL publishes a new base version.
 
 ## Project structure

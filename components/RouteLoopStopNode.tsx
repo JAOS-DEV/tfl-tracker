@@ -9,6 +9,7 @@ interface RouteLoopStopNodeProps {
   isSelected: boolean;
   hasNearbyBus: boolean;
   isClosed: boolean;
+  isTimingPoint?: boolean;
   stopDisruption?: StopDisruption;
   compact: boolean;
   orientation: LoopOrientation;
@@ -22,6 +23,7 @@ export function RouteLoopStopNode({
   isSelected,
   hasNearbyBus,
   isClosed,
+  isTimingPoint = false,
   stopDisruption,
   compact,
   orientation,
@@ -85,17 +87,21 @@ export function RouteLoopStopNode({
         className={`${
           isClosed
             ? "fill-red-200 dark:fill-red-950/70"
-            : node.isTerminal
-              ? "fill-sky-500"
-              : hasNearbyBus
-                ? "fill-amber-400"
-                : "fill-zinc-400 dark:fill-zinc-500"
+            : isTimingPoint
+              ? "fill-amber-300 dark:fill-amber-600/80"
+              : node.isTerminal
+                ? "fill-sky-500"
+                : hasNearbyBus
+                  ? "fill-amber-400"
+                  : "fill-zinc-400 dark:fill-zinc-500"
         } ${
           isSelected
             ? "stroke-zinc-900 stroke-[3] dark:stroke-white"
             : isClosed
               ? "stroke-red-600 stroke-2 dark:stroke-red-400"
-              : "stroke-zinc-700 stroke-2 dark:stroke-zinc-300"
+              : isTimingPoint
+                ? "stroke-amber-600 stroke-2 dark:stroke-amber-300"
+                : "stroke-zinc-700 stroke-2 dark:stroke-zinc-300"
         }`}
       />
       {isClosed ? (

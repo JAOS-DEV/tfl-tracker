@@ -29,6 +29,7 @@ export interface DisplaySettings {
   showBusRegistrationOnLoop: boolean;
   showBusFleetNumberOnLoop: boolean;
   showBusRunningNumberOnLoop: boolean;
+  showTimingPoints: boolean;
   globalAlertDefaults: GlobalAlertDefaults;
 }
 
@@ -44,6 +45,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showBusRegistrationOnLoop: true,
   showBusFleetNumberOnLoop: true,
   showBusRunningNumberOnLoop: true,
+  showTimingPoints: false,
   globalAlertDefaults: {
     warnBunching: DEFAULT_ROUTE_ALERTS.warnBunching,
     warnNoLiveBuses: DEFAULT_ROUTE_ALERTS.warnNoLiveBuses,
@@ -186,6 +188,10 @@ export function normalizeDisplaySettings(value: unknown): DisplaySettings {
       typeof raw.showBusRunningNumberOnLoop === "boolean"
         ? raw.showBusRunningNumberOnLoop
         : DEFAULT_DISPLAY_SETTINGS.showBusRunningNumberOnLoop,
+    showTimingPoints:
+      typeof raw.showTimingPoints === "boolean"
+        ? raw.showTimingPoints
+        : DEFAULT_DISPLAY_SETTINGS.showTimingPoints,
     globalAlertDefaults: normalizeGlobalAlertDefaults(raw.globalAlertDefaults),
   };
 }

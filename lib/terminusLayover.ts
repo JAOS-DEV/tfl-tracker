@@ -1,6 +1,11 @@
 import { LOOP_EDGE_PADDING } from "@/lib/constants";
 import type { LoopLayoutConfig } from "@/lib/constants";
 import { isPossibleGhostBus } from "@/lib/ghostDisplay";
+import {
+  clampVehicleProgressOnRoute,
+  getDirectionLegProgressBounds,
+  mapProgressToLoopCoordinates,
+} from "@/lib/routePositioning";
 import type {
   EstimatedVehiclePosition,
   MarkerState,
@@ -85,19 +90,7 @@ function getLegProgressBounds(
   direction: EstimatedVehiclePosition["direction"],
   legLength: number,
 ): { min: number; max: number } {
-  if (legLength <= 1) {
-    return direction === "outbound"
-      ? { min: 0.2, max: 0.3 }
-      : { min: 0.7, max: 0.8 };
-  }
-
-  const span = 0.5 - LOOP_EDGE_PADDING * 2;
-  const start =
-    direction === "outbound"
-      ? LOOP_EDGE_PADDING
-      : 0.5 + LOOP_EDGE_PADDING;
-  const end = start + span;
-  return { min: start, max: end };
+  return getDirectionLegProgressBounds(direction, legLength);
 }
 
 export function detectTerminusLayover(
@@ -119,10 +112,13 @@ export function detectTerminusLayover(
     vehicle.stopIndex === 0 || vehicle.stopIndex >= lastIndex;
   const waitingAtStop = vehicle.timeToStation >= TERMINUS_WAIT_SECONDS;
   const { min, max } = getLegProgressBounds(vehicle.direction, leg.length);
-  const nearLegEnd = vehicle.progress >= max - TERMINUS_PROGRESS_TOLERANCE;
   const nearLegStart = vehicle.progress <= min + TERMINUS_PROGRESS_TOLERANCE;
+  const beyondLegEnd = vehicle.progress > max + TERMINUS_PROGRESS_TOLERANCE;
+  const atOrBeyondFinalStop =
+    vehicle.stopIndex >= lastIndex &&
+    (waitingAtStop || beyondLegEnd || vehicle.timeToStation <= 30);
 
-  if (waitingAtStop && atTerminalStop && nearLegEnd) {
+  if (atOrBeyondFinalStop && (waitingAtStop || beyondLegEnd)) {
     return {
       markerState: "terminus-layover",
       terminusLayoverLabel: "At terminus",
@@ -154,9 +150,29 @@ export function attachTerminusLayoverState(
       };
     }
 
-    const layover = detectTerminusLayover(vehicle, route);
+    const clampedProgress = vehicle.matched
+      ? clampVehicleProgressOnRoute(vehicle.progress, vehicle.direction, route)
+      : vehicle.progress;
+    const clampedCoordinates =
+      vehicle.matched && clampedProgress !== vehicle.progress
+        ? mapProgressToLoopCoordinates(clampedProgress, layout)
+        : { x: vehicle.x, y: vehicle.y };
+
+    const normalizedVehicle =
+      clampedProgress === vehicle.progress &&
+      clampedCoordinates.x === vehicle.x &&
+      clampedCoordinates.y === vehicle.y
+        ? vehicle
+        : {
+            ...vehicle,
+            progress: clampedProgress,
+            x: clampedCoordinates.x,
+            y: clampedCoordinates.y,
+          };
+
+    const layover = detectTerminusLayover(normalizedVehicle, route);
     const withState = {
-      ...vehicle,
+      ...normalizedVehicle,
       markerState: layover.markerState,
       terminusLayoverLabel: layover.terminusLayoverLabel,
       terminusLayoverKind: layover.terminusLayoverKind,

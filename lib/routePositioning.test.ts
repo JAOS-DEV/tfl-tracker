@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { getLoopLayout } from "@/lib/constants";
 import { groupPredictionsByVehicle } from "@/lib/tfl/normalizers";
 import {
+  clampProgressToDirectionLeg,
+  getDirectionLegProgressBounds,
   buildLoopPath,
   buildLoopStops,
   buildVehiclePositions,
@@ -119,10 +121,10 @@ describe("estimateVehiclePositionOnRoute", () => {
   it("places inbound buses upstream of the predicted stop while still approaching", () => {
     const inboundPrediction: NormalizedVehiclePrediction = {
       ...samplePrediction,
-      naptanId: "490000005E",
-      stopName: "Stop E",
+      naptanId: "490000004D",
+      stopName: "Stop D",
       direction: "inbound",
-      timeToStation: 180,
+      timeToStation: 240,
     };
 
     const estimate = estimateVehiclePositionOnRoute(
@@ -136,7 +138,10 @@ describe("estimateVehiclePositionOnRoute", () => {
     );
 
     expect(estimate.direction).toBe("inbound");
-    expect(estimate.progress).toBeLessThan(stopProgressAtPrediction);
+    expect(estimate.progress).toBeLessThanOrEqual(stopProgressAtPrediction);
+    expect(estimate.progress).toBeGreaterThanOrEqual(
+      stopProgress("inbound", 0, sampleRoute.inbound.length),
+    );
   });
 
   it("places outbound buses upstream of the predicted stop while still approaching", () => {
@@ -276,6 +281,45 @@ describe("buildLoopPath", () => {
     expect(path).toContain(
       `${endpoints.inboundStart.x} ${endpoints.inboundStart.y} L ${endpoints.inboundEnd.x} ${endpoints.inboundEnd.y}`,
     );
+  });
+});
+
+describe("direction leg progress clamping", () => {
+  it("clamps outbound progress to the outbound leg bounds", () => {
+    const { min, max } = getDirectionLegProgressBounds("outbound", 3);
+    expect(clampProgressToDirectionLeg(0.99, "outbound", 3)).toBeCloseTo(max);
+    expect(clampProgressToDirectionLeg(0.01, "outbound", 3)).toBeCloseTo(min);
+  });
+
+  it("snaps final outbound stop progress to the terminus point", () => {
+    const prediction: NormalizedVehiclePrediction = {
+      ...samplePrediction,
+      naptanId: "490000003C",
+      stopName: "Stop C",
+      timeToStation: 600,
+    };
+
+    const estimate = estimateVehiclePositionOnRoute(prediction, sampleRoute);
+    const terminalProgress = stopProgress("outbound", 2, 3);
+
+    expect(estimate.stopIndex).toBe(2);
+    expect(estimate.progress).toBeCloseTo(terminalProgress);
+    expect(estimate.progress).toBeLessThan(0.5);
+  });
+
+  it("does not let a bus at the final stop drift onto the inbound leg", () => {
+    const prediction: NormalizedVehiclePrediction = {
+      ...samplePrediction,
+      naptanId: "490000003C",
+      stopName: "Stop C",
+      timeToStation: 900,
+    };
+
+    const estimate = estimateVehiclePositionOnRoute(prediction, sampleRoute);
+    const { max } = getDirectionLegProgressBounds("outbound", 3);
+
+    expect(estimate.progress).toBeLessThanOrEqual(max);
+    expect(estimate.progress).toBeLessThan(0.5);
   });
 });
 

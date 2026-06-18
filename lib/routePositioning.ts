@@ -34,6 +34,44 @@ export function stopProgress(
   return 0.5 + LOOP_EDGE_PADDING + ratio * span;
 }
 
+export function getDirectionLegProgressBounds(
+  direction: RouteDirection,
+  stopCount: number,
+): { min: number; max: number } {
+  if (stopCount <= 1) {
+    return direction === "outbound"
+      ? { min: 0.2, max: 0.3 }
+      : { min: 0.7, max: 0.8 };
+  }
+
+  return {
+    min: stopProgress(direction, 0, stopCount),
+    max: stopProgress(direction, stopCount - 1, stopCount),
+  };
+}
+
+export function clampProgressToDirectionLeg(
+  progress: number,
+  direction: RouteDirection,
+  stopCount: number,
+): number {
+  const { min, max } = getDirectionLegProgressBounds(direction, stopCount);
+  return Math.max(min, Math.min(max, progress));
+}
+
+export function clampVehicleProgressOnRoute(
+  progress: number,
+  direction: RouteDirection,
+  route: NormalizedRoute,
+): number {
+  const stopCount =
+    direction === "outbound" ? route.outbound.length : route.inbound.length;
+  if (stopCount === 0) {
+    return Math.max(0, Math.min(1, progress));
+  }
+  return clampProgressToDirectionLeg(progress, direction, stopCount);
+}
+
 export function mapProgressToLoopCoordinates(
   progress: number,
   layout: LoopLayoutConfig = LOOP_LAYOUT,
@@ -223,10 +261,16 @@ export function estimateVehiclePositionOnRoute(
     progress = baseProgress - offsetRatio;
   }
 
+  progress = clampProgressToDirectionLeg(progress, direction, stops.length);
+
+  if (stopIndex >= stops.length - 1) {
+    progress = stopProgress(direction, stopIndex, stops.length);
+  }
+
   return {
     direction,
     stopIndex,
-    progress: Math.max(0.02, Math.min(0.98, progress)),
+    progress,
     nextStop: stops[stopIndex] ?? null,
     matched: true,
   };

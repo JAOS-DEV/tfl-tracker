@@ -5,6 +5,7 @@ import {
   attachTerminusLayoverState,
   detectTerminusLayover,
   getTerminusLayoverDisplayPosition,
+  TERMINUS_LAYOVER_INBOUND_PROGRESS,
 } from "@/lib/terminusLayover";
 import type { EstimatedVehiclePosition, NormalizedRoute } from "@/lib/tfl/types";
 
@@ -160,5 +161,22 @@ describe("terminusLayover", () => {
     expect(position.x).toBeCloseTo(880.8);
     expect(position.y).toBe(260);
     expect(position.progress).toBe(0.25);
+  });
+  it("clamps progress and snaps beyond-final-stop buses to the terminus", () => {
+    const enriched = attachTerminusLayoverState(
+      [
+        vehicle({
+          stopIndex: 2,
+          progress: 0.72,
+          timeToStation: 420,
+        }),
+      ],
+      route,
+      portraitLayout,
+    );
+
+    expect(enriched[0]?.markerState).toBe("terminus-layover");
+    expect(enriched[0]?.progress).toBe(TERMINUS_LAYOVER_INBOUND_PROGRESS);
+    expect(enriched[0]?.y).toBeCloseTo(314.048);
   });
 });
