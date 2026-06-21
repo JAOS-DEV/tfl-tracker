@@ -55,6 +55,9 @@ export interface IbusMultiVersionManifest extends IbusCurrentManifest {
   summaryByBaseVersion?: Record<string, IbusBaseVersionSummary>;
 }
 
+/** Alias for the multi-version manifest at public/data/ibus/current.json */
+export type IbusManifest = IbusMultiVersionManifest;
+
 export interface IbusImportReport {
   baseVersion: string;
   generatedAt: string;
