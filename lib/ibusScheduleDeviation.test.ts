@@ -149,7 +149,6 @@ describe("buildIbusVehicleScheduleMatch", () => {
       routeSchedule,
       route,
       now,
-      "20260606",
     );
 
     expect(match.scheduleStatus).toBe("late");
@@ -165,7 +164,6 @@ describe("buildIbusVehicleScheduleMatch", () => {
       routeSchedule,
       route,
       now,
-      "20260606",
     );
 
     expect(match.scheduleStatus).toBe("early");
@@ -190,7 +188,6 @@ describe("buildIbusVehicleScheduleMatch", () => {
       routeSchedule,
       route,
       now,
-      "20260606",
     );
 
     expect(match.scheduleStatus).toBe("unknown");
@@ -205,7 +202,6 @@ describe("buildIbusVehicleScheduleMatch", () => {
       routeSchedule,
       route,
       now,
-      "20260606",
     );
 
     expect(match.scheduleStatus).toBe("late");
@@ -228,7 +224,6 @@ describe("buildIbusVehicleScheduleMatch", () => {
       routeSchedule,
       route,
       now,
-      "20260606",
     );
 
     expect(match.deviationMinutes).toBe(59);
@@ -254,7 +249,6 @@ describe("buildIbusVehicleScheduleMatch", () => {
       routeSchedule,
       route,
       now,
-      "20260606",
     );
 
     expect(match.deviationMinutes).toBe(61);
@@ -277,7 +271,6 @@ describe("buildIbusVehicleScheduleMatch", () => {
       routeSchedule,
       route,
       now,
-      "20260606",
     );
 
     expect(match.scheduleStatus).toBe("early");
@@ -299,7 +292,6 @@ describe("buildIbusVehicleScheduleMatch", () => {
       routeSchedule,
       route,
       now,
-      "20260606",
     );
 
     expect(match.deviationMinutes).toBe(-35);
@@ -318,7 +310,6 @@ describe("buildIbusVehicleScheduleMatch", () => {
       routeSchedule,
       route,
       now,
-      "20260606",
     );
     const earlyMatch = buildIbusVehicleScheduleMatch(
       buildVehicle({
@@ -327,7 +318,6 @@ describe("buildIbusVehicleScheduleMatch", () => {
       routeSchedule,
       route,
       now,
-      "20260606",
     );
 
     expect(lateMatch.scheduleStatus).toBe("late");
@@ -357,7 +347,6 @@ describe("matchVehiclesToIbusRouteSchedule", () => {
       routeSchedule,
       route,
       now,
-      "20260606",
     );
 
     expect(updated?.scheduleStatus).toBe("late");
@@ -414,7 +403,6 @@ describe("route 14 disrupted schedule timing", () => {
       route14Schedule,
       route14,
       now,
-      "20260606",
     );
 
     expect(match.scheduleStatus).toBe("late");

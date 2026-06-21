@@ -11,7 +11,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "generate:icons": "node scripts/generate-pwa-icons.mjs",
-    "import:ibus": "tsx scripts/importIbusStatic.ts"
+    "check:ibus-base-versions": "tsx scripts/checkIbusBaseVersions.ts",
+    "import:ibus": "tsx scripts/importIbusStatic.ts",
+    "import:ibus:active": "tsx scripts/importIbusActive.ts",
+    "import:ibus:versions": "tsx scripts/importIbusVersions.ts",
+    "rebuild:ibus-manifest": "tsx scripts/rebuildIbusManifest.ts",
+    "verify:ibus-local": "tsx scripts/verifyIbusLocal.ts",
+    "export:ibus-data": "tsx scripts/exportIbusData.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.0",

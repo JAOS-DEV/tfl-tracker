@@ -1,45 +1,42 @@
-import type { IbusCurrentManifest } from "@/lib/ibus/types";
+import { buildIbusRouteScheduleUrl } from "@/lib/ibus/dataUrl";
+import {
+  clearIbusFetchDiagnostics,
+  fetchIbusJson,
+} from "@/lib/ibus/fetchIbusJson";
+import type { IbusMultiVersionManifest } from "@/lib/ibus/types";
 import type { IbusRouteSchedule } from "@/lib/ibus/scheduleTypes";
 import { normalizeRouteSchedule } from "@/lib/ibus/compactScheduleDecode";
+import {
+  selectBaseVersionForRoute,
+  type BaseVersionSelectionResult,
+} from "@/lib/ibus/baseVersionSelection";
 
-const manifestCache = new Map<string, Promise<IbusCurrentManifest | null>>();
+const manifestCache = new Map<string, Promise<IbusMultiVersionManifest | null>>();
 const scheduleCache = new Map<string, Promise<IbusRouteSchedule | null>>();
 const missingScheduleRoutes = new Set<string>();
-let routeAvailabilityCache = new WeakMap<IbusCurrentManifest, Set<string>>();
+let routeAvailabilityCache = new WeakMap<
+  IbusMultiVersionManifest,
+  Map<string, Set<string>>
+>();
 
 export function clearRouteScheduleCache(): void {
   manifestCache.clear();
   scheduleCache.clear();
   missingScheduleRoutes.clear();
-  routeAvailabilityCache = new WeakMap<IbusCurrentManifest, Set<string>>();
+  routeAvailabilityCache = new WeakMap();
+  clearIbusFetchDiagnostics();
 }
 
-async function fetchJson<T>(path: string): Promise<T | null> {
-  try {
-    const response = await fetch(path);
-    if (!response.ok) {
-      if (response.status === 404 && process.env.NODE_ENV === "development") {
-        console.debug(`Route schedule not found (expected): ${path}`);
-      }
-      return null;
-    }
-    return (await response.json()) as T;
-  } catch (error) {
-    if (process.env.NODE_ENV === "development") {
-      console.debug("Route schedule fetch failed:", path, error);
-    }
-    return null;
-  }
-}
-
-export async function loadIbusManifestClient(): Promise<IbusCurrentManifest | null> {
+export async function loadIbusManifestClient(): Promise<IbusMultiVersionManifest | null> {
   const cacheKey = "current";
   const existing = manifestCache.get(cacheKey);
   if (existing) {
     return existing;
   }
 
-  const promise = fetchJson<IbusCurrentManifest>("/data/ibus/current.json");
+  const promise = fetchIbusJson<IbusMultiVersionManifest>("current.json", {
+    trackAs: "manifest",
+  }).then(({ data }) => data);
   manifestCache.set(cacheKey, promise);
   return promise;
 }
@@ -48,24 +45,73 @@ export function getRouteSchedulePath(
   baseVersion: string,
   routeId: string,
 ): string {
-  return `/data/ibus/${baseVersion}/route-schedules/${routeId}.json`;
+  return buildIbusRouteScheduleUrl(baseVersion, routeId);
+}
+
+export function getRouteScheduleRelativePath(
+  baseVersion: string,
+  routeId: string,
+): string {
+  return `${baseVersion}/route-schedules/${routeId}.json`;
+}
+
+function getRouteSetForVersion(
+  manifest: IbusMultiVersionManifest,
+  baseVersion: string,
+): Set<string> | null {
+  let versionCache = routeAvailabilityCache.get(manifest);
+  if (!versionCache) {
+    versionCache = new Map();
+    routeAvailabilityCache.set(manifest, versionCache);
+  }
+
+  const cached = versionCache.get(baseVersion);
+  if (cached) {
+    return cached;
+  }
+
+  const routes =
+    manifest.routeScheduleRoutesByBaseVersion?.[baseVersion] ??
+    (manifest.baseVersion === baseVersion
+      ? manifest.routeScheduleRoutes
+      : undefined);
+  if (!routes) {
+    return null;
+  }
+
+  const routeSet = new Set(routes);
+  versionCache.set(baseVersion, routeSet);
+  return routeSet;
 }
 
 export function isRouteScheduleAvailable(
-  manifest: IbusCurrentManifest | null | undefined,
+  manifest: IbusMultiVersionManifest | null | undefined,
   routeId: string,
+  baseVersion?: string,
 ): boolean {
-  if (!manifest?.routeScheduleRoutes) {
-    return true;
+  if (!manifest) {
+    return false;
   }
 
-  let routeSet = routeAvailabilityCache.get(manifest);
+  const version = baseVersion ?? manifest.baseVersion;
+  const routeSet = getRouteSetForVersion(manifest, version);
   if (!routeSet) {
-    routeSet = new Set(manifest.routeScheduleRoutes);
-    routeAvailabilityCache.set(manifest, routeSet);
+    return manifest.routeScheduleRoutes === undefined;
   }
 
   return routeSet.has(routeId);
+}
+
+export function resolveRouteScheduleSelection(
+  routeId: string,
+  manifest: IbusMultiVersionManifest | null,
+  liveBaseVersion?: string,
+): BaseVersionSelectionResult {
+  return selectBaseVersionForRoute({
+    routeId,
+    liveBaseVersion,
+    manifest,
+  });
 }
 
 function markScheduleStart(cacheKey: string): number {
@@ -98,35 +144,62 @@ function measureScheduleLoad(cacheKey: string, startedAt: number): void {
   );
 }
 
+export interface LoadRouteScheduleOptions {
+  liveBaseVersion?: string;
+  selectedBaseVersion?: string;
+}
+
 export async function loadRouteSchedule(
   routeId: string,
-  baseVersion?: string,
-): Promise<IbusRouteSchedule | null> {
+  options: LoadRouteScheduleOptions = {},
+): Promise<{
+  schedule: IbusRouteSchedule | null;
+  selection: BaseVersionSelectionResult;
+}> {
   const manifest = await loadIbusManifestClient();
-  const version = baseVersion ?? manifest?.baseVersion;
+  const selection = resolveRouteScheduleSelection(
+    routeId,
+    manifest,
+    options.liveBaseVersion,
+  );
+
+  const version =
+    options.selectedBaseVersion ?? selection.selectedBaseVersion;
   if (!version) {
-    return null;
+    return { schedule: null, selection };
   }
 
-  if (manifest && !isRouteScheduleAvailable(manifest, routeId)) {
+  if (manifest && !isRouteScheduleAvailable(manifest, routeId, version)) {
     missingScheduleRoutes.add(`${version}:${routeId}`);
-    return null;
+    return {
+      schedule: null,
+      selection: {
+        ...selection,
+        selectedBaseVersion: null,
+        selectedBecause: "no-local-version",
+      },
+    };
   }
 
   const cacheKey = `${version}:${routeId}`;
   if (missingScheduleRoutes.has(cacheKey)) {
-    return null;
+    return { schedule: null, selection: { ...selection, selectedBaseVersion: version } };
   }
 
   const existing = scheduleCache.get(cacheKey);
   if (existing) {
-    return existing;
+    const schedule = await existing;
+    return {
+      schedule,
+      selection: { ...selection, selectedBaseVersion: version },
+    };
   }
 
   const startedAt = markScheduleStart(cacheKey);
-  const promise = fetchJson<unknown>(
-    getRouteSchedulePath(version, routeId),
-  ).then((raw) => {
+  const relativePath = getRouteScheduleRelativePath(version, routeId);
+  const promise = fetchIbusJson<unknown>(relativePath, {
+    trackAs: "routeSchedule",
+  }).then(({ data: raw }) => {
     const schedule = normalizeRouteSchedule(raw);
     if (!schedule) {
       missingScheduleRoutes.add(cacheKey);
@@ -135,5 +208,10 @@ export async function loadRouteSchedule(
     return schedule;
   });
   scheduleCache.set(cacheKey, promise);
-  return promise;
+
+  const schedule = await promise;
+  return {
+    schedule,
+    selection: { ...selection, selectedBaseVersion: version },
+  };
 }

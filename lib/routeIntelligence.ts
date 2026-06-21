@@ -1,15 +1,30 @@
+import type { BaseVersionSelectionResult } from "@/lib/ibus/baseVersionSelection";
+import { getIbusDataDiagnostics } from "@/lib/ibus/dataUrl";
+import { getIbusFetchDiagnostics } from "@/lib/ibus/fetchIbusJson";
 import type { LoopLayoutConfig } from "@/lib/constants";
 import { resolveGhostStatus } from "@/lib/ghostBusDetection";
-import type { LiveIbusRunningDetail } from "@/lib/ibusLookup";
+import {
+  liveBaseVersionMatchesStatic,
+  type LiveIbusRunningDetail,
+} from "@/lib/ibusLookup";
+import {
+  buildBlueLiveBusScheduleDiagnostics,
+  countBlueUnknownLiveBuses,
+  summarizeUnknownReasons,
+} from "@/lib/schedulePipeline/buildLiveBusScheduleDiagnostics";
 import { appendTrackedGhostVehicles } from "@/lib/ghostVehicles";
-import { appendScheduledGhostVehicles } from "@/lib/scheduledGhostVehicles";
 import { resolvePredictionConfidence } from "@/lib/predictionTracking";
 import { buildVehiclePositions } from "@/lib/routePositioning";
+import { buildLiveSchedulePool } from "@/lib/schedulePipeline/buildLiveSchedulePool";
+import { enrichLiveVehicles } from "@/lib/schedulePipeline/enrichLiveVehicles";
+import { generateScheduleGhosts } from "@/lib/schedulePipeline/generateScheduleGhosts";
+import { runScheduleTimingPipeline } from "@/lib/schedulePipeline/runSchedulePipeline";
+import type {
+  IndexedVehicleTimingResult,
+  ScheduleTimingDiagnostics,
+} from "@/lib/schedulePipeline/types";
 import { matchVehicleToSchedule } from "@/lib/scheduleDeviation";
-import {
-  matchVehiclesToIbusRouteSchedule,
-  resolveAdherenceFromScheduleStatus,
-} from "@/lib/ibusScheduleDeviation";
+import { resolveAdherenceFromScheduleStatus } from "@/lib/ibusScheduleDeviation";
 import { buildVehicleRegistrationDiagnostics } from "@/lib/vehicleRegistrationDiagnostics";
 import { buildServiceHealthMetrics } from "@/lib/serviceIntelligence";
 import { attachTerminusLayoverState } from "@/lib/terminusLayover";
@@ -47,6 +62,17 @@ export interface BuildRouteIntelligenceInput {
   collectRegistrationDiagnostics?: boolean;
   showRegistrationEnabled?: boolean;
   enrichmentLoaded?: boolean;
+  routeScheduleLoading?: boolean;
+  staticManifestBaseVersion?: string;
+  activeBaseVersionFromXml?: string;
+  baseVersionSelection?: BaseVersionSelectionResult;
+  sampleLivePrediction?: {
+    rawTripId?: string;
+    rawBaseVersion?: string;
+    normalizedTripId?: string;
+    normalizedBaseVersion?: string;
+    fieldsUsedForBaseVersion: string;
+  };
 }
 
 export function toRouteDashboardSummary(
@@ -83,11 +109,15 @@ function timetablesAvailable(
   );
 }
 
-function attachScheduleTiming(
+function attachTimetableScheduleTiming(
   positions: EstimatedVehiclePosition[],
   input: BuildRouteIntelligenceInput,
 ): EstimatedVehiclePosition[] {
   if (input.includeScheduleMatching === false) {
+    return positions;
+  }
+
+  if (input.routeSchedule) {
     return positions;
   }
 
@@ -100,49 +130,26 @@ function attachScheduleTiming(
     );
   }
 
-  if (input.routeSchedule) {
-    return matchVehiclesToIbusRouteSchedule(
-      positions,
-      input.routeSchedule,
-      input.route,
-      input.now,
-      input.liveBaseVersion,
-    );
-  }
-
   return positions;
 }
 
-function attachLiveIbusRunningDetails(
-  vehicles: EstimatedVehiclePosition[],
-  details: Map<string, LiveIbusRunningDetail> | undefined,
-): EstimatedVehiclePosition[] {
-  if (!details || details.size === 0) {
-    return vehicles;
+function mergeTimingDiagnostics(
+  timingDiagnostics: ScheduleTimingDiagnostics | undefined,
+  ghostComparisonSummary: RouteIntelligenceResult["ghostComparisonSummary"],
+): ScheduleTimingDiagnostics | undefined {
+  if (!timingDiagnostics) {
+    return undefined;
   }
 
-  return vehicles.map((vehicle) => {
-    const detail = details.get(vehicle.vehicleId);
-    if (!detail) {
-      return vehicle;
-    }
-
-    return {
-      ...vehicle,
-      ...(detail.runningNo ? { ibusRunningNo: detail.runningNo } : {}),
-      ...(detail.blockNo ? { ibusBlockNo: detail.blockNo } : {}),
-      ...(detail.fleetNo ? { ibusFleetNo: detail.fleetNo } : {}),
-      ...(detail.registration && !vehicle.vehicleRegistration
-        ? {
-            vehicleRegistration: detail.registration,
-            vehicleRegistrationSource: detail.registrationSource,
-          }
-        : {}),
-      ...(vehicle.vehicleRegistration && !vehicle.vehicleRegistrationSource
-        ? { vehicleRegistrationSource: "live-tfl-prediction" as const }
-        : {}),
-    };
-  });
+  return {
+    ...timingDiagnostics,
+    ghostCandidateCount:
+      ghostComparisonSummary?.hiddenScheduleCandidateRunningNumbers.length ??
+      timingDiagnostics.ghostCandidateCount,
+    visibleGhostCount:
+      ghostComparisonSummary?.visibleScheduleGhostRunningNumbers.length ??
+      timingDiagnostics.visibleGhostCount,
+  };
 }
 
 function attachPredictionAndGhostState(
@@ -185,7 +192,7 @@ function attachPredictionAndGhostState(
 export function buildRouteIntelligence(
   input: BuildRouteIntelligenceInput,
 ): RouteIntelligenceResult {
-  const positions = attachLiveIbusRunningDetails(
+  const positions = enrichLiveVehicles(
     buildVehiclePositions(
       input.predictions,
       input.route,
@@ -212,47 +219,163 @@ export function buildRouteIntelligence(
     });
   }
 
-  const withSchedule = attachScheduleTiming(positions, input);
+  let vehicles = positions;
+  let scheduleTimingDiagnostics: ScheduleTimingDiagnostics | undefined;
+  let schedulePool: ReturnType<typeof buildLiveSchedulePool> | undefined;
+  let timingResults: IndexedVehicleTimingResult[] = [];
+  const runIbusScheduleWork =
+    Boolean(input.routeSchedule) && input.includeScheduleMatching !== false;
+
+  if (runIbusScheduleWork && input.routeSchedule) {
+    const timingResult = runScheduleTimingPipeline({
+      routeId: input.routeId,
+      route: input.route,
+      routeSchedule: input.routeSchedule,
+      vehicles: positions,
+      layout: input.layout,
+      now: input.now,
+      dataUpdatedAt: input.dataUpdatedAt,
+      liveBaseVersion: input.liveBaseVersion,
+      liveIbusRunningDetails: input.liveIbusRunningDetails,
+      livePredictionCount: input.predictions.length,
+      showScheduleGhosts: input.showScheduleGhosts ?? true,
+      includeLowConfidence: input.includeLowConfidenceScheduleGhosts ?? false,
+      collectDiagnostics: input.collectScheduleGhostDiagnostics ?? false,
+      debugRunningNo: input.debugScheduleRunningNo,
+      debugRunningNos: input.debugScheduleRunningNos,
+      liveEnrichmentComplete:
+        input.enrichmentLoaded ?? Boolean(input.liveIbusRunningDetails),
+    });
+    vehicles = timingResult.vehicles;
+    scheduleTimingDiagnostics = timingResult.timingDiagnostics;
+    schedulePool = timingResult.pool;
+    timingResults = timingResult.timingResults;
+  } else {
+    vehicles = attachTimetableScheduleTiming(positions, input);
+  }
 
   const withLayover = attachTerminusLayoverState(
-    withSchedule,
+    vehicles,
     input.route,
     input.layout,
   );
 
-  const withGhosts = appendTrackedGhostVehicles(
+  const withTrackedGhosts = appendTrackedGhostVehicles(
     withLayover,
     enrichedTracking,
     input.dataUpdatedAt,
     input.now,
   );
 
-  const scheduledGhostResult = appendScheduledGhostVehicles({
-    routeId: input.routeId,
-    route: input.route,
-    layout: input.layout,
-    vehicles: withGhosts,
-    schedule: input.routeSchedule,
-    now: input.now,
-    dataUpdatedAt: input.dataUpdatedAt,
-    liveBaseVersion: input.liveBaseVersion,
-    livePredictionCount: input.predictions.length,
-    showScheduleGhosts: input.showScheduleGhosts ?? true,
-    includeLowConfidence: input.includeLowConfidenceScheduleGhosts ?? false,
-    collectDiagnostics: input.collectScheduleGhostDiagnostics ?? false,
-    debugRunningNo: input.debugScheduleRunningNo,
-    debugRunningNos: input.debugScheduleRunningNos,
-    liveEnrichmentComplete: true,
-  });
+  const scheduledGhostResult =
+    runIbusScheduleWork && input.routeSchedule && schedulePool
+      ? generateScheduleGhosts({
+          routeId: input.routeId,
+          route: input.route,
+          layout: input.layout,
+          vehicles: withTrackedGhosts,
+          schedule: input.routeSchedule,
+          pool: schedulePool,
+          now: input.now,
+          dataUpdatedAt: input.dataUpdatedAt,
+          liveBaseVersion: input.liveBaseVersion,
+          livePredictionCount: input.predictions.length,
+          showScheduleGhosts: input.showScheduleGhosts ?? true,
+          includeLowConfidence:
+            input.includeLowConfidenceScheduleGhosts ?? false,
+          collectDiagnostics: input.collectScheduleGhostDiagnostics ?? false,
+          debugRunningNo: input.debugScheduleRunningNo,
+          debugRunningNos: input.debugScheduleRunningNos,
+          liveEnrichmentComplete:
+            input.enrichmentLoaded ?? Boolean(input.liveIbusRunningDetails),
+        })
+      : {
+          vehicles: withTrackedGhosts,
+          diagnostics: [] as string[],
+        };
 
-  const vehicles = attachPredictionAndGhostState(
+  scheduleTimingDiagnostics = mergeTimingDiagnostics(
+    scheduleTimingDiagnostics,
+    scheduledGhostResult.ghostComparisonSummary,
+  );
+
+  const finalVehicles = attachPredictionAndGhostState(
     scheduledGhostResult.vehicles,
     enrichedTracking,
     input.dataUpdatedAt,
     input.now,
   );
 
-  const metrics = buildServiceHealthMetrics(vehicles, {
+  const liveBusScheduleDiagnostics =
+    input.collectScheduleGhostDiagnostics
+      ? buildBlueLiveBusScheduleDiagnostics({
+          routeId: input.routeId,
+          vehicles: finalVehicles,
+          timingResults,
+          routeScheduleLoaded: Boolean(input.routeSchedule),
+          routeScheduleLoading: input.routeScheduleLoading ?? false,
+          activeScheduleCount: schedulePool?.activeJourneys.length ?? 0,
+          staticBaseVersion:
+            input.staticManifestBaseVersion ?? input.routeSchedule?.baseVersion,
+          routeScheduleBaseVersion: input.routeSchedule?.baseVersion,
+          liveDetails: input.liveIbusRunningDetails,
+        })
+      : undefined;
+
+  if (input.collectScheduleGhostDiagnostics) {
+    const ibusDataDiagnostics = getIbusDataDiagnostics();
+    const ibusFetchDiagnostics = getIbusFetchDiagnostics();
+    scheduleTimingDiagnostics = {
+      ...(scheduleTimingDiagnostics ?? {
+        activeScheduleCount: schedulePool?.activeJourneys.length ?? 0,
+        liveMatchingPoolCount: schedulePool?.activeJourneys.length ?? 0,
+        candidateMatchCount: timingResults.filter(
+          (result) => result.display.candidateMatch,
+        ).length,
+        trustedTimingCount: timingResults.filter(
+          (result) => result.display.trustedTiming,
+        ).length,
+        rejectedTimingCount: timingResults.filter(
+          (result) => !result.display.trustedTiming,
+        ).length,
+        rejectionReasonCounts: {},
+      }),
+      liveBaseVersion:
+        input.baseVersionSelection?.liveBaseVersion ??
+        finalVehicles.find((vehicle) => vehicle.baseVersion)?.baseVersion ??
+        input.sampleLivePrediction?.normalizedBaseVersion,
+      staticBaseVersion:
+        input.staticManifestBaseVersion ?? input.routeSchedule?.baseVersion,
+      routeScheduleBaseVersion: input.routeSchedule?.baseVersion,
+      activeBaseVersionFromXml: input.activeBaseVersionFromXml,
+      selectedBaseVersion: input.baseVersionSelection?.selectedBaseVersion ?? undefined,
+      selectedBecause: input.baseVersionSelection?.selectedBecause,
+      availableLocalVersionsForRoute:
+        input.baseVersionSelection?.availableLocalVersionsForRoute,
+      lookupAttemptedKeys: input.baseVersionSelection?.lookupAttemptedKeys,
+      baseVersionMatches: liveBaseVersionMatchesStatic(
+        input.baseVersionSelection?.liveBaseVersion ??
+          finalVehicles.find((vehicle) => vehicle.baseVersion)?.baseVersion ??
+          input.sampleLivePrediction?.normalizedBaseVersion,
+        input.baseVersionSelection?.selectedBaseVersion ??
+          input.routeSchedule?.baseVersion ??
+          input.staticManifestBaseVersion ??
+          "",
+      ),
+      sampleLivePrediction: input.sampleLivePrediction,
+      blueUnknownLiveCount: countBlueUnknownLiveBuses(finalVehicles),
+      unknownReasonCounts: summarizeUnknownReasons(
+        liveBusScheduleDiagnostics ?? [],
+      ),
+      ibusDataSource: ibusDataDiagnostics.ibusDataSource,
+      ibusDataBaseUrl: ibusDataDiagnostics.ibusDataBaseUrl,
+      manifestLoadedFrom: ibusFetchDiagnostics.manifestLoadedFrom,
+      routeScheduleLoadedFrom: ibusFetchDiagnostics.routeScheduleLoadedFrom,
+      runningShardLoadedFrom: ibusFetchDiagnostics.runningShardLoadedFrom,
+    };
+  }
+
+  const metrics = buildServiceHealthMetrics(finalVehicles, {
     dataUpdatedAt: input.dataUpdatedAt,
     now: input.now,
     trackingStates: input.trackingStates,
@@ -261,15 +384,16 @@ export function buildRouteIntelligence(
   const registrationDiagnostics = input.collectRegistrationDiagnostics
     ? buildVehicleRegistrationDiagnostics({
         routeId: input.routeId,
-        vehicles,
+        vehicles: finalVehicles,
         showRegistrationEnabled: input.showRegistrationEnabled ?? true,
-        enrichmentLoaded: input.enrichmentLoaded ?? Boolean(input.liveIbusRunningDetails),
+        enrichmentLoaded:
+          input.enrichmentLoaded ?? Boolean(input.liveIbusRunningDetails),
         liveDetails: input.liveIbusRunningDetails,
       })
     : undefined;
 
   return {
-    vehicles,
+    vehicles: finalVehicles,
     metrics,
     dashboardSummary: toRouteDashboardSummary(input.routeId, metrics),
     scheduleGhostDiagnostics:
@@ -278,6 +402,8 @@ export function buildRouteIntelligence(
         : undefined,
     ghostComparisonSummary: scheduledGhostResult.ghostComparisonSummary,
     ghostRunDiagnostics: scheduledGhostResult.ghostRunDiagnostics,
+    scheduleTimingDiagnostics,
+    liveBusScheduleDiagnostics,
     registrationDiagnostics,
   };
 }

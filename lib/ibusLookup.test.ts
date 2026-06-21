@@ -144,7 +144,7 @@ describe("getIbusDetailsForPrediction", () => {
     expect(result?.status).toBe("missing-live-trip");
   });
 
-  it("reports base version mismatch", async () => {
+  it("reports static trip not found when live baseVersion differs", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -165,9 +165,10 @@ describe("getIbusDetailsForPrediction", () => {
       baseVersion: "20260620",
     });
 
-    expect(result?.status).toBe("base-version-mismatch");
-    expect(result?.message).toContain("20260620");
-    expect(result?.message).toContain("20260606");
+    expect(result?.status).toBe("not-found");
+    expect(result?.message).toBe(
+      "TripId was not found in current static iBus data; live prediction reports a different baseVersion.",
+    );
   });
 });
 
@@ -237,7 +238,7 @@ describe("resolveLiveRunningDetailsForPredictions", () => {
       },
     ]);
 
-    expect(result.get("BT66MSU")).toEqual({
+    expect(result.get("BT66MSU")).toMatchObject({
       runningNo: "94",
       blockNo: "35094",
       fleetNo: "WHV142",
@@ -245,6 +246,8 @@ describe("resolveLiveRunningDetailsForPredictions", () => {
       registration: "BT66MSU",
       registrationSource: "live-tfl-prediction",
       registrationLookupStatus: "matched",
+      runningLookupStatus: "matched",
+      vehicleLookupStatus: "matched",
     });
   });
 
@@ -308,7 +311,7 @@ describe("resolveLiveRunningDetailsForPredictions", () => {
       },
     ]);
 
-    expect(result.get("DEL92")).toEqual({
+    expect(result.get("DEL92")).toMatchObject({
       runningNo: "61",
       blockNo: "22061",
       operatorCode: "CX",
@@ -316,6 +319,8 @@ describe("resolveLiveRunningDetailsForPredictions", () => {
       registration: "LX75ZGV",
       registrationSource: "ibus-fleet-reverse-lookup",
       registrationLookupStatus: "matched",
+      runningLookupStatus: "matched",
+      vehicleLookupStatus: "matched",
     });
   });
 
@@ -355,10 +360,12 @@ describe("resolveLiveRunningDetailsForPredictions", () => {
       },
     ]);
 
-    expect(result.get("LV25XUA")).toEqual({
+    expect(result.get("LV25XUA")).toMatchObject({
       registration: "LV25XUA",
       registrationSource: "live-tfl-prediction",
       registrationLookupStatus: "not-found",
+      runningLookupStatus: "not-found",
+      vehicleLookupStatus: "not-found",
     });
   });
 
@@ -398,9 +405,11 @@ describe("resolveLiveRunningDetailsForPredictions", () => {
       },
     ]);
 
-    expect(result.get("DEL99")).toEqual({
+    expect(result.get("DEL99")).toMatchObject({
       fleetNo: "DEL99",
       registrationLookupStatus: "not-found",
+      runningLookupStatus: "not-found",
+      vehicleLookupStatus: "not-found",
     });
     expect(result.get("DEL99")?.registration).toBeUndefined();
   });
@@ -469,5 +478,111 @@ describe("resolveLiveRunningDetailsForPredictions", () => {
       String(call[0]).endsWith("/data/ibus/20260606/running-shards/222.json"),
     );
     expect(shardCalls).toHaveLength(1);
+  });
+
+  it("resolves running from static shard when live baseVersion differs", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("/data/ibus/current.json")) {
+          return {
+            ok: true,
+            json: async () => ({
+              baseVersion: "20260606",
+              vehicleLookupPath: "/data/ibus/20260606/vehicle-lookup.json",
+              garageLookupPath: "/data/ibus/20260606/garage-lookup.json",
+              runningShardPathTemplate:
+                "/data/ibus/20260606/running-shards/{shard}.json",
+            }),
+          };
+        }
+
+        if (url.endsWith("/data/ibus/20260606/vehicle-lookup.json")) {
+          return { ok: true, json: async () => ({}) };
+        }
+
+        if (url.endsWith("/data/ibus/20260606/running-shards/017.json")) {
+          return {
+            ok: true,
+            json: async () => ({
+              "20260606:601361": {
+                runningNo: "561",
+                blockNo: "123561",
+                operatorCode: "CX",
+                source: "tfl-ibus-static",
+              },
+            }),
+          };
+        }
+
+        return { ok: false };
+      }),
+    );
+
+    const result = await resolveLiveRunningDetailsForPredictions([
+      {
+        vehicleId: "LV24EUK",
+        tripId: "601361",
+        baseVersion: "20250619",
+      },
+    ]);
+
+    expect(result.get("LV24EUK")).toMatchObject({
+      runningNo: "561",
+      blockNo: "123561",
+      operatorCode: "CX",
+      runningLookupStatus: "matched",
+      liveBaseVersion: "20250619",
+      staticBaseVersion: "20260606",
+      baseVersionMatches: false,
+      runningLookupNote:
+        "Live prediction reports a different baseVersion, but tripId matched current static iBus data.",
+    });
+  });
+
+  it("reports static-trip-not-found-live-version-differs when tripId is absent from static shard", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("/data/ibus/current.json")) {
+          return {
+            ok: true,
+            json: async () => ({
+              baseVersion: "20260606",
+              vehicleLookupPath: "/data/ibus/20260606/vehicle-lookup.json",
+              garageLookupPath: "/data/ibus/20260606/garage-lookup.json",
+              runningShardPathTemplate:
+                "/data/ibus/20260606/running-shards/{shard}.json",
+            }),
+          };
+        }
+
+        if (url.endsWith("/data/ibus/20260606/vehicle-lookup.json")) {
+          return { ok: true, json: async () => ({}) };
+        }
+
+        if (url.endsWith("/data/ibus/20260606/running-shards/107.json")) {
+          return { ok: true, json: async () => ({}) };
+        }
+
+        return { ok: false };
+      }),
+    );
+
+    const result = await resolveLiveRunningDetailsForPredictions([
+      {
+        vehicleId: "LV24EUK",
+        tripId: "639595",
+        baseVersion: "20250619",
+      },
+    ]);
+
+    expect(result.get("LV24EUK")).toMatchObject({
+      runningLookupStatus: "static-trip-not-found-live-version-differs",
+      baseVersionMatches: false,
+      runningLookupNote:
+        "TripId was not found in current static iBus data; live prediction reports a different baseVersion.",
+    });
+    expect(result.get("LV24EUK")?.runningNo).toBeUndefined();
   });
 });

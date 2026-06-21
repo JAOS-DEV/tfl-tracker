@@ -68,7 +68,7 @@ npm run dev
 
 4. Open [http://localhost:3000](http://localhost:3000).
 
-The app works without running the iBus importer if `public/data/ibus/` is already present in the repo (it ships with a base version and many route schedules). Re-run the importer when you need a newer TfL base version or additional route schedules.
+The app works without running the iBus importer if compact static JSON is available locally (`public/data/ibus/`) or via `NEXT_PUBLIC_IBUS_DATA_BASE_URL`. Re-run the importer when you need a newer TfL base version or additional route schedules.
 
 ## Scripts
 
@@ -81,7 +81,12 @@ The app works without running the iBus importer if `public/data/ibus/` is alread
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run typecheck` | TypeScript check (`tsc --noEmit`) |
 | `npm run lint` | ESLint |
-| `npm run import:ibus` | Download and build TfL iBus static JSON under `public/data/ibus/` |
+| `npm run check:ibus-base-versions` | Compare active XML, remote probes, and local imported versions |
+| `npm run import:ibus` | Import iBus static JSON (optional route schedules via env) |
+| `npm run import:ibus:active` | Import all routes for the active base version from `Base_Version.xml` |
+| `npm run rebuild:ibus-manifest` | Rebuild `public/data/ibus/current.json` from local folders |
+| `npm run verify:ibus-local` | Verify local manifest and active version are ready to deploy |
+| `npm run export:ibus-data` | Copy `public/data/ibus/` to `dist/ibus-data/data/ibus/` for external upload |
 | `npm run generate:icons` | Regenerate PWA icon assets |
 
 ## How the app works
@@ -156,84 +161,197 @@ Stored in `localStorage` under `tfl-tracker:display-settings`:
 
 Favourites, recents, alert preferences, display settings, theme, route history snapshots, and prediction-tracking state (for ghost detection) are stored in **browser local storage**. Nothing is synced to a server.
 
-## TfL iBus static data
+## iBus static data and base versions
 
-The app uses official TfL iBus exports shipped as **static JSON** in the repo. There is no database, hosted importer, or cron — you run the importer locally, commit the generated files, and Vercel serves them as static assets.
+The app matches live buses against **compact TfL iBus JSON** stored under `public/data/ibus/`. There is no database or hosted importer — you run import scripts locally, commit the active version, and deploy.
+
+### Why base versions matter
+
+- Live TfL arrival predictions include a **`baseVersion`** field (e.g. `20250619`).
+- TfL’s [`Base_Version.xml`](https://ibus.data.tfl.gov.uk/Base_Version.xml) also indicates the **active** iBus base version.
+- The newest-looking folder on `ibus.data.tfl.gov.uk` is **not always** the version live predictions use right now.
+- Running/block lookup and schedule matching use trip IDs from that active base version. If imported static data is for a different version, lookups fail.
+- **Blue/unknown buses** often mean: the bus is live and position-known, but schedule timing is unknown or untrusted — commonly because `liveBaseVersion` and the imported static `baseVersion` do not align.
+
+Example mismatch (fix by importing the active version):
+
+| Source | Value |
+| --- | --- |
+| Live predictions / `Base_Version.xml` | `20250619` |
+| Repo static data (before update) | `20260606` |
+
+When that happens, diagnostics may show `static-trip-not-found-live-version-differs` for many vehicles.
 
 ### What the importer does
 
-1. Fetches [`Base_Version.xml`](https://ibus.data.tfl.gov.uk/Base_Version.xml) for the current base version (e.g. `{baseVersion}`).
-2. Downloads matching zip files via direct URLs such as `https://ibus.data.tfl.gov.uk/Base_Version_{baseVersion}/Vehicle_{baseVersion}.zip`.
-3. Parses Vehicle, Garage, operator schedule (Journey/Block), and optional per-route compact schedules.
+1. Fetches `Base_Version.xml` for the active base version.
+2. Downloads matching zip files via direct URLs (server-side / Node only — never in the browser).
+3. Parses Vehicle, Garage, operator schedule, and compact per-route schedules.
 4. Writes JSON under `public/data/ibus/{baseVersion}/`.
-5. Updates `public/data/ibus/current.json` with the active base version and the list of available route schedule files.
+5. Updates `public/data/ibus/current.json` with available local versions and `activeBaseVersionFromXml`.
 
-The app reads `current.json` and only fetches a route schedule JSON when you **expand** a route that appears in `routeScheduleRoutes`. It does not load all schedules on page load.
+The app reads `current.json` and only fetches a route schedule when you **expand** that route. It does not load all schedules on page load.
 
 ### What iBus data powers
 
 | Feature | Source |
 | --- | --- |
 | Fleet numbers | `Vehicle_{baseVersion}.zip` → registration → bonnet number |
-| Running / block numbers | Running-number shards keyed by `tripId` (256 shards by `tripId % 256`) |
+| Running / block numbers | Running-number shards keyed by `tripId` (256 shards) |
 | Garage lookup | Garage XML |
-| Early/late/on-time | Compact per-route schedule JSON (`route-schedules/{routeId}.json`) |
+| Early/late/on-time | Compact per-route schedule JSON |
 | Schedule ghosts | Same compact schedules + live vehicle matching |
 
-Running numbers are resolved via **tripId + baseVersion** through the journey/block chain — never from tripId alone.
+Running numbers are resolved via **tripId + baseVersion** — never from tripId alone.
 
-**Bustimes** remains an optional server-side fallback for fleet number only when iBus vehicle lookup misses (`/api/vehicles/fleet-fallback`). It is not used for schedules or running numbers.
+**Bustimes** remains an optional server-side fallback for fleet number only (`/api/vehicles/fleet-fallback`).
 
-### Import commands
+## Free local iBus data workflow
 
-Default import (vehicle, garage, running-number shards, manifest — keeps existing route schedules unless you add more):
+This is the **default, free approach** we use today:
+
+- Keep **one active all-route** iBus base version in `public/data/ibus/`.
+- Do **not** set `NEXT_PUBLIC_IBUS_DATA_BASE_URL`.
+- Runtime uses local `/data/ibus/`.
+- When TfL’s active base version changes, manually import the new version and redeploy.
+
+### Routine update (recommended)
+
+```bash
+npm run check:ibus-base-versions
+npm run import:ibus:active
+npm run rebuild:ibus-manifest
+npm run verify:ibus-local
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+| Command | Purpose |
+| --- | --- |
+| `check:ibus-base-versions` | Shows active version from `Base_Version.xml`, remote probes, and what is imported locally |
+| `import:ibus:active` | Imports **all routes** for the active base version and rebuilds the manifest |
+| `rebuild:ibus-manifest` | Refreshes `public/data/ibus/current.json` from local version folders |
+| `verify:ibus-local` | Checks manifest, active folder, route count; warns if too many local versions or remote URL is set |
+
+Deploy after the active compact data is updated.
+
+### Manual explicit version fallback
+
+If you need a specific version (e.g. active XML says `20250619` but you want to pin it explicitly):
+
+```bash
+IBUS_BASE_VERSION=20250619 IBUS_ROUTE_SCHEDULES=all npm run import:ibus
+npm run rebuild:ibus-manifest
+npm run verify:ibus-local
+```
+
+(`IBUS_BASE_VERSION` selects one version; `import:ibus:active` always follows live `Base_Version.xml`.)
+
+### Replacing an old local base version
+
+To switch from an old version to the new active one and keep the repo smaller:
+
+```bash
+# Optional: remove old local version folder
+git rm -r public/data/ibus/20260606
+
+# Add manifest and force-add the active version folder (version dirs are gitignored)
+git add public/data/ibus/current.json
+git add -f public/data/ibus/20250619
+
+git commit -m "Update iBus static data to active base version 20250619"
+git push
+```
+
+**Why `git add -f`?** `/public/data/ibus/[0-9]{8}/` is gitignored to prevent accidental multi-version commits (~1.9 GB if all versions are imported). The **one active** local version must be intentionally force-added.
+
+### Other import commands
+
+Default import (vehicle, garage, running shards — route schedules only if `IBUS_ROUTE_SCHEDULES` is set):
 
 ```bash
 npm run import:ibus
 ```
 
-Selected route schedules (PowerShell):
-
-```powershell
-$env:IBUS_ROUTE_SCHEDULES="337,156"
-npm run import:ibus
-```
-
-Selected route schedules (bash):
+Selected routes:
 
 ```bash
 IBUS_ROUTE_SCHEDULES="337,156" npm run import:ibus
 ```
 
-All route schedules:
+All routes for active or selected version:
 
 ```bash
 IBUS_ROUTE_SCHEDULES=all npm run import:ibus
 ```
 
-Force fresh download (ignore local zip cache):
+Force fresh download:
 
 ```bash
-IBUS_FORCE_DOWNLOAD=1 IBUS_ROUTE_SCHEDULES=all npm run import:ibus
+IBUS_FORCE_DOWNLOAD=1 IBUS_ROUTE_SCHEDULES=all npm run import:ibus:active
 ```
 
-Remove old base-version folders after a successful import:
+Multi-version experiment (large — not for default app repo):
 
 ```bash
-IBUS_CLEAN_OLD=1 npm run import:ibus
+IBUS_ALLOW_LARGE_STATIC=1 IBUS_BASE_VERSIONS=all IBUS_ROUTE_SCHEDULES=all npm run import:ibus:versions
 ```
 
-### After importing
+## Optional external iBus data hosting
+
+External hosting support **exists but is not used by default**. It is kept for later: all routes × all base versions is estimated around **1.9 GB**, too large for a comfortable app-repo / Vercel deployment.
+
+When you eventually host compact JSON externally:
+
+```env
+NEXT_PUBLIC_IBUS_DATA_BASE_URL=https://your-static-host.example.com/data/ibus
+```
+
+- If unset, the app uses local `/data/ibus/`.
+- External hosting would allow multiple versions without bloating the app repo.
+- **We are not using this now** — options like Cloudflare R2 may require a payment method. Do not remove this support; see [docs/ibus-external-hosting.md](docs/ibus-external-hosting.md).
+
+Export artifact for upload:
 
 ```bash
-git add public/data/ibus
-git commit -m "Update iBus static data"
-git push
+npm run export:ibus-data
 ```
 
-- `.ibus-cache/` is local only (gitignored) and speeds up repeated imports.
-- Commit `public/data/ibus/current.json` and `public/data/ibus/{baseVersion}/`.
-- Re-run when TfL publishes a new base version.
+## Troubleshooting blue buses
+
+A **blue** bus usually means:
+
+```text
+The bus is live/position-known, but schedule timing is unknown or untrusted.
+```
+
+Useful diagnostics (enable **Advanced diagnostics** in Settings):
+
+| Field | Meaning |
+| --- | --- |
+| `liveBaseVersion` | Base version from live TfL prediction |
+| `activeBaseVersionFromXml` | Active version from manifest / TfL XML |
+| `selectedBaseVersion` | Version used for schedule + running lookup |
+| `selectedBecause` | Why that version was chosen |
+| `runningLookupStatus` | Whether tripId matched running shards |
+| `lookupAttemptedKeys` | Keys tried during version selection |
+
+If many buses show:
+
+```text
+static-trip-not-found-live-version-differs
+```
+
+the likely fix is:
+
+```text
+Import the active/live baseVersion (npm run import:ibus:active) and redeploy.
+```
+
+Run `npm run check:ibus-base-versions` to compare live XML vs local folders.
+
 
 ## Project structure
 
@@ -255,8 +373,9 @@ lib/
   scheduleDeviation.ts
   localRouteHistory.ts
   displaySettings.ts / routeAlerts.ts / storage.ts
-public/data/ibus/   # Static iBus JSON (committed)
+public/data/ibus/   # Manifest + optional local dev fixtures (heavy versions gitignored)
 scripts/
+  exportIbusData.ts  # Copy public/data/ibus → dist/ibus-data for external upload
   importIbusStatic.ts
 ```
 
@@ -288,7 +407,7 @@ The browser calls relative paths like `/api/tfl/line-arrivals`; the key stays se
 
 No custom `vercel.json` is required for a standard Next.js deployment.
 
-**Note:** Commit `public/data/ibus/` so production has running-number shards and route schedules. The importer is a maintainer workflow, not part of the Vercel build.
+**Note:** Production can load iBus JSON from an external static host (`NEXT_PUBLIC_IBUS_DATA_BASE_URL`) so the app repo stays small. The importer is a maintainer workflow, not part of the Vercel build. See [docs/ibus-external-hosting.md](docs/ibus-external-hosting.md).
 
 ## Install on iPhone (PWA)
 

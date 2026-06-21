@@ -461,6 +461,12 @@ export const RouteCard = memo(function RouteCard({
                   scheduleGhostDiagnostics={intelligence?.scheduleGhostDiagnostics}
                   ghostComparisonSummary={intelligence?.ghostComparisonSummary}
                   ghostRunDiagnostics={intelligence?.ghostRunDiagnostics}
+                  scheduleTimingDiagnostics={
+                    intelligence?.scheduleTimingDiagnostics
+                  }
+                  liveBusScheduleDiagnostics={
+                    intelligence?.liveBusScheduleDiagnostics
+                  }
                   registrationDiagnostics={intelligence?.registrationDiagnostics}
                   loopLabelSettings={loopLabelSettings}
                   stopDisruptionsByNaptanId={stopDisruptionsByNaptanId}

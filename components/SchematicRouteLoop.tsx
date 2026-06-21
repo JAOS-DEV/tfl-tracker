@@ -1,11 +1,13 @@
 "use client";
 
 import { memo, useMemo } from "react";
+import { DiagnosticsPanelGroup, DiagnosticsSection } from "@/components/DiagnosticsSection";
 import { GhostComparisonDiagnostics } from "@/components/GhostComparisonDiagnostics";
 import { VehicleRegistrationDiagnostics } from "@/components/VehicleRegistrationDiagnostics";
 import { LoopIntelligenceOverlay } from "@/components/LoopIntelligenceOverlay";
 import type { LoopMarkerLabelSettings } from "@/components/LoopMarkerInfoBadges";
 import { RouteLoopBusMarker } from "@/components/RouteLoopBusMarker";
+import { LiveBusScheduleDiagnostics } from "@/components/LiveBusScheduleDiagnostics";
 import { RouteLoopDirectionChevrons } from "@/components/RouteLoopDirectionChevrons";
 import { RouteLoopDirectionGuide } from "@/components/RouteLoopDirectionGuide";
 import { RouteLoopDirectionLabels } from "@/components/RouteLoopDirectionLabels";
@@ -35,6 +37,10 @@ import type {
   StopDisruption,
   VehicleRegistrationDiagnostic,
 } from "@/lib/tfl/types";
+import type {
+  LiveBusScheduleDiagnostic,
+  ScheduleTimingDiagnostics,
+} from "@/lib/schedulePipeline/types";
 
 interface SchematicRouteLoopProps {
   route: NormalizedRoute;
@@ -48,6 +54,8 @@ interface SchematicRouteLoopProps {
   scheduleGhostDiagnostics?: string[];
   ghostComparisonSummary?: GhostComparisonSummary;
   ghostRunDiagnostics?: GhostRunDiagnostics[];
+  scheduleTimingDiagnostics?: ScheduleTimingDiagnostics;
+  liveBusScheduleDiagnostics?: LiveBusScheduleDiagnostic[];
   registrationDiagnostics?: VehicleRegistrationDiagnostic[];
   onStopSelect: (stop: NormalizedStop) => void;
   onBusSelect: (vehicle: EstimatedVehiclePosition) => void;
@@ -110,6 +118,8 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
   scheduleGhostDiagnostics,
   ghostComparisonSummary,
   ghostRunDiagnostics,
+  scheduleTimingDiagnostics,
+  liveBusScheduleDiagnostics,
   registrationDiagnostics,
   stopDisruptionsByNaptanId,
   onStopSelect,
@@ -201,6 +211,10 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
             Bus late
           </span>
           <span className="inline-flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full border-2 border-sky-500 bg-sky-500/20 dark:border-sky-400 dark:bg-sky-400/20" />
+            Schedule unknown
+          </span>
+          <span className="inline-flex items-center gap-2">
             <span className="h-3 w-3 rounded-full border-2 border-dashed border-zinc-500 bg-zinc-400/20 dark:border-zinc-400 dark:bg-zinc-500/20" />
             At terminus / waiting
           </span>
@@ -210,16 +224,83 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
           </span>
         </div>
         {showAdvancedDiagnostics ? (
-          <>
-            <GhostComparisonDiagnostics
-              summary={ghostComparisonSummary}
-              runDiagnostics={ghostRunDiagnostics}
-              legacyDiagnostics={scheduleGhostDiagnostics}
-            />
-            <VehicleRegistrationDiagnostics
-              diagnostics={registrationDiagnostics}
-            />
-          </>
+          <DiagnosticsPanelGroup>
+            <DiagnosticsSection
+              title="Ghost comparison summary"
+              summary={
+                ghostComparisonSummary
+                  ? `${ghostComparisonSummary.liveTflVehicleCount} live · ${ghostComparisonSummary.activeScheduledJourneyCount} active journeys · ${ghostComparisonSummary.visibleScheduleGhostRunningNumbers.length} schedule ghosts`
+                  : "No ghost comparison data"
+              }
+            >
+              <GhostComparisonDiagnostics
+                summary={ghostComparisonSummary}
+                part="summary"
+                embedded
+              />
+            </DiagnosticsSection>
+            <DiagnosticsSection
+              title="Schedule run diagnostics"
+              summary={
+                scheduleTimingDiagnostics
+                  ? `${scheduleTimingDiagnostics.candidateMatchCount} candidates · ${scheduleTimingDiagnostics.trustedTimingCount} trusted · ${scheduleTimingDiagnostics.blueUnknownLiveCount ?? 0} blue`
+                  : "No schedule run data"
+              }
+            >
+              <LiveBusScheduleDiagnostics
+                summary={scheduleTimingDiagnostics}
+                part="summary"
+                embedded
+              />
+            </DiagnosticsSection>
+            <DiagnosticsSection
+              title="Live bus schedule diagnostics"
+              summary={
+                liveBusScheduleDiagnostics?.length
+                  ? `${liveBusScheduleDiagnostics.length} buses · ${liveBusScheduleDiagnostics.filter((entry) => entry.trustedTiming).length} trusted`
+                  : "No per-bus schedule diagnostics"
+              }
+            >
+              <LiveBusScheduleDiagnostics
+                diagnostics={liveBusScheduleDiagnostics}
+                part="details"
+                embedded
+              />
+            </DiagnosticsSection>
+            <DiagnosticsSection
+              title="Vehicle registration diagnostics"
+              summary={
+                registrationDiagnostics?.length
+                  ? `${registrationDiagnostics.length} vehicles · ${registrationDiagnostics.filter((entry) => entry.normalizedRegistration).length} regs · ${registrationDiagnostics.filter((entry) => entry.runningLookupStatus === "matched").length} running matches`
+                  : "No registration diagnostics"
+              }
+            >
+              <VehicleRegistrationDiagnostics
+                diagnostics={registrationDiagnostics}
+                embedded
+              />
+            </DiagnosticsSection>
+            <DiagnosticsSection
+              title="Route sanity diagnostics"
+              summary={
+                ghostComparisonSummary?.sanityWarnings.length
+                  ? `${ghostComparisonSummary.sanityWarnings.length} warnings`
+                  : "No route sanity warnings"
+              }
+            >
+              <GhostComparisonDiagnostics
+                summary={ghostComparisonSummary}
+                part="sanity"
+                embedded
+              />
+              <GhostComparisonDiagnostics
+                runDiagnostics={ghostRunDiagnostics}
+                legacyDiagnostics={scheduleGhostDiagnostics}
+                part="runs"
+                embedded
+              />
+            </DiagnosticsSection>
+          </DiagnosticsPanelGroup>
         ) : null}
       </div>
 

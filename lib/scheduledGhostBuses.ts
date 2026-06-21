@@ -440,7 +440,7 @@ export function findStopIndexOnRoute(
   return leg.findIndex((routeStop) => routeStop.naptanId === stop.naptanId);
 }
 
-function matchScheduledStopOnRoute(
+export function matchScheduledStopOnRoute(
   stop: IbusScheduledStop | null,
   direction: RouteDirection,
   route: NormalizedRoute,
@@ -931,6 +931,9 @@ export function getScheduledGhostCandidates(
   const nowSeconds = getLondonDaySeconds(input.now);
   const candidates: ScheduledGhostCandidate[] = [];
   const seen = new Set<string>();
+  const liveContexts: LiveVehicleMatchContext[] = input.liveVehicles.map(
+    buildLiveVehicleMatchContext,
+  );
 
   for (const journey of input.scheduledJourneys) {
     if (!isJourneyScheduledForServiceWindow(journey, input.now, nowSeconds)) {
@@ -967,10 +970,6 @@ export function getScheduledGhostCandidates(
       continue;
     }
     const currentStop = position.expectedStop;
-
-    const liveContexts: LiveVehicleMatchContext[] = input.liveVehicles.map(
-      buildLiveVehicleMatchContext,
-    );
 
     const liveMatchReason = liveContexts
       .map((live) =>

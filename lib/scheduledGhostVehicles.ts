@@ -2,8 +2,6 @@ import type { LoopLayoutConfig } from "@/lib/constants";
 import {
   applyScheduleGhostDuplicateGuard,
   getScheduledGhostCandidates,
-  isJourneyActiveAtTime,
-  isJourneyScheduledForServiceWindow,
   scheduledGhostToVehiclePosition,
 } from "@/lib/scheduledGhostBuses";
 import type { ScheduledGhostPositionDiagnostics } from "@/lib/scheduledGhostBuses";
@@ -26,6 +24,7 @@ export interface AppendScheduledGhostInput {
   layout: LoopLayoutConfig;
   vehicles: EstimatedVehiclePosition[];
   schedule: IbusRouteSchedule | null | undefined;
+  activeJourneys?: IbusRouteSchedule["journeys"];
   now: number;
   dataUpdatedAt: number;
   liveBaseVersion?: string;
@@ -46,20 +45,6 @@ export interface AppendScheduledGhostResult {
 }
 
 const STALE_ROUTE_DATA_MS = 90_000;
-
-function londonDaySeconds(now: Date): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).formatToParts(now);
-  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
-  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
-  const second = Number(parts.find((part) => part.type === "second")?.value ?? 0);
-  return hour * 3600 + minute * 60 + second;
-}
 
 function londonTimeLabel(now: Date): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -397,12 +382,9 @@ export function appendScheduledGhostVehicles(
     (vehicle) => !vehicle.isScheduledGhostCandidate,
   );
   const nowDate = new Date(input.now);
-  const nowSeconds = londonDaySeconds(nowDate);
-  const activeScheduledJourneyCount = input.schedule.journeys.filter(
-    (journey) =>
-      isJourneyScheduledForServiceWindow(journey, nowDate, nowSeconds) &&
-      isJourneyActiveAtTime(journey, nowSeconds),
-  ).length;
+  const scheduledJourneys =
+    input.activeJourneys ?? input.schedule.journeys;
+  const activeScheduledJourneyCount = scheduledJourneys.length;
 
   const rawPositionDiagnostics: ScheduledGhostPositionDiagnostics[] | undefined =
     input.collectDiagnostics ? [] : undefined;
@@ -410,7 +392,7 @@ export function appendScheduledGhostVehicles(
     routeId: input.routeId,
     now: new Date(input.now),
     liveVehicles,
-    scheduledJourneys: input.schedule.journeys,
+    scheduledJourneys,
     route: input.route,
     layout: input.layout,
     liveBaseVersion: input.liveBaseVersion,
@@ -462,11 +444,7 @@ export function appendScheduledGhostVehicles(
   const duplicateGuardHiddenReasons = duplicateGuardHidden.map(
     () => "duplicate guard suppressed",
   );
-  const activeScheduledJourneys = input.schedule.journeys.filter(
-    (journey) =>
-      isJourneyScheduledForServiceWindow(journey, nowDate, nowSeconds) &&
-      isJourneyActiveAtTime(journey, nowSeconds),
-  );
+  const activeScheduledJourneys = scheduledJourneys;
   const scheduledActiveRunningNumbers = uniqueSorted(
     activeScheduledJourneys.map((journey) => journey.runningNo),
   );

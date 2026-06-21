@@ -25,7 +25,7 @@ function resolveMissingReason(input: {
   rawVehicleId?: string;
   fleetReference?: string;
   enrichmentLoaded: boolean;
-  registrationLookupStatus?: LiveIbusRunningDetail["registrationLookupStatus"];
+  vehicleLookupStatus: VehicleRegistrationDiagnostic["vehicleLookupStatus"];
 }): string | undefined {
   if (input.registration) {
     return undefined;
@@ -39,11 +39,7 @@ function resolveMissingReason(input: {
     return "enrichment not loaded";
   }
 
-  if (input.registrationLookupStatus === "ambiguous") {
-    return "ambiguous fleet lookup";
-  }
-
-  if (input.fleetReference || extractVehicleFleetReference(input.rawVehicleId)) {
+  if (input.vehicleLookupStatus === "not-found" && input.fleetReference) {
     return "vehicleId did not look like a registration and no static reverse lookup matched";
   }
 
@@ -58,12 +54,19 @@ function resolveLookupNote(input: {
   registration?: string;
   rawVehicleId?: string;
   registrationSource: VehicleRegistrationSource;
-  registrationLookupStatus?: LiveIbusRunningDetail["registrationLookupStatus"];
+  vehicleLookupStatus: VehicleRegistrationDiagnostic["vehicleLookupStatus"];
+  runningLookupStatus: VehicleRegistrationDiagnostic["runningLookupStatus"];
+  runningLookupNote?: string;
+  runningLookupFailureReason?: string;
 }): string | undefined {
+  if (input.runningLookupNote) {
+    return input.runningLookupNote;
+  }
+
   if (
     input.registration &&
     input.registrationSource === "live-tfl-prediction" &&
-    input.registrationLookupStatus === "not-found"
+    input.vehicleLookupStatus === "not-found"
   ) {
     return "Static iBus vehicle lookup did not match this registration, so fleet details may be unavailable.";
   }
@@ -73,6 +76,13 @@ function resolveLookupNote(input: {
     rawLooksLikeRegistration(input.rawVehicleId)
   ) {
     return "Raw TfL vehicleId looked like a registration, but it was not attached to the live vehicle model.";
+  }
+
+  if (
+    input.runningLookupStatus === "not-found" &&
+    input.runningLookupFailureReason
+  ) {
+    return input.runningLookupFailureReason;
   }
 
   return undefined;
@@ -115,9 +125,12 @@ export function buildVehicleRegistrationDiagnostics(input: {
         vehicle,
         vehicle.nextPrediction,
       );
-      const ibusLookupStatus =
-        detail?.registrationLookupStatus ??
-        (registrationSource === "live-tfl-prediction" ? "not-needed" : "not-needed");
+      const vehicleLookupStatus =
+        detail?.vehicleLookupStatus ??
+        (input.enrichmentLoaded ? "not-found" : "not-loaded");
+      const runningLookupStatus =
+        detail?.runningLookupStatus ??
+        (detail?.runningLookupAttempted ? "not-found" : "not-requested");
 
       return {
         routeId: input.routeId,
@@ -131,7 +144,19 @@ export function buildVehicleRegistrationDiagnostics(input: {
         ibusRunningNo: vehicle.ibusRunningNo ?? detail?.runningNo,
         ibusBlockNo: vehicle.ibusBlockNo ?? detail?.blockNo,
         operatorCode: detail?.operatorCode,
-        ibusLookupStatus,
+        tripId: vehicle.tripId,
+        liveBaseVersion: detail?.liveBaseVersion ?? vehicle.baseVersion,
+        staticBaseVersion: detail?.staticBaseVersion,
+        routeScheduleBaseVersion: detail?.routeScheduleBaseVersion,
+        runningShardBaseVersion: detail?.runningShardBaseVersion,
+        runningLookupShardId: detail?.runningLookupShardId,
+        runningLookupKey: detail?.runningLookupKey,
+        baseVersionMatches: detail?.baseVersionMatches,
+        vehicleLookupStatus,
+        vehicleLookupSource: detail?.vehicleLookupSource,
+        runningLookupStatus,
+        runningLookupNote: detail?.runningLookupNote,
+        runningLookupFailureReason: detail?.runningLookupFailureReason,
         registrationSource,
         missingReason: resolveMissingReason({
           showRegistrationEnabled: input.showRegistrationEnabled,
@@ -141,7 +166,7 @@ export function buildVehicleRegistrationDiagnostics(input: {
           rawVehicleId,
           fleetReference,
           enrichmentLoaded: input.enrichmentLoaded,
-          registrationLookupStatus: detail?.registrationLookupStatus,
+          vehicleLookupStatus,
         }),
         lookupNote: resolveLookupNote({
           registration:
@@ -149,7 +174,10 @@ export function buildVehicleRegistrationDiagnostics(input: {
             extractVehicleRegistration(rawVehicleId),
           rawVehicleId,
           registrationSource,
-          registrationLookupStatus: detail?.registrationLookupStatus,
+          vehicleLookupStatus,
+          runningLookupStatus,
+          runningLookupNote: detail?.runningLookupNote,
+          runningLookupFailureReason: detail?.runningLookupFailureReason,
         }),
       };
     });

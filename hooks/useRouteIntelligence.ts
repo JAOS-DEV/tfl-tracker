@@ -8,7 +8,7 @@ import { useRouteSequence } from "@/hooks/useRouteSequence";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { getLoopLayout } from "@/lib/constants";
 import { useRouteTimetable } from "@/hooks/useRouteTimetable";
-import { useRouteSchedule } from "@/hooks/useRouteSchedule";
+import { useRouteSchedule, getRouteScheduleFromQuery, getRouteScheduleSelectionFromQuery } from "@/hooks/useRouteSchedule";
 import { loadIbusManifestClient } from "@/lib/ibusRouteSchedules";
 import { resolveLiveRunningDetailsForPredictions } from "@/lib/ibusLookup";
 import type { IbusRouteSchedule } from "@/lib/ibus/scheduleTypes";
@@ -108,14 +108,26 @@ export function useRouteIntelligence(
   const arrivalsQuery = useLineArrivals(routeId);
   const route = sequenceQuery.data;
   const { timetables } = useRouteTimetable(routeId, route, fetchTimetable);
-  const routeScheduleQuery = useRouteSchedule(
-    routeId,
-    includeScheduleMatching && Boolean(route),
-  );
 
   const predictions = useMemo(
     () => arrivalsQuery.data?.predictions ?? [],
     [arrivalsQuery.data?.predictions],
+  );
+
+  const liveBaseVersionFromPredictions = useMemo(
+    () =>
+      predictions.find((prediction) => prediction.baseVersion)?.baseVersion,
+    [predictions],
+  );
+
+  const routeScheduleQuery = useRouteSchedule(
+    routeId,
+    includeScheduleMatching && Boolean(route),
+    liveBaseVersionFromPredictions,
+  );
+  const routeSchedule = getRouteScheduleFromQuery(routeScheduleQuery.data);
+  const routeScheduleSelection = getRouteScheduleSelectionFromQuery(
+    routeScheduleQuery.data,
   );
 
   const predictionTracking = usePredictionTracking(
@@ -149,7 +161,8 @@ export function useRouteIntelligence(
       includeScheduleMatching ? timetables.inbound?.journeys.length : null,
       includeScheduleMatching ? routeScheduleQuery.dataUpdatedAt : null,
       includeScheduleMatching ? routeScheduleQuery.status : null,
-      includeScheduleMatching ? routeScheduleQuery.data?.journeys.length : null,
+      includeScheduleMatching ? routeSchedule?.journeys.length : null,
+      includeScheduleMatching ? routeScheduleSelection?.selectedBaseVersion : null,
       debugScheduleRunningNos.join(","),
     ],
     queryFn: async () => {
@@ -158,8 +171,7 @@ export function useRouteIntelligence(
         (includeScheduleMatching && showScheduleGhosts);
       const manifest = needsIbusManifest ? await loadIbusManifestClient() : null;
       const liveBaseVersion =
-        predictions.find((prediction) => prediction.baseVersion)?.baseVersion ??
-        manifest?.baseVersion;
+        liveBaseVersionFromPredictions ?? manifest?.activeBaseVersionFromXml ?? manifest?.baseVersion;
 
       const liveIbusRunningDetails = enrichLiveIbusDetails
         ? await resolveLiveRunningDetailsForPredictions(
@@ -168,8 +180,17 @@ export function useRouteIntelligence(
               tripId: prediction.tripId,
               baseVersion: prediction.baseVersion,
             })),
+            {
+              routeScheduleBaseVersion: routeSchedule?.baseVersion,
+              selectedBaseVersion:
+                routeScheduleSelection?.selectedBaseVersion ?? undefined,
+            },
           )
         : undefined;
+
+      const samplePrediction = predictions.find(
+        (prediction) => prediction.tripId || prediction.baseVersion,
+      );
 
       return buildRouteIntelligence({
         routeId,
@@ -181,9 +202,9 @@ export function useRouteIntelligence(
         trackingStates: predictionTracking.states,
         timetables: includeScheduleMatching ? timetables : {},
         includeScheduleMatching,
-        routeSchedule: routeScheduleQuery.data,
+        routeSchedule,
         showScheduleGhosts:
-          showScheduleGhosts && Boolean(routeScheduleQuery.data),
+          showScheduleGhosts && Boolean(routeSchedule),
         includeLowConfidenceScheduleGhosts,
         liveBaseVersion,
         liveIbusRunningDetails,
@@ -193,6 +214,22 @@ export function useRouteIntelligence(
         collectRegistrationDiagnostics,
         showRegistrationEnabled,
         enrichmentLoaded: enrichLiveIbusDetails,
+        routeScheduleLoading:
+          includeScheduleMatching &&
+          routeScheduleQuery.isFetching &&
+          !routeSchedule,
+        staticManifestBaseVersion: manifest?.baseVersion,
+        activeBaseVersionFromXml: manifest?.activeBaseVersionFromXml,
+        baseVersionSelection: routeScheduleSelection,
+        sampleLivePrediction: samplePrediction
+          ? {
+              rawTripId: samplePrediction.tripId,
+              rawBaseVersion: samplePrediction.baseVersion,
+              normalizedTripId: samplePrediction.tripId?.trim(),
+              normalizedBaseVersion: samplePrediction.baseVersion?.trim(),
+              fieldsUsedForBaseVersion: "prediction.baseVersion",
+            }
+          : undefined,
       });
     },
     enabled: Boolean(routeId && route),
@@ -205,9 +242,7 @@ export function useRouteIntelligence(
     sequenceQuery,
     arrivalsQuery,
     intelligence: intelligenceQuery.data ?? null,
-    routeSchedule: includeScheduleMatching
-      ? (routeScheduleQuery.data ?? undefined)
-      : undefined,
+    routeSchedule: includeScheduleMatching ? routeSchedule : undefined,
     now: new Date(),
     isCheckingSchedule:
       includeScheduleMatching && routeScheduleQuery.isFetching,

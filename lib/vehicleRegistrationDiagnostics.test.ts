@@ -89,7 +89,8 @@ describe("buildVehicleRegistrationDiagnostics", () => {
 
     expect(diagnostics[0]?.normalizedRegistration).toBe("LX75ZGV");
     expect(diagnostics[0]?.registrationSource).toBe("live-tfl-prediction");
-    expect(diagnostics[0]?.ibusLookupStatus).toBe("not-found");
+    expect(diagnostics[0]?.vehicleLookupStatus).toBe("not-found");
+    expect(diagnostics[0]?.runningLookupStatus).toBe("not-requested");
     expect(diagnostics[0]?.missingReason).toBeUndefined();
     expect(diagnostics[0]?.lookupNote).toContain(
       "Static iBus vehicle lookup did not match",

@@ -193,7 +193,25 @@ export interface VehicleRegistrationDiagnostic {
   ibusRunningNo?: string;
   ibusBlockNo?: string;
   operatorCode?: string;
-  ibusLookupStatus: string;
+  tripId?: string;
+  liveBaseVersion?: string;
+  staticBaseVersion?: string;
+  routeScheduleBaseVersion?: string;
+  runningShardBaseVersion?: string;
+  runningLookupShardId?: string;
+  runningLookupKey?: string;
+  baseVersionMatches?: boolean;
+  vehicleLookupStatus: "matched" | "not-found" | "not-loaded";
+  vehicleLookupSource?: "tfl-ibus-static";
+  runningLookupStatus:
+    | "matched"
+    | "not-found"
+    | "static-trip-not-found-live-version-differs"
+    | "shard-not-loaded"
+    | "not-requested"
+    | "not-loaded";
+  runningLookupNote?: string;
+  runningLookupFailureReason?: string;
   registrationSource: VehicleRegistrationSource;
   missingReason?: string;
   lookupNote?: string;
@@ -495,5 +513,7 @@ export interface RouteIntelligenceResult {
   scheduleGhostDiagnostics?: string[];
   ghostComparisonSummary?: GhostComparisonSummary;
   ghostRunDiagnostics?: GhostRunDiagnostics[];
+  scheduleTimingDiagnostics?: import("@/lib/schedulePipeline/types").ScheduleTimingDiagnostics;
+  liveBusScheduleDiagnostics?: import("@/lib/schedulePipeline/types").LiveBusScheduleDiagnostic[];
   registrationDiagnostics?: VehicleRegistrationDiagnostic[];
 }

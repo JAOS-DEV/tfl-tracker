@@ -3,9 +3,9 @@ import {
   runningShardForTripId,
 } from "@/lib/ibus/keys";
 import type {
-  IbusCurrentManifest,
   IbusDetailsResult,
   IbusGarageRecord,
+  IbusMultiVersionManifest,
   IbusPredictionInput,
   IbusRunningRecord,
   IbusVehicleRecord,
@@ -16,99 +16,34 @@ import {
   lookupRegistrationByFleetNumber,
   lookupVehicleByRegistration,
 } from "@/lib/ibusVehicleLookup";
+import { fetchIbusJson } from "@/lib/ibus/fetchIbusJson";
+import { resolveStaticBaseVersionForLookup } from "@/lib/ibus/baseVersionSelection";
 import { extractVehicleRegistration } from "@/lib/vehicles/registration";
 import { extractVehicleFleetReference } from "@/lib/vehicles/lookupKey";
 
 const manifestCache = {
-  promise: null as Promise<IbusCurrentManifest | null> | null,
-  value: null as IbusCurrentManifest | null,
+  promise: null as Promise<IbusMultiVersionManifest | null> | null,
+  value: null as IbusMultiVersionManifest | null,
+  loadedFrom: null as string | null,
 };
 
 const vehicleLookupCache = new Map<string, Promise<Record<string, IbusVehicleRecord> | null>>();
 const garageLookupCache = new Map<string, Promise<Record<string, IbusGarageRecord> | null>>();
 const runningShardCache = new Map<string, Promise<Record<string, IbusRunningRecord> | null>>();
 
-async function fetchJson<T>(url: string): Promise<T | null> {
-  try {
-    const response = await fetch(url, {
-      cache: url.includes("/data/ibus/current.json") ? "default" : "force-cache",
-    });
-    if (!response.ok) {
-      return null;
-    }
+export type VehicleLookupStatus = "matched" | "not-found" | "not-loaded";
+export type RunningLookupStatus =
+  | "matched"
+  | "not-found"
+  | "static-trip-not-found-live-version-differs"
+  | "shard-not-loaded"
+  | "not-requested"
+  | "not-loaded";
 
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
-export async function loadIbusManifest(): Promise<IbusCurrentManifest | null> {
-  if (manifestCache.value) {
-    return manifestCache.value;
-  }
-
-  manifestCache.promise ??= fetchJson<IbusCurrentManifest>("/data/ibus/current.json");
-  const manifest = await manifestCache.promise;
-  manifestCache.value = manifest;
-  return manifest;
-}
-
-export function clearIbusLookupCache(): void {
-  manifestCache.promise = null;
-  manifestCache.value = null;
-  vehicleLookupCache.clear();
-  garageLookupCache.clear();
-  runningShardCache.clear();
-  clearIbusVehicleReverseIndexCache();
-}
-
-async function loadVehicleLookup(
-  manifest: IbusCurrentManifest,
-): Promise<Record<string, IbusVehicleRecord> | null> {
-  const cached = vehicleLookupCache.get(manifest.baseVersion);
-  if (cached) {
-    return cached;
-  }
-
-  const promise = fetchJson<Record<string, IbusVehicleRecord>>(
-    manifest.vehicleLookupPath,
-  );
-  vehicleLookupCache.set(manifest.baseVersion, promise);
-  return promise;
-}
-
-async function loadGarageLookup(
-  manifest: IbusCurrentManifest,
-): Promise<Record<string, IbusGarageRecord> | null> {
-  const cached = garageLookupCache.get(manifest.baseVersion);
-  if (cached) {
-    return cached;
-  }
-
-  const promise = fetchJson<Record<string, IbusGarageRecord>>(
-    manifest.garageLookupPath,
-  );
-  garageLookupCache.set(manifest.baseVersion, promise);
-  return promise;
-}
-
-async function loadRunningShard(
-  manifest: IbusCurrentManifest,
-  tripId: string,
-): Promise<Record<string, IbusRunningRecord> | null> {
-  const shard = runningShardForTripId(tripId);
-  const cacheKey = `${manifest.baseVersion}:${shard}`;
-  const cached = runningShardCache.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
-  const shardPath = manifest.runningShardPathTemplate.replace("{shard}", shard);
-  const promise = fetchJson<Record<string, IbusRunningRecord>>(shardPath);
-  runningShardCache.set(cacheKey, promise);
-  return promise;
-}
+export const RUNNING_LOOKUP_NOTE_MATCHED_VERSION_DIFFERS =
+  "Live prediction reports a different baseVersion, but tripId matched current static iBus data.";
+export const RUNNING_LOOKUP_NOTE_NOT_FOUND_VERSION_DIFFERS =
+  "TripId was not found in current static iBus data; live prediction reports a different baseVersion.";
 
 export interface LiveIbusRunningDetail {
   runningNo?: string;
@@ -121,6 +56,134 @@ export interface LiveIbusRunningDetail {
     | "ibus-registration-lookup"
     | "ibus-fleet-reverse-lookup";
   registrationLookupStatus?: "matched" | "ambiguous" | "not-found" | "not-needed";
+  vehicleLookupStatus?: VehicleLookupStatus;
+  vehicleLookupSource?: "tfl-ibus-static";
+  runningLookupStatus?: RunningLookupStatus;
+  runningLookupNote?: string;
+  runningLookupFailureReason?: string;
+  liveBaseVersion?: string;
+  staticBaseVersion?: string;
+  routeScheduleBaseVersion?: string;
+  runningShardBaseVersion?: string;
+  runningLookupShardId?: string;
+  runningLookupAttempted?: boolean;
+  runningLookupKey?: string;
+  baseVersionMatches?: boolean;
+}
+
+export async function loadIbusManifest(): Promise<IbusMultiVersionManifest | null> {
+  if (manifestCache.value) {
+    return manifestCache.value;
+  }
+
+  manifestCache.promise ??= fetchIbusJson<IbusMultiVersionManifest>("current.json", {
+    trackAs: "manifest",
+  }).then(({ data, loadedFrom }) => {
+    manifestCache.loadedFrom = loadedFrom;
+    return data;
+  });
+  const manifest = await manifestCache.promise;
+  manifestCache.value = manifest;
+  return manifest;
+}
+
+export function getIbusManifestLoadedFrom(): string | null {
+  return manifestCache.loadedFrom;
+}
+
+export function clearIbusLookupCache(): void {
+  manifestCache.promise = null;
+  manifestCache.value = null;
+  manifestCache.loadedFrom = null;
+  vehicleLookupCache.clear();
+  garageLookupCache.clear();
+  runningShardCache.clear();
+  clearIbusVehicleReverseIndexCache();
+}
+
+export function normalizeLiveBaseVersion(
+  baseVersion: string | undefined,
+): string | undefined {
+  const normalized = baseVersion?.trim();
+  return normalized ? normalized : undefined;
+}
+
+export function liveBaseVersionMatchesStatic(
+  liveBaseVersion: string | undefined,
+  staticBaseVersion: string,
+): boolean {
+  const normalizedLive = normalizeLiveBaseVersion(liveBaseVersion);
+  return Boolean(normalizedLive && normalizedLive === staticBaseVersion.trim());
+}
+
+async function loadRunningShard(
+  baseVersion: string,
+  tripId: string,
+): Promise<Record<string, IbusRunningRecord> | null> {
+  const shard = runningShardForTripId(tripId);
+  const cacheKey = `${baseVersion}:${shard}`;
+  const cached = runningShardCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const relativePath = `${baseVersion}/running-shards/${shard}.json`;
+  const promise = fetchIbusJson<Record<string, IbusRunningRecord>>(relativePath, {
+    trackAs: "runningShard",
+  }).then(({ data }) => data);
+  runningShardCache.set(cacheKey, promise);
+  return promise;
+}
+
+async function loadVehicleLookupForVersion(
+  baseVersion: string,
+): Promise<Record<string, IbusVehicleRecord> | null> {
+  const cached = vehicleLookupCache.get(baseVersion);
+  if (cached) {
+    return cached;
+  }
+
+  const promise = fetchIbusJson<Record<string, IbusVehicleRecord>>(
+    `${baseVersion}/vehicle-lookup.json`,
+    { trackAs: "vehicleLookup" },
+  ).then(({ data }) => data);
+  vehicleLookupCache.set(baseVersion, promise);
+  return promise;
+}
+
+async function loadGarageLookupForVersion(
+  baseVersion: string,
+): Promise<Record<string, IbusGarageRecord> | null> {
+  const cached = garageLookupCache.get(baseVersion);
+  if (cached) {
+    return cached;
+  }
+
+  const promise = fetchIbusJson<Record<string, IbusGarageRecord>>(
+    `${baseVersion}/garage-lookup.json`,
+    { trackAs: "garageLookup" },
+  ).then(({ data }) => data);
+  garageLookupCache.set(baseVersion, promise);
+  return promise;
+}
+
+function mergeRunningDetail(
+  existing: LiveIbusRunningDetail | undefined,
+  patch: LiveIbusRunningDetail,
+): LiveIbusRunningDetail {
+  return {
+    ...existing,
+    ...patch,
+    ...(existing?.registration && !patch.registration
+      ? { registration: existing.registration }
+      : {}),
+    ...(existing?.registrationSource && !patch.registrationSource
+      ? { registrationSource: existing.registrationSource }
+      : {}),
+    ...(existing?.registrationLookupStatus && !patch.registrationLookupStatus
+      ? { registrationLookupStatus: existing.registrationLookupStatus }
+      : {}),
+  };
 }
 
 function enrichRegistrationFromVehicleLookup(
@@ -128,6 +191,7 @@ function enrichRegistrationFromVehicleLookup(
   existing: LiveIbusRunningDetail | undefined,
   vehicleLookup: Record<string, IbusVehicleRecord>,
   reverseIndex: ReturnType<typeof getCachedIbusVehicleReverseIndex>,
+  staticBaseVersion: string,
 ): LiveIbusRunningDetail {
   const vehicleKey = prediction.vehicleId;
   if (!vehicleKey) {
@@ -140,13 +204,16 @@ function enrichRegistrationFromVehicleLookup(
 
   if (liveRegistration) {
     const vehicle = lookupVehicleByRegistration(vehicleLookup, liveRegistration);
-    return {
-      ...existing,
+    return mergeRunningDetail(existing, {
+      staticBaseVersion,
+      liveBaseVersion: normalizeLiveBaseVersion(prediction.baseVersion),
+      vehicleLookupStatus: vehicle ? "matched" : "not-found",
+      vehicleLookupSource: "tfl-ibus-static",
       registration: liveRegistration,
       registrationSource: "live-tfl-prediction",
       registrationLookupStatus: vehicle ? "matched" : "not-found",
       ...(vehicle?.fleetNo ? { fleetNo: vehicle.fleetNo } : {}),
-    };
+    });
   }
 
   const fleetCandidate =
@@ -163,43 +230,81 @@ function enrichRegistrationFromVehicleLookup(
       vehicleLookup,
       reverseLookup.registration,
     );
-    return {
-      ...existing,
+    return mergeRunningDetail(existing, {
+      staticBaseVersion,
+      liveBaseVersion: normalizeLiveBaseVersion(prediction.baseVersion),
+      vehicleLookupStatus: "matched",
+      vehicleLookupSource: "tfl-ibus-static",
       registration: reverseLookup.registration,
       registrationSource: "ibus-fleet-reverse-lookup",
       registrationLookupStatus: "matched",
       fleetNo: vehicle?.fleetNo ?? fleetCandidate,
-    };
+    });
   }
 
   if (reverseLookup.status === "ambiguous") {
-    return {
-      ...existing,
+    return mergeRunningDetail(existing, {
+      staticBaseVersion,
+      liveBaseVersion: normalizeLiveBaseVersion(prediction.baseVersion),
+      vehicleLookupStatus: "not-found",
+      vehicleLookupSource: "tfl-ibus-static",
       registrationLookupStatus: "ambiguous",
       ...(fleetReference || existing?.fleetNo
         ? { fleetNo: existing?.fleetNo ?? fleetReference }
         : {}),
-    };
+    });
   }
 
-  return {
-    ...existing,
+  return mergeRunningDetail(existing, {
+    staticBaseVersion,
+    liveBaseVersion: normalizeLiveBaseVersion(prediction.baseVersion),
+    vehicleLookupStatus: fleetCandidate ? "not-found" : "not-loaded",
+    vehicleLookupSource: "tfl-ibus-static",
     registrationLookupStatus: fleetCandidate ? "not-found" : "not-needed",
     ...(fleetReference || existing?.fleetNo
       ? { fleetNo: existing?.fleetNo ?? fleetReference }
       : {}),
-  };
+  });
 }
 
 export async function resolveLiveRunningDetailsForPredictions(
   predictions: IbusPredictionInput[],
+  options?: {
+    routeScheduleBaseVersion?: string;
+    selectedBaseVersion?: string;
+  },
 ): Promise<Map<string, LiveIbusRunningDetail>> {
   const manifest = await loadIbusManifest();
   const result = new Map<string, LiveIbusRunningDetail>();
+
   if (!manifest) {
+    for (const prediction of predictions) {
+      const vehicleKey = prediction.vehicleId;
+      if (!vehicleKey) {
+        continue;
+      }
+      result.set(vehicleKey, {
+        vehicleLookupStatus: "not-loaded",
+        runningLookupStatus: "not-loaded",
+        runningLookupAttempted: Boolean(prediction.tripId),
+      });
+    }
     return result;
   }
 
+  const liveBaseVersionHint = predictions
+    .map((prediction) => normalizeLiveBaseVersion(prediction.baseVersion))
+    .find(
+      (version) =>
+        version &&
+        manifest.availableBaseVersions?.includes(version),
+    );
+
+  const staticBaseVersion = resolveStaticBaseVersionForLookup(manifest, {
+    selectedBaseVersion: options?.selectedBaseVersion,
+    routeScheduleBaseVersion: options?.routeScheduleBaseVersion,
+    liveBaseVersion: liveBaseVersionHint,
+  });
   const shardEntries = new Map<
     string,
     Array<{ vehicleKey: string; lookupKey: string; tripId: string }>
@@ -207,59 +312,114 @@ export async function resolveLiveRunningDetailsForPredictions(
 
   for (const prediction of predictions) {
     const vehicleKey = prediction.vehicleId;
-    if (!vehicleKey || !prediction.tripId || !prediction.baseVersion) {
+    if (!vehicleKey) {
       continue;
     }
-    if (prediction.baseVersion !== manifest.baseVersion) {
+
+    const liveBaseVersion = normalizeLiveBaseVersion(prediction.baseVersion);
+    const baseVersionMatches = liveBaseVersionMatchesStatic(
+      liveBaseVersion,
+      staticBaseVersion,
+    );
+    const runningLookupAttempted = Boolean(prediction.tripId);
+
+    result.set(vehicleKey, {
+      liveBaseVersion,
+      staticBaseVersion,
+      routeScheduleBaseVersion: options?.routeScheduleBaseVersion,
+      runningShardBaseVersion: staticBaseVersion,
+      runningLookupAttempted,
+      baseVersionMatches,
+      runningLookupStatus: runningLookupAttempted ? undefined : "not-requested",
+      runningLookupFailureReason: !runningLookupAttempted
+        ? "Live prediction has no tripId for running lookup"
+        : undefined,
+    });
+
+    if (!prediction.tripId) {
       continue;
     }
 
     const shard = runningShardForTripId(prediction.tripId);
-    const lookupKey = createRunningLookupKey(
-      prediction.baseVersion,
-      prediction.tripId,
-    );
+    const lookupKey = createRunningLookupKey(staticBaseVersion, prediction.tripId);
     const existing = shardEntries.get(shard) ?? [];
     existing.push({ vehicleKey, lookupKey, tripId: prediction.tripId });
     shardEntries.set(shard, existing);
   }
 
-  for (const entries of shardEntries.values()) {
+  for (const [shard, entries] of shardEntries.entries()) {
     const sampleTripId = entries[0]?.tripId;
     if (!sampleTripId) {
       continue;
     }
 
-    const shardData = await loadRunningShard(manifest, sampleTripId);
-    if (!shardData) {
-      continue;
-    }
-
+    const shardData = await loadRunningShard(staticBaseVersion, sampleTripId);
     for (const entry of entries) {
-      if (result.has(entry.vehicleKey)) {
+      const current = result.get(entry.vehicleKey) ?? {};
+      const liveBaseVersion = current.liveBaseVersion;
+      const baseVersionMatches = liveBaseVersionMatchesStatic(
+        liveBaseVersion,
+        staticBaseVersion,
+      );
+
+      if (!shardData) {
+        result.set(entry.vehicleKey, mergeRunningDetail(current, {
+          runningLookupStatus: "shard-not-loaded",
+          runningLookupShardId: shard,
+          runningLookupKey: entry.lookupKey,
+          runningLookupFailureReason: `Running shard ${shard} could not be loaded`,
+          baseVersionMatches,
+        }));
         continue;
       }
 
       const running = shardData[entry.lookupKey];
       if (!running?.runningNo) {
+        result.set(entry.vehicleKey, mergeRunningDetail(current, {
+          runningLookupStatus: baseVersionMatches
+            ? "not-found"
+            : "static-trip-not-found-live-version-differs",
+          runningLookupShardId: shard,
+          runningLookupKey: entry.lookupKey,
+          runningLookupNote: baseVersionMatches
+            ? undefined
+            : RUNNING_LOOKUP_NOTE_NOT_FOUND_VERSION_DIFFERS,
+          runningLookupFailureReason: baseVersionMatches
+            ? `TripId ${entry.tripId} not found in static running shard ${shard}`
+            : `TripId ${entry.tripId} not found under static key ${entry.lookupKey}`,
+        }));
         continue;
       }
 
-      result.set(entry.vehicleKey, {
+      result.set(entry.vehicleKey, mergeRunningDetail(current, {
         runningNo: running.runningNo,
         blockNo: running.blockNo,
         operatorCode: running.operatorCode ?? undefined,
-      });
+        runningLookupStatus: "matched",
+        runningLookupShardId: shard,
+        runningLookupKey: entry.lookupKey,
+        runningLookupNote: baseVersionMatches
+          ? undefined
+          : RUNNING_LOOKUP_NOTE_MATCHED_VERSION_DIFFERS,
+        runningLookupFailureReason: undefined,
+        baseVersionMatches,
+      }));
     }
   }
 
-  const vehicleLookup = await loadVehicleLookup(manifest);
+  const vehicleLookup = await loadVehicleLookupForVersion(staticBaseVersion);
   if (!vehicleLookup) {
+    for (const [vehicleKey, detail] of result.entries()) {
+      result.set(vehicleKey, {
+        ...detail,
+        vehicleLookupStatus: detail.vehicleLookupStatus ?? "not-loaded",
+      });
+    }
     return result;
   }
 
   const reverseIndex = getCachedIbusVehicleReverseIndex(
-    manifest.baseVersion,
+    staticBaseVersion,
     vehicleLookup,
   );
 
@@ -274,6 +434,7 @@ export async function resolveLiveRunningDetailsForPredictions(
       result.get(vehicleKey),
       vehicleLookup,
       reverseIndex,
+      staticBaseVersion,
     );
     result.set(vehicleKey, enriched);
   }
@@ -297,17 +458,25 @@ export async function getIbusDetailsForPrediction(
 
     const liveRegistration = extractVehicleRegistration(input.vehicleId);
     const fleetReference = extractVehicleFleetReference(input.vehicleId);
+    const liveBaseVersion = normalizeLiveBaseVersion(input.baseVersion);
+    const staticBaseVersion = resolveStaticBaseVersionForLookup(manifest, {
+      liveBaseVersion,
+    });
+    const baseVersionMatches = liveBaseVersionMatchesStatic(
+      liveBaseVersion,
+      staticBaseVersion,
+    );
 
     const result: IbusDetailsResult = {
       registration: liveRegistration,
       registrationSource: liveRegistration ? "live-tfl-prediction" : undefined,
-      sourceBaseVersion: manifest.baseVersion,
+      sourceBaseVersion: staticBaseVersion,
       fleetSource: "none",
       runningNumberSource: "none",
       status: "not-found",
     };
 
-    const vehicleLookup = await loadVehicleLookup(manifest);
+    const vehicleLookup = await loadVehicleLookupForVersion(staticBaseVersion);
 
     if (liveRegistration && vehicleLookup) {
       const vehicle = lookupVehicleByRegistration(vehicleLookup, liveRegistration);
@@ -320,7 +489,7 @@ export async function getIbusDetailsForPrediction(
       }
     } else if (vehicleLookup && (fleetReference || input.vehicleId)) {
       const reverseIndex = getCachedIbusVehicleReverseIndex(
-        manifest.baseVersion,
+        staticBaseVersion,
         vehicleLookup,
       );
       const reverseLookup = lookupRegistrationByFleetNumber(
@@ -353,19 +522,15 @@ export async function getIbusDetailsForPrediction(
       return result;
     }
 
-    if (input.baseVersion !== manifest.baseVersion) {
-      result.status = result.fleetSource === "tfl-ibus-static" ? "partial" : "base-version-mismatch";
-      result.message = `Static iBus data needs updating. Live base version is ${input.baseVersion}; app has ${manifest.baseVersion}.`;
-      return result;
-    }
-
-    const runningKey = createRunningLookupKey(input.baseVersion, input.tripId);
-    const shard = await loadRunningShard(manifest, input.tripId);
+    const runningKey = createRunningLookupKey(staticBaseVersion, input.tripId);
+    const shard = await loadRunningShard(staticBaseVersion, input.tripId);
     const running = shard?.[runningKey];
 
     if (!running) {
       result.status = result.fleetSource === "tfl-ibus-static" ? "partial" : "not-found";
-      result.message = "No running-number match found for this trip.";
+      result.message = baseVersionMatches
+        ? "No running-number match found for this trip."
+        : RUNNING_LOOKUP_NOTE_NOT_FOUND_VERSION_DIFFERS;
       return result;
     }
 
@@ -376,6 +541,9 @@ export async function getIbusDetailsForPrediction(
     result.operatorCode = running.operatorCode ?? undefined;
     result.runningNumberSource = "tfl-ibus-static";
     result.status = result.fleetSource === "tfl-ibus-static" ? "matched" : "partial";
+    if (!baseVersionMatches) {
+      result.message = RUNNING_LOOKUP_NOTE_MATCHED_VERSION_DIFFERS;
+    }
 
     if (
       !result.registration &&
@@ -383,7 +551,7 @@ export async function getIbusDetailsForPrediction(
       (fleetReference || result.fleetNo || input.vehicleId)
     ) {
       const reverseIndex = getCachedIbusVehicleReverseIndex(
-        manifest.baseVersion,
+        staticBaseVersion,
         vehicleLookup,
       );
       const reverseLookup = lookupRegistrationByFleetNumber(
@@ -408,7 +576,7 @@ export async function getIbusDetailsForPrediction(
     }
 
     if (running.garageNo) {
-      const garageLookup = await loadGarageLookup(manifest);
+      const garageLookup = await loadGarageLookupForVersion(staticBaseVersion);
       const garage = garageLookup?.[running.garageNo];
       if (garage) {
         result.garageCode = garage.garageCode ?? undefined;

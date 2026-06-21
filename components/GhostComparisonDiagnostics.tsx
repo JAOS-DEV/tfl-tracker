@@ -8,6 +8,8 @@ interface GhostComparisonDiagnosticsProps {
   summary?: GhostComparisonSummary;
   runDiagnostics?: GhostRunDiagnostics[];
   legacyDiagnostics?: string[];
+  part?: "all" | "summary" | "sanity" | "runs" | "legacy";
+  embedded?: boolean;
 }
 
 function listValue(values: string[]): string {
@@ -33,18 +35,50 @@ export function GhostComparisonDiagnostics({
   summary,
   runDiagnostics,
   legacyDiagnostics,
+  part = "all",
+  embedded = false,
 }: GhostComparisonDiagnosticsProps): React.ReactElement | null {
-  if (!summary && !runDiagnostics?.length && !legacyDiagnostics?.length) {
+  const showSummary = part === "all" || part === "summary";
+  const showSanity = part === "all" || part === "sanity";
+  const showRuns = part === "all" || part === "runs";
+  const showLegacy = part === "all" || part === "legacy";
+
+  if (
+    !summary &&
+    !runDiagnostics?.length &&
+    !legacyDiagnostics?.length
+  ) {
     return null;
   }
 
+  if (part === "sanity") {
+    if (!summary?.sanityWarnings.length) {
+      return null;
+    }
+    return (
+      <div className={embedded ? "space-y-2" : "space-y-2 rounded-lg border border-zinc-200 px-3 py-2 text-xs"}>
+        {summary.sanityWarnings.map((warning) => (
+          <p key={warning} className="text-amber-800 dark:text-amber-200">
+            {warning}
+          </p>
+        ))}
+      </div>
+    );
+  }
+
+  const containerClass = embedded
+    ? "space-y-3"
+    : "space-y-3 rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300";
+
   return (
-    <div className="space-y-3 rounded-lg border border-dashed border-zinc-300 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
-      {summary ? (
+    <div className={containerClass}>
+      {showSummary && summary ? (
         <section className="space-y-2">
-          <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-            Ghost comparison summary
-          </h3>
+          {!embedded ? (
+            <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+              Ghost comparison summary
+            </h3>
+          ) : null}
           <dl className="grid gap-2 sm:grid-cols-2">
             <Field label="Route" value={summary.routeId} />
             <Field label="London time" value={summary.currentLondonTime} />
@@ -144,14 +178,14 @@ export function GhostComparisonDiagnostics({
           <p className="text-zinc-500 dark:text-zinc-400">
             {summary.feedGhostLifecycleNote}
           </p>
-          {summary.sanityWarnings.length > 0 ? (
+          {showSanity && summary.sanityWarnings.length > 0 ? (
             <div className="rounded bg-amber-50 p-2 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
               {summary.sanityWarnings.map((warning) => (
                 <p key={warning}>Route sanity warning: {warning}</p>
               ))}
             </div>
           ) : null}
-          {Object.keys(summary.hiddenSuppressionReasonCounts).length > 0 ? (
+          {showSummary && Object.keys(summary.hiddenSuppressionReasonCounts).length > 0 ? (
             <pre className="overflow-x-auto rounded bg-zinc-100 p-2 text-[11px] dark:bg-zinc-900">
               {JSON.stringify(summary.hiddenSuppressionReasonCounts, null, 2)}
             </pre>
@@ -159,7 +193,7 @@ export function GhostComparisonDiagnostics({
         </section>
       ) : null}
 
-      {runDiagnostics?.length ? (
+      {showRuns && runDiagnostics?.length ? (
         <section className="space-y-2">
           <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
             Debug runs
@@ -227,7 +261,7 @@ export function GhostComparisonDiagnostics({
         </section>
       ) : null}
 
-      {legacyDiagnostics?.length ? (
+      {showLegacy && legacyDiagnostics?.length ? (
         <details>
           <summary className="cursor-pointer font-semibold">
             Raw schedule diagnostics

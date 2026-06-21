@@ -41,6 +41,20 @@ export interface IbusCurrentManifest {
   };
 }
 
+export interface IbusBaseVersionSummary {
+  routeCount: number;
+  scheduleBytes: number;
+  runningLookupBytes: number;
+  totalBytes: number;
+}
+
+export interface IbusMultiVersionManifest extends IbusCurrentManifest {
+  activeBaseVersionFromXml?: string;
+  availableBaseVersions?: string[];
+  routeScheduleRoutesByBaseVersion?: Record<string, string[]>;
+  summaryByBaseVersion?: Record<string, IbusBaseVersionSummary>;
+}
+
 export interface IbusImportReport {
   baseVersion: string;
   generatedAt: string;
@@ -83,7 +97,6 @@ export type IbusLookupStatus =
   | "partial"
   | "missing-live-trip"
   | "missing-static-data"
-  | "base-version-mismatch"
   | "not-found"
   | "error";
 
