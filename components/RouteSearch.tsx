@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { FavouritesSection } from "@/components/FavouritesSection";
-import { ShareLinkButton } from "@/components/ShareLinkButton";
+import { VehicleSearchSections } from "@/components/VehicleSearchSections";
+import { useActiveVehicleSearchCandidates } from "@/hooks/useActiveVehicleSearchCandidates";
 import type { FavouriteRoute } from "@/lib/favouriteRoutes";
 import type { FavouriteStop } from "@/lib/favouriteStops";
 import {
@@ -21,7 +22,6 @@ import {
   NEARBY_STOPS_PAGE_SIZE,
   requestCurrentPosition,
 } from "@/lib/nearbyStops";
-import { buildRoutesSearchUrl } from "@/lib/routeUrl";
 import type { StopDetailTarget } from "@/lib/stopDetail";
 import type {
   ActiveRoute,
@@ -29,6 +29,16 @@ import type {
   NearbyStopResult,
   StopSearchResult,
 } from "@/lib/tfl/types";
+import {
+  detectVehicleSearchQueryKinds,
+  groupVehicleSearchResults,
+  isVehicleOnlyDiscoveryQuery,
+  searchActiveVehicleCandidates,
+  shouldSearchActiveVehicles,
+  VEHICLE_SEARCH_HELP_TEXT,
+  VEHICLE_SEARCH_PLACEHOLDER,
+  type VehicleSearchResult,
+} from "@/lib/vehicleSearch";
 import {
   MAX_ACTIVE_ROUTES,
   addActiveRoute,
@@ -44,7 +54,6 @@ interface RouteSearchProps {
   recentRoutes: ActiveRoute[];
   favouriteRoutes: FavouriteRoute[];
   favouriteStops: FavouriteStop[];
-  defaultView?: "loop" | "list";
   onActiveRoutesChange: (routes: ActiveRoute[]) => void;
   onRecentRoutesChange: (routes: ActiveRoute[]) => void;
   onRemoveFavouriteRoute: (routeId: string) => void;
@@ -54,6 +63,7 @@ interface RouteSearchProps {
   onToggleFavouriteStop: (stop: Omit<FavouriteStop, "favouritedAt">) => void;
   onRemoveFavouriteStop: (stopPointId: string) => void;
   onOpenStop: (stop: StopDetailTarget) => void;
+  onOpenVehicleSearchResult: (result: VehicleSearchResult) => void;
   isFavouriteRoute: (routeId: string) => boolean;
   isFavouriteStop: (stopPointId: string) => boolean;
   isLoadingSavedData?: boolean;
@@ -76,7 +86,6 @@ export function RouteSearch({
   recentRoutes,
   favouriteRoutes,
   favouriteStops,
-  defaultView,
   onActiveRoutesChange,
   onRecentRoutesChange,
   onRemoveFavouriteRoute,
@@ -84,6 +93,7 @@ export function RouteSearch({
   onToggleFavouriteStop,
   onRemoveFavouriteStop,
   onOpenStop,
+  onOpenVehicleSearchResult,
   isFavouriteRoute,
   isFavouriteStop,
   isLoadingSavedData = false,
@@ -100,19 +110,33 @@ export function RouteSearch({
     NEARBY_STOPS_PAGE_SIZE,
   );
 
-  const shareUrl =
-    typeof window !== "undefined"
-      ? new URL(
-          buildRoutesSearchUrl(
-            activeRoutes.map((route) => route.routeId),
-            defaultView,
-          ),
-          window.location.origin,
-        ).toString()
-      : buildRoutesSearchUrl(
-          activeRoutes.map((route) => route.routeId),
-          defaultView,
-        );
+  const vehicleCandidates = useActiveVehicleSearchCandidates(activeRoutes);
+
+  const normalizedQuery = useMemo(
+    () => normalizeDiscoveryQuery(query),
+    [query],
+  );
+
+  const vehicleSearchResults = useMemo(() => {
+    if (!normalizedQuery || !shouldSearchActiveVehicles(normalizedQuery)) {
+      return [];
+    }
+
+    return searchActiveVehicleCandidates(vehicleCandidates, normalizedQuery);
+  }, [normalizedQuery, vehicleCandidates]);
+
+  const groupedVehicleResults = useMemo(
+    () => groupVehicleSearchResults(vehicleSearchResults),
+    [vehicleSearchResults],
+  );
+
+  const queryKinds = useMemo(
+    () => detectVehicleSearchQueryKinds(normalizedQuery),
+    [normalizedQuery],
+  );
+
+  const showLocalVehicleResults =
+    normalizedQuery.length >= 2 && shouldSearchActiveVehicles(normalizedQuery);
 
   const nearbyPage = useMemo(
     () => getVisibleNearbyStops(results.nearby, nearbyVisibleCount),
@@ -126,6 +150,15 @@ export function RouteSearch({
     }
     return looksLikeRouteNumber(normalized) ? "routes" : "stops";
   }, [query]);
+
+  const handleOpenVehicleResult = (result: VehicleSearchResult) => {
+    setError(null);
+    setErrorAction(null);
+    onOpenVehicleSearchResult(result);
+    setQuery("");
+    setResults(EMPTY_RESULTS);
+    setHasSearched(false);
+  };
 
   const handleAddRoute = async (routeId: string, routeName: string) => {
     setError(null);
@@ -160,32 +193,57 @@ export function RouteSearch({
     setError(null);
     setErrorAction(null);
     setHasSearched(true);
+
+    const vehicleOnly = isVehicleOnlyDiscoveryQuery(trimmed);
+    const localVehicleResults = searchActiveVehicleCandidates(
+      vehicleCandidates,
+      trimmed,
+    );
+
+    if (vehicleOnly) {
+      setActiveTab("routes");
+      setResults(EMPTY_RESULTS);
+      setIsSearching(false);
+      return;
+    }
+
     setActiveTab(looksLikeRouteNumber(trimmed) ? "routes" : "stops");
 
     try {
-      const [routeResponse, stopResponse] = await Promise.all([
-        fetch(`/api/tfl/line-search?query=${encodeURIComponent(trimmed)}`),
-        fetch(`/api/tfl/stop-search?query=${encodeURIComponent(trimmed)}`),
-      ]);
+      const shouldFetchRemote =
+        queryKinds.includes("route") || queryKinds.includes("location");
+
+      const [routeResponse, stopResponse] = shouldFetchRemote
+        ? await Promise.all([
+            fetch(`/api/tfl/line-search?query=${encodeURIComponent(trimmed)}`),
+            fetch(`/api/tfl/stop-search?query=${encodeURIComponent(trimmed)}`),
+          ])
+        : [null, null];
 
       let routeResults: LineSearchResult[] = [];
       let stopResults: StopSearchResult[] = [];
 
-      if (routeResponse.ok) {
+      if (routeResponse?.ok) {
         const routeData = (await routeResponse.json()) as {
           results: LineSearchResult[];
         };
         routeResults = routeData.results;
       }
 
-      if (stopResponse.ok) {
+      if (stopResponse?.ok) {
         const stopData = (await stopResponse.json()) as {
           results: StopSearchResult[];
         };
         stopResults = stopData.results;
       }
 
-      if (!routeResponse.ok && !stopResponse.ok) {
+      if (
+        shouldFetchRemote &&
+        routeResponse &&
+        stopResponse &&
+        !routeResponse.ok &&
+        !stopResponse.ok
+      ) {
         const friendly = formatFriendlyError(new Error("Search failed"));
         setError(friendly.message);
         setErrorAction(friendly.action ?? null);
@@ -199,12 +257,17 @@ export function RouteSearch({
         nearby: [],
       });
 
-      if (routeResults.length === 0 && stopResults.length === 0) {
-        const friendly = formatFriendlyError(
-          new Error(`No routes or stops found for "${trimmed}".`),
-        );
-        setError(friendly.message);
-        setErrorAction(friendly.action ?? null);
+      const hasRemoteResults = routeResults.length > 0 || stopResults.length > 0;
+      const hasVehicleResults = localVehicleResults.length > 0;
+
+      if (!hasRemoteResults && !hasVehicleResults) {
+        if (!shouldSearchActiveVehicles(trimmed)) {
+          const friendly = formatFriendlyError(
+            new Error(`No routes or stops found for "${trimmed}".`),
+          );
+          setError(friendly.message);
+          setErrorAction(friendly.action ?? null);
+        }
       }
     } catch (searchError) {
       const friendly = formatFriendlyError(searchError);
@@ -340,13 +403,11 @@ export function RouteSearch({
             Discover routes &amp; stops
           </h2>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Search by route number, destination area, or stop name. Up to{" "}
-            {MAX_ACTIVE_ROUTES} active routes.
+            Search routes and stops anywhere. Registration, fleet, and running-number
+            search checks live buses on routes you have open (up to{" "}
+            {MAX_ACTIVE_ROUTES}).
           </p>
         </div>
-        {activeRoutes.length > 0 ? (
-          <ShareLinkButton url={shareUrl} label="Share active routes" />
-        ) : null}
       </div>
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -359,7 +420,7 @@ export function RouteSearch({
               void handleSearch();
             }
           }}
-          placeholder="e.g. 337, Richmond, Clapham Junction"
+          placeholder={VEHICLE_SEARCH_PLACEHOLDER}
           className="min-h-11 flex-1 rounded-xl border border-zinc-300 bg-white px-4 text-base text-zinc-900 outline-none ring-sky-500 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
         />
         <button
@@ -373,6 +434,10 @@ export function RouteSearch({
           {isSearching ? "Searching…" : "Search"}
         </button>
       </div>
+
+      <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+        {VEHICLE_SEARCH_HELP_TEXT}
+      </p>
 
       {isLoadingSavedData ? (
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
@@ -400,6 +465,19 @@ export function RouteSearch({
             <p className="font-semibold">{errorAction}</p>
           ) : null}
           <p className={errorAction ? "mt-1" : undefined}>{error}</p>
+        </div>
+      ) : null}
+
+      {!hasSearched && showLocalVehicleResults ? (
+        <div className="mt-4">
+          <VehicleSearchSections
+            normalizedQuery={normalizedQuery}
+            activeRouteCount={activeRoutes.length}
+            liveVehicles={groupedVehicleResults.liveVehicles}
+            runningNumbers={groupedVehicleResults.runningNumbers}
+            showEmptyState
+            onOpen={handleOpenVehicleResult}
+          />
         </div>
       ) : null}
 
@@ -442,11 +520,29 @@ export function RouteSearch({
           </div>
 
           {visibleTab === "routes" ? (
-            <div className="mt-3 space-y-2">
-              {results.routes.length === 0 ? (
-                <p className="text-sm text-zinc-500">No matching routes.</p>
-              ) : (
-                results.routes.map((route) => (
+            <div className="mt-3 space-y-4">
+              <VehicleSearchSections
+                normalizedQuery={normalizedQuery}
+                activeRouteCount={activeRoutes.length}
+                liveVehicles={groupedVehicleResults.liveVehicles}
+                runningNumbers={groupedVehicleResults.runningNumbers}
+                showEmptyState={hasSearched}
+                onOpen={handleOpenVehicleResult}
+              />
+
+              <div className="space-y-2">
+                {results.routes.length > 0 ? (
+                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                    Routes ({results.routes.length})
+                  </p>
+                ) : null}
+                {results.routes.length === 0 ? (
+                  hasSearched &&
+                  !shouldSearchActiveVehicles(normalizedQuery) ? (
+                    <p className="text-sm text-zinc-500">No matching routes.</p>
+                  ) : null
+                ) : (
+                  results.routes.map((route) => (
                   <div
                     key={route.id}
                     className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700"
@@ -488,12 +584,18 @@ export function RouteSearch({
                     </div>
                   </div>
                 ))
-              )}
+                )}
+              </div>
             </div>
           ) : null}
 
           {visibleTab === "stops" ? (
             <div className="mt-3 space-y-2">
+              {results.stops.length > 0 ? (
+                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  Stops ({results.stops.length})
+                </p>
+              ) : null}
               {results.stops.length === 0 ? (
                 <p className="text-sm text-zinc-500">No matching stops.</p>
               ) : (

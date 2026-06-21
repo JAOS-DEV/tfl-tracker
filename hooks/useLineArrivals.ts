@@ -1,8 +1,13 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { useDocumentVisibility } from "@/hooks/useDocumentVisibility";
 import type { NormalizedVehiclePrediction } from "@/lib/tfl/types";
+import {
+  getRemainingRefetchIntervalMs,
+  shouldRefetchOnVisibilityRestore,
+} from "@/lib/liveRefreshStatus";
 import { POLL_INTERVAL_MS } from "@/lib/storage";
 
 interface LineArrivalsResponse {
@@ -28,13 +33,38 @@ async function fetchLineArrivals(
 
 export function useLineArrivals(routeId: string) {
   const isDocumentVisible = useDocumentVisibility();
+  const wasVisibleRef = useRef(isDocumentVisible);
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ["line-arrivals", routeId],
     queryFn: () => fetchLineArrivals(routeId),
-    refetchInterval: isDocumentVisible ? POLL_INTERVAL_MS : false,
+    refetchInterval: isDocumentVisible
+      ? (currentQuery) =>
+          getRemainingRefetchIntervalMs(
+            currentQuery.state.dataUpdatedAt,
+            Date.now(),
+            POLL_INTERVAL_MS,
+          )
+      : false,
     refetchIntervalInBackground: false,
     staleTime: POLL_INTERVAL_MS,
+    placeholderData: keepPreviousData,
     enabled: Boolean(routeId),
   });
+
+  const { dataUpdatedAt, refetch } = query;
+
+  useEffect(() => {
+    const becameVisible = isDocumentVisible && !wasVisibleRef.current;
+    wasVisibleRef.current = isDocumentVisible;
+
+    if (
+      becameVisible &&
+      shouldRefetchOnVisibilityRestore(dataUpdatedAt, Date.now())
+    ) {
+      void refetch();
+    }
+  }, [isDocumentVisible, dataUpdatedAt, refetch]);
+
+  return query;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useMemo, useState, type KeyboardEvent } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { BusDetailsModal } from "@/components/BusDetailsModal";
 import { DirectionSegmentedControl } from "@/components/DirectionSegmentedControl";
 import { ErrorState } from "@/components/ErrorState";
@@ -17,6 +17,7 @@ import { StatusChipRow } from "@/components/StatusChipRow";
 import { useRouteHistoryRecorder } from "@/hooks/useRouteHistoryRecorder";
 import { useRouteIntelligence } from "@/hooks/useRouteIntelligence";
 import { RouteVisualModeToggle } from "@/components/RouteVisualModeToggle";
+import { LiveRefreshStatus } from "@/components/LiveRefreshStatus";
 import { SchematicRouteLoop } from "@/components/SchematicRouteLoop";
 import { StatusBanner } from "@/components/StatusBanner";
 import { StopArrivalsModal } from "@/components/StopArrivalsModal";
@@ -54,6 +55,7 @@ import type {
   RouteDirection,
   RouteVisualMode,
 } from "@/lib/tfl/types";
+import type { VehicleSearchFocus } from "@/lib/vehicleSearch";
 
 interface RouteCardProps {
   activeRoute: ActiveRoute;
@@ -67,6 +69,8 @@ interface RouteCardProps {
   onAlertPreferencesChange: (preferences: RouteAlertPreferences) => void;
   isExpanded: boolean;
   onExpandedChange: (routeId: string, expanded: boolean) => void;
+  pendingVehicleFocus?: VehicleSearchFocus | null;
+  onPendingVehicleFocusHandled?: () => void;
 }
 
 type SheetType = "service" | "history" | "alerts" | "routeInfo" | null;
@@ -83,6 +87,8 @@ export const RouteCard = memo(function RouteCard({
   onAlertPreferencesChange,
   isExpanded,
   onExpandedChange,
+  pendingVehicleFocus = null,
+  onPendingVehicleFocusHandled,
 }: RouteCardProps): React.ReactElement {
   const isMobile = useMediaQuery("(max-width: 639px)");
   const isOnline = useOnlineStatus();
@@ -94,6 +100,11 @@ export const RouteCard = memo(function RouteCard({
   const [selectedStop, setSelectedStop] = useState<NormalizedStop | null>(null);
   const [selectedVehicle, setSelectedVehicle] =
     useState<EstimatedVehiclePosition | null>(null);
+  const [matchedVehicleNote, setMatchedVehicleNote] = useState<string | null>(
+    null,
+  );
+  const handledVehicleFocusRequestIdRef = useRef<string | null>(null);
+  const initiatedVehicleFocusRequestIdRef = useRef<string | null>(null);
   const [openSheet, setOpenSheet] = useState<SheetType>(null);
   const {
     route,
@@ -218,6 +229,72 @@ export const RouteCard = memo(function RouteCard({
     ? movementDecisions[selectedVehicleWithConfidence.vehicleId]
     : undefined;
 
+  useEffect(() => {
+    if (!pendingVehicleFocus) {
+      return;
+    }
+
+    if (
+      handledVehicleFocusRequestIdRef.current === pendingVehicleFocus.requestId
+    ) {
+      return;
+    }
+
+    if (
+      initiatedVehicleFocusRequestIdRef.current !== pendingVehicleFocus.requestId
+    ) {
+      initiatedVehicleFocusRequestIdRef.current = pendingVehicleFocus.requestId;
+      onExpandedChange(activeRoute.routeId, true);
+
+      if (pendingVehicleFocus.direction) {
+        setSelectedDirection(pendingVehicleFocus.direction);
+      }
+
+      document
+        .getElementById(`route-card-${activeRoute.routeId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    if (!pendingVehicleFocus.vehicleId) {
+      setMatchedVehicleNote(pendingVehicleFocus.note);
+      handledVehicleFocusRequestIdRef.current = pendingVehicleFocus.requestId;
+      onPendingVehicleFocusHandled?.();
+      return;
+    }
+
+    const matchedVehicle = vehicles.find(
+      (vehicle) => vehicle.vehicleId === pendingVehicleFocus.vehicleId,
+    );
+
+    if (matchedVehicle) {
+      setSelectedVehicle(matchedVehicle);
+      setMatchedVehicleNote(null);
+      handledVehicleFocusRequestIdRef.current = pendingVehicleFocus.requestId;
+      onPendingVehicleFocusHandled?.();
+      return;
+    }
+
+    setMatchedVehicleNote(pendingVehicleFocus.note);
+
+    const timeoutId = window.setTimeout(() => {
+      setMatchedVehicleNote(
+        `${pendingVehicleFocus.note} — bus may have moved off feed.`,
+      );
+      handledVehicleFocusRequestIdRef.current = pendingVehicleFocus.requestId;
+      onPendingVehicleFocusHandled?.();
+    }, 15_000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    activeRoute.routeId,
+    onExpandedChange,
+    onPendingVehicleFocusHandled,
+    pendingVehicleFocus,
+    vehicles,
+  ]);
+
   const historySummary =
     historyHydrated && dailyStats.snapshotCount > 0
       ? `${dailyStats.snapshotCount} today`
@@ -272,6 +349,10 @@ export const RouteCard = memo(function RouteCard({
       onExpandedChange(activeRoute.routeId, !isExpanded);
     }
   }, [activeRoute.routeId, isExpanded, onExpandedChange]);
+
+  const handleLiveRefresh = useCallback(() => {
+    void arrivalsQuery.refetch();
+  }, [arrivalsQuery]);
 
   if (sequenceQuery.isLoading) {
     return <RouteCardSkeleton />;
@@ -396,6 +477,24 @@ export const RouteCard = memo(function RouteCard({
               <RouteAlertBadges alerts={userAlerts} compact />
             </div>
           ) : null}
+
+          {matchedVehicleNote ? (
+            <p className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+              {matchedVehicleNote}
+            </p>
+          ) : null}
+
+          <div className="mt-2 pt-0.5">
+            <LiveRefreshStatus
+              routeId={activeRoute.routeId}
+              dataUpdatedAt={arrivalsQuery.dataUpdatedAt}
+              isFetching={arrivalsQuery.isFetching}
+              isRefetching={arrivalsQuery.isRefetching}
+              isError={arrivalsQuery.isError}
+              compact={isMobile}
+              onRefresh={handleLiveRefresh}
+            />
+          </div>
         </header>
 
         {isExpanded ? (

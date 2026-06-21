@@ -50,7 +50,7 @@ describe("HomePage", () => {
     renderHomePage();
 
     expect(
-      screen.getByPlaceholderText(/337, Richmond, Clapham Junction/i),
+      screen.getByPlaceholderText(/Search route, stop, or live vehicle on active routes/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/Search is ready/i)).toBeInTheDocument();
   });

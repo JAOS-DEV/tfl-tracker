@@ -127,7 +127,9 @@ export function StopRow({
                 className="rounded-full bg-sky-100 px-2 py-1 text-[11px] font-semibold text-sky-800 dark:bg-sky-950/60 dark:text-sky-200"
               >
                 Bus {vehicle.routeNumber}
-                {vehicle.ibusRunningNo ? ` · ${vehicle.ibusRunningNo}` : ""}
+                {vehicle.ibusRunningNo ?? vehicle.scheduledGhostRunningNo
+                  ? ` · ${vehicle.ibusRunningNo ?? vehicle.scheduledGhostRunningNo}`
+                  : ""}
                 {vehicle.timeToStation > 0
                   ? ` · ${Math.max(1, Math.round(vehicle.timeToStation / 60))} min`
                   : " · due"}

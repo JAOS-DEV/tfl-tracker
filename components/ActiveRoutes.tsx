@@ -1,8 +1,9 @@
 "use client";
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { RouteCard } from "@/components/RouteCard";
 import { MultiRouteDashboard } from "@/components/MultiRouteDashboard";
+import { ShareLinkButton } from "@/components/ShareLinkButton";
 import type { DisplaySettings } from "@/lib/displaySettings";
 import type { FavouriteRoute } from "@/lib/favouriteRoutes";
 import { isFavouriteRoute } from "@/lib/favouriteRoutes";
@@ -14,7 +15,9 @@ import {
   setAllRoutesExpanded,
   type RouteExpansionState,
 } from "@/lib/routeCardExpansion";
+import { buildRoutesSearchUrl } from "@/lib/routeUrl";
 import type { ActiveRoute, RouteVisualMode } from "@/lib/tfl/types";
+import type { VehicleSearchFocus } from "@/lib/vehicleSearch";
 
 interface ActiveRoutesProps {
   activeRoutes: ActiveRoute[];
@@ -25,6 +28,8 @@ interface ActiveRoutesProps {
   onActiveRoutesChange: (routes: ActiveRoute[]) => void;
   onToggleFavourite: (route: Pick<ActiveRoute, "routeId" | "routeName">) => void;
   onAlertPreferencesChange: (preferences: RouteAlertPreferences) => void;
+  pendingVehicleFocus: VehicleSearchFocus | null;
+  onPendingVehicleFocusHandled: () => void;
 }
 
 export const ActiveRoutes = memo(function ActiveRoutes({
@@ -36,6 +41,8 @@ export const ActiveRoutes = memo(function ActiveRoutes({
   onActiveRoutesChange,
   onToggleFavourite,
   onAlertPreferencesChange,
+  pendingVehicleFocus,
+  onPendingVehicleFocusHandled,
 }: ActiveRoutesProps): React.ReactElement {
   const routeIds = useMemo(
     () => activeRoutes.map((route) => route.routeId),
@@ -73,6 +80,45 @@ export const ActiveRoutes = memo(function ActiveRoutes({
       [routeId]: expanded,
     }));
   }, []);
+
+  useEffect(() => {
+    if (!pendingVehicleFocus) {
+      return;
+    }
+
+    const routeIndex = routeIds.indexOf(pendingVehicleFocus.routeId);
+    if (routeIndex < 0) {
+      return;
+    }
+
+    if (
+      !isRouteExpanded(
+        expandedByRouteId,
+        pendingVehicleFocus.routeId,
+        routeIndex,
+        routeIds.length,
+      )
+    ) {
+      setExpansionOverrides((current) => ({
+        ...current,
+        [pendingVehicleFocus.routeId]: true,
+      }));
+    }
+  }, [expandedByRouteId, pendingVehicleFocus, routeIds]);
+
+  const shareUrl = useMemo(() => {
+    const view = urlVisualMode ?? displaySettings.defaultVisualMode;
+    const path = buildRoutesSearchUrl(
+      activeRoutes.map((route) => route.routeId),
+      view,
+    );
+
+    if (typeof window === "undefined") {
+      return path;
+    }
+
+    return new URL(path, window.location.origin).toString();
+  }, [activeRoutes, displaySettings.defaultVisualMode, urlVisualMode]);
 
   if (activeRoutes.length === 0) {
     return (
@@ -118,6 +164,8 @@ export const ActiveRoutes = memo(function ActiveRoutes({
         </div>
       </div>
 
+      <ShareLinkButton url={shareUrl} label="Share active routes" />
+
       <div className="grid min-w-0 gap-4 xl:grid-cols-1">
         {activeRoutes.map((route, index) => (
           <RouteCard
@@ -138,6 +186,12 @@ export const ActiveRoutes = memo(function ActiveRoutes({
               activeRoutes.length,
             )}
             onExpandedChange={handleRouteExpandedChange}
+            pendingVehicleFocus={
+              pendingVehicleFocus?.routeId === route.routeId
+                ? pendingVehicleFocus
+                : null
+            }
+            onPendingVehicleFocusHandled={onPendingVehicleFocusHandled}
           />
         ))}
       </div>

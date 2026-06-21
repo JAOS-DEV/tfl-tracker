@@ -39,6 +39,11 @@ import {
 } from "@/lib/storage";
 import type { ActiveRoute } from "@/lib/tfl/types";
 import { STORAGE_KEYS } from "@/lib/storage";
+import {
+  createVehicleSearchFocus,
+  type VehicleSearchFocus,
+  type VehicleSearchResult,
+} from "@/lib/vehicleSearch";
 
 const EMPTY_ACTIVE_ROUTES: ActiveRoute[] = [];
 const EMPTY_RECENT_ROUTES: ActiveRoute[] = [];
@@ -76,6 +81,8 @@ export default function HomePage(): React.ReactElement {
     message: string;
     action?: string;
   } | null>(null);
+  const [pendingVehicleFocus, setPendingVehicleFocus] =
+    useState<VehicleSearchFocus | null>(null);
   const isOnline = useOnlineStatus();
 
   const isHydrated =
@@ -156,6 +163,33 @@ export default function HomePage(): React.ReactElement {
     }));
   };
 
+  const handleOpenVehicleSearchResult = useCallback(
+    (result: VehicleSearchResult) => {
+      const routeAlreadyActive = activeRoutes.some(
+        (route) => route.routeId === result.routeId,
+      );
+
+      if (!routeAlreadyActive) {
+        if (activeRoutes.length >= MAX_ACTIVE_ROUTES) {
+          return;
+        }
+
+        const route = createActiveRoute(result.routeId, result.routeId);
+        setActiveRoutes(addActiveRoute(activeRoutes, route));
+        setRecentRoutes(addRecentRoute(recentRoutes, route));
+      }
+
+      setPendingVehicleFocus(
+        createVehicleSearchFocus(result, crypto.randomUUID()),
+      );
+    },
+    [activeRoutes, recentRoutes, setActiveRoutes, setRecentRoutes],
+  );
+
+  const handlePendingVehicleFocusHandled = useCallback(() => {
+    setPendingVehicleFocus(null);
+  }, []);
+
   const offlineError = !isOnline
     ? formatFriendlyError(null, { isOffline: true })
     : null;
@@ -209,7 +243,6 @@ export default function HomePage(): React.ReactElement {
           recentRoutes={recentRoutes}
           favouriteRoutes={migratedFavourites}
           favouriteStops={favouriteStops}
-          defaultView={normalizedDisplaySettings.defaultVisualMode}
           onActiveRoutesChange={setActiveRoutes}
           onRecentRoutesChange={setRecentRoutes}
           onRemoveFavouriteRoute={handleRemoveFavouriteRoute}
@@ -217,6 +250,7 @@ export default function HomePage(): React.ReactElement {
           onToggleFavouriteStop={toggleFavouriteStop}
           onRemoveFavouriteStop={removeFavouriteStop}
           onOpenStop={handleOpenStop}
+          onOpenVehicleSearchResult={handleOpenVehicleSearchResult}
           isFavouriteRoute={(routeId) =>
             isFavouriteRoute(migratedFavourites, routeId)
           }
@@ -240,6 +274,8 @@ export default function HomePage(): React.ReactElement {
             onActiveRoutesChange={setActiveRoutes}
             onToggleFavourite={handleToggleFavouriteRoute}
             onAlertPreferencesChange={handleAlertPreferencesChange}
+            pendingVehicleFocus={pendingVehicleFocus}
+            onPendingVehicleFocusHandled={handlePendingVehicleFocusHandled}
           />
         )}
       </main>
