@@ -26,6 +26,7 @@ export interface ScheduleBlockRecord {
 export interface BuildRouteScheduleInput {
   baseVersion: string;
   routeId: string;
+  contractLineNos?: string[];
   generatedAt: string;
   patterns: ParsedPattern[];
   stopsInPattern: ParsedStopInPattern[];
@@ -176,9 +177,10 @@ export function computeJourneyStops(
 export function buildRouteSchedule(
   input: BuildRouteScheduleInput,
 ): IbusRouteSchedule {
+  const contractLineNos = new Set(input.contractLineNos ?? [input.routeId]);
   const routePatternIds = new Set(
     input.patterns
-      .filter((pattern) => pattern.contractLineNo === input.routeId)
+      .filter((pattern) => contractLineNos.has(pattern.contractLineNo))
       .map((pattern) => pattern.patternIdx),
   );
   const patternByIdx = new Map(

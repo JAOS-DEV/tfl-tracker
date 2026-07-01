@@ -5,6 +5,7 @@ import { AboutDataContent } from "@/components/AboutDataContent";
 import { IbusDataVersionSection } from "@/components/IbusDataVersionSection";
 import { MobileBottomSheet } from "@/components/MobileBottomSheet";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AfterMidnightReplayControls } from "@/components/AfterMidnightReplayControls";
 import { useDisplaySettings } from "@/hooks/useDisplaySettings";
 import {
   DEFAULT_DISPLAY_SETTINGS,
@@ -15,6 +16,12 @@ import {
   loadAllSnapshots,
 } from "@/lib/localRouteHistory";
 import { resetAppToDefaults } from "@/lib/resetAppDefaults";
+import { PUBLIC_FEATURES } from "@/lib/publicFeatures";
+import {
+  buildAfterMidnightReplayUrl,
+  resolveAfterMidnightReplayScenario,
+  type AfterMidnightReplayScenario,
+} from "@/lib/tfl/afterMidnightReplay";
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -64,6 +71,13 @@ export function SettingsPanel({
 }: SettingsPanelProps): React.ReactElement | null {
   const [settings, setSettings] = useDisplaySettings();
   const [aboutOpen, setAboutOpen] = useState(false);
+  const activeReplayScenario =
+    typeof window === "undefined"
+      ? null
+      : resolveAfterMidnightReplayScenario(
+          new URLSearchParams(window.location.search).get("replay"),
+          process.env.NODE_ENV,
+        );
 
   if (!isOpen) {
     return null;
@@ -85,6 +99,16 @@ export function SettingsPanel({
   return (
     <MobileBottomSheet title="Settings" titleId="settings-title" onClose={onClose}>
       <div className="space-y-6">
+        {PUBLIC_FEATURES.afterMidnightReplay ? (
+          <AfterMidnightReplayControls
+            activeScenario={activeReplayScenario}
+            onSelect={(scenario: AfterMidnightReplayScenario | null) => {
+              window.location.assign(
+                buildAfterMidnightReplayUrl(window.location.href, scenario),
+              );
+            }}
+          />
+        ) : null}
         <section className="space-y-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
             Display
@@ -94,6 +118,12 @@ export function SettingsPanel({
               Default view
             </p>
             <div className="inline-flex w-full rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800">
+              <SegmentedOption
+                value="map"
+                current={settings.defaultVisualMode}
+                label="Map"
+                onSelect={updateDefaultVisualMode}
+              />
               <SegmentedOption
                 value="loop"
                 current={settings.defaultVisualMode}
@@ -139,20 +169,22 @@ export function SettingsPanel({
             />
           </label>
 
-          <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
-            <span>Show advanced diagnostics</span>
-            <input
-              type="checkbox"
-              checked={settings.showAdvancedDiagnostics}
-              onChange={(event) =>
-                setSettings((current) => ({
-                  ...current,
-                  showAdvancedDiagnostics: event.target.checked,
-                }))
-              }
-              className="h-5 w-5"
-            />
-          </label>
+          {PUBLIC_FEATURES.advancedDiagnostics ? (
+            <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+              <span>Show advanced diagnostics</span>
+              <input
+                type="checkbox"
+                checked={settings.showAdvancedDiagnostics}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    showAdvancedDiagnostics: event.target.checked,
+                  }))
+                }
+                className="h-5 w-5"
+              />
+            </label>
+          ) : null}
 
           <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
             <span>Smooth bus movement</span>

@@ -12,7 +12,11 @@ import * as buildLiveSchedulePoolModule from "@/lib/schedulePipeline/buildLiveSc
 import { buildLiveSchedulePool } from "@/lib/schedulePipeline/buildLiveSchedulePool";
 import { buildScheduleDisplayState } from "@/lib/schedulePipeline/buildScheduleDisplayState";
 import * as matchLiveVehicleModule from "@/lib/schedulePipeline/matchLiveVehicleToSchedule";
-import { matchLiveVehicleToSchedule } from "@/lib/schedulePipeline/matchLiveVehicleToSchedule";
+import {
+  matchLiveVehicleToSchedule,
+  selectBestScheduleMatch,
+  selectBestScheduleMatchWithDiagnostics,
+} from "@/lib/schedulePipeline/matchLiveVehicleToSchedule";
 import { buildScheduleIndexes } from "@/lib/schedulePipeline/buildScheduleIndexes";
 import * as runSchedulePipelineModule from "@/lib/schedulePipeline/runSchedulePipeline";
 import { runScheduleTimingPipeline } from "@/lib/schedulePipeline/runSchedulePipeline";
@@ -187,9 +191,23 @@ describe("route 14 schedule scale", () => {
     expect(schedule).not.toBeNull();
 
     const pool = buildLiveSchedulePool(schedule!, pipelineNow);
-    expect(pool.allJourneys.length).toBe(998);
+    expect(pool.allJourneys.length).toBeGreaterThan(1_000);
     expect(pool.activeJourneys.length).toBeGreaterThan(0);
-    expect(pool.activeJourneys.length).toBeLessThan(100);
+    expect(pool.activeJourneys.length).toBeLessThan(pool.allJourneys.length / 10);
+  });
+
+  it("keeps delayed live runs matchable after they leave the ghost-active window", () => {
+    const schedule = normalizeRouteSchedule(readLocalRouteSchedule("14"));
+    expect(schedule).not.toBeNull();
+
+    const now = new Date("2026-07-01T00:30:00.000Z").getTime();
+    const pool = buildLiveSchedulePool(schedule!, now);
+    const activeTripIds = new Set(pool.activeJourneys.map((journey) => journey.tripId));
+    const delayedMatch = pool.liveMatchingJourneys.find(
+      (journey) => !activeTripIds.has(journey.tripId),
+    );
+
+    expect(delayedMatch).toBeDefined();
   });
 });
 
@@ -324,6 +342,151 @@ describe("schedule pipeline performance", () => {
 
     expect(timingSpy).not.toHaveBeenCalled();
     timingSpy.mockRestore();
+  });
+});
+
+describe("ambiguous live journey matching", () => {
+  const scheduledStop = (scheduledSeconds: number) => ({
+    sequence: 1,
+    stopName: "Stop A",
+    stopCode: "A1",
+    naptanId: "490000001A",
+    scheduledTime: `${String(Math.floor(scheduledSeconds / 3600)).padStart(2, "0")}:${String(Math.floor((scheduledSeconds % 3600) / 60)).padStart(2, "0")}`,
+    scheduledSeconds,
+  });
+
+  it("selects the running/block candidate nearest the live next-stop prediction", () => {
+    const earlyJourney = buildActiveJourney({
+      tripId: "wrong-journey",
+      startSeconds: 28_800,
+      endSeconds: 36_600,
+      stops: [scheduledStop(29_100)],
+    });
+    const nearestJourney = buildActiveJourney({
+      tripId: "nearest-journey",
+      startSeconds: 32_400,
+      endSeconds: 36_600,
+      stops: [scheduledStop(32_700)],
+    });
+    const schedule = {
+      ...controlSchedule,
+      journeys: [earlyJourney, nearestJourney],
+    };
+    const pool = buildLiveSchedulePool(schedule, pipelineNow);
+    const vehicle = buildVehicle({
+      tripId: "live-trip-not-in-static-schedule",
+      ibusRunningNo: "568",
+      ibusBlockNo: "123568",
+      expectedArrival: "2026-06-12T08:06:00.000Z",
+    });
+
+    const match = selectBestScheduleMatch(
+      vehicle,
+      pool.liveMatchingJourneys,
+      route337,
+      pool,
+      schedule.baseVersion,
+    );
+
+    expect(match?.journey.tripId).toBe("nearest-journey");
+    expect(match?.reason).toBe("runningNo/blockNo");
+  });
+
+  it("rejects a running/block candidate with an implausible next-stop time", () => {
+    const implausibleJourney = buildActiveJourney({
+      tripId: "implausible-journey",
+      startSeconds: 28_800,
+      endSeconds: 36_600,
+      stops: [scheduledStop(29_100)],
+    });
+    const schedule = { ...controlSchedule, journeys: [implausibleJourney] };
+    const pool = buildLiveSchedulePool(schedule, pipelineNow);
+    const vehicle = buildVehicle({
+      tripId: "live-trip-not-in-static-schedule",
+      ibusRunningNo: "568",
+      ibusBlockNo: "123568",
+      expectedArrival: "2026-06-12T09:06:00.000Z",
+    });
+
+    expect(
+      selectBestScheduleMatch(
+        vehicle,
+        pool.liveMatchingJourneys,
+        route337,
+        pool,
+        schedule.baseVersion,
+      ),
+    ).toBeNull();
+  });
+
+  it("reports raw after-midnight service time and converted London/UTC instants", () => {
+    const afterMidnightJourney = buildActiveJourney({
+      tripId: "after-midnight-journey",
+      startSeconds: 24 * 3600,
+      endSeconds: 26 * 3600,
+      stops: [scheduledStop(25 * 3600 + 14 * 60)],
+    });
+    const schedule = { ...controlSchedule, journeys: [afterMidnightJourney] };
+    const pool = buildLiveSchedulePool(schedule, pipelineNow);
+    const vehicle = buildVehicle({
+      tripId: "live-trip-not-in-static-schedule",
+      ibusRunningNo: "568",
+      ibusBlockNo: "123568",
+      expectedArrival: "2026-06-13T01:15:00.000Z",
+    });
+
+    const result = selectBestScheduleMatchWithDiagnostics(
+      vehicle,
+      [afterMidnightJourney],
+      route337,
+      pool,
+      schedule.baseVersion,
+    );
+
+    expect(result.match).toBeNull();
+    expect(result.trace).toMatchObject({
+      journeyId: "after-midnight-journey",
+      rawScheduledServiceTime: "25:14",
+      liveExpectedArrivalUtc: "2026-06-13T01:15:00.000Z",
+      scheduledArrivalUtc: "2026-06-13T00:14:00.000Z",
+      stopTimeDifferenceMinutes: 61,
+      rejectionReason: "fallback-time-difference",
+    });
+    expect(result.trace?.liveExpectedArrivalLondon).toContain("02:15");
+    expect(result.trace?.scheduledArrivalLondon).toContain("01:14");
+  });
+});
+
+describe("after-midnight indexed matching", () => {
+  it("matches a plausible indexed journey even when the active pool is empty", () => {
+    const journey = buildActiveJourney({
+      serviceDays: [0],
+      startSeconds: 36_000,
+      endSeconds: 36_900,
+    });
+    const schedule = { ...controlSchedule, journeys: [journey] };
+    const result = runScheduleTimingPipeline({
+      routeId: "337",
+      route: route337,
+      routeSchedule: schedule,
+      vehicles: [
+        buildVehicle({
+          tripId: "live-trip-not-in-static-schedule",
+          ibusRunningNo: "568",
+          ibusBlockNo: "123568",
+          expectedArrival: "2026-06-12T09:05:00.000Z",
+        }),
+      ],
+      layout: LOOP_LAYOUT,
+      now: pipelineNow,
+      dataUpdatedAt: pipelineNow,
+      showScheduleGhosts: false,
+      includeLowConfidence: false,
+      collectDiagnostics: true,
+    });
+
+    expect(result.pool.liveMatchingJourneys).toHaveLength(0);
+    expect(result.timingResults[0]?.display.candidateMatch).toBe(true);
   });
 });
 

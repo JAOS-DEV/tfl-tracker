@@ -49,6 +49,8 @@ export interface NormalizedStop {
   naptanId: string;
   stopLetter?: string;
   towards?: string;
+  lat?: number;
+  lon?: number;
   isTimingPoint: boolean;
   /** Reserved for verified QSI imports; never inferred from schedule alone. */
   isQsiPoint?: boolean;
@@ -56,11 +58,21 @@ export interface NormalizedStop {
   timingPointSource?: TimingPointSource;
 }
 
+export interface RouteGeoPoint {
+  lat: number;
+  lon: number;
+}
+
+export type RoutePathsByDirection = Partial<
+  Record<RouteDirection, RouteGeoPoint[][]>
+>;
+
 export interface NormalizedRoute {
   routeId: string;
   routeName: string;
   inbound: NormalizedStop[];
   outbound: NormalizedStop[];
+  routePaths?: RoutePathsByDirection;
 }
 
 export interface NormalizedVehiclePrediction {
@@ -73,6 +85,7 @@ export interface NormalizedVehiclePrediction {
   direction: RouteDirection;
   timeToStation: number;
   expectedArrival: string;
+  timestamp?: string;
   vehicleId?: string;
   vehicleRegistration?: string;
   vehicleFleetReference?: string;
@@ -159,7 +172,7 @@ export interface ActiveRoute {
   addedAt: number;
 }
 
-export type RouteVisualMode = "list" | "loop";
+export type RouteVisualMode = "list" | "loop" | "map";
 
 export interface LoopStopNode {
   stop: NormalizedStop;

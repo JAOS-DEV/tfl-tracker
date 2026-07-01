@@ -43,8 +43,13 @@ export async function fetchIbusJson<T>(
   }
 
   try {
+    const cache = isIbusManifestRelativePath(relativePath)
+      ? "default"
+      : options?.trackAs === "routeSchedule"
+        ? "no-cache"
+        : "force-cache";
     const response = await fetch(loadedFrom, {
-      cache: isIbusManifestRelativePath(relativePath) ? "default" : "force-cache",
+      cache,
     });
     if (!response.ok) {
       if (response.status === 404 && process.env.NODE_ENV === "development") {

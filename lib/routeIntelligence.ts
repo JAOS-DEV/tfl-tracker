@@ -8,7 +8,7 @@ import {
   type LiveIbusRunningDetail,
 } from "@/lib/ibusLookup";
 import {
-  buildBlueLiveBusScheduleDiagnostics,
+  buildLiveBusScheduleDiagnostics,
   countBlueUnknownLiveBuses,
   summarizeUnknownReasons,
 } from "@/lib/schedulePipeline/buildLiveBusScheduleDiagnostics";
@@ -308,7 +308,7 @@ export function buildRouteIntelligence(
 
   const liveBusScheduleDiagnostics =
     input.collectScheduleGhostDiagnostics
-      ? buildBlueLiveBusScheduleDiagnostics({
+      ? buildLiveBusScheduleDiagnostics({
           routeId: input.routeId,
           vehicles: finalVehicles,
           timingResults,

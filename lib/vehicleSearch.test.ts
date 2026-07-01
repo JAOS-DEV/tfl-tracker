@@ -9,6 +9,7 @@ import {
   isVehicleOnlyDiscoveryQuery,
   searchActiveVehicleCandidates,
   shouldSearchActiveVehicles,
+  shouldShowVehicleSearchEmptyState,
   VEHICLE_SEARCH_HELP_TEXT,
   VEHICLE_SEARCH_PLACEHOLDER,
   type VehicleSearchCandidate,
@@ -250,6 +251,15 @@ describe("vehicleSearch empty states", () => {
       "No live bus with run 562 found on active routes.",
     );
     expect(message.detail).toMatch(/Add the route first/i);
+  });
+
+  it("suppresses running-number empty states when route discovery already matched", () => {
+    expect(
+      shouldShowVehicleSearchEmptyState("337", 1, 0, {
+        routeDiscoveryResultCount: 1,
+      }),
+    ).toBe(false);
+    expect(shouldShowVehicleSearchEmptyState("562", 1, 0)).toBe(true);
   });
 });
 

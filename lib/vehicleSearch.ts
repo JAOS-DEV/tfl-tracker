@@ -595,7 +595,16 @@ export function shouldShowVehicleSearchEmptyState(
   query: string,
   activeRouteCount: number,
   resultCount: number,
+  options?: { routeDiscoveryResultCount?: number },
 ): boolean {
+  if (
+    resultCount === 0 &&
+    (options?.routeDiscoveryResultCount ?? 0) > 0 &&
+    looksLikeRouteNumber(query)
+  ) {
+    return false;
+  }
+
   return (
     resultCount === 0 &&
     query.trim().length >= 2 &&

@@ -284,16 +284,19 @@ export interface BuildRouteSchedulesResult {
   topLargestRouteSchedules: Array<{ routeId: string; sizeBytes: number }>;
 }
 
-function resolveContractLineNo(
+export function resolveContractLineNos(
   lineMap: Map<string, string>,
   routeId: string,
-): string {
+): string[] {
+  const contractLineNos: string[] = [];
+
   for (const [contractLineNo, serviceLineNo] of lineMap.entries()) {
     if (serviceLineNo === routeId) {
-      return contractLineNo;
+      contractLineNos.push(contractLineNo);
     }
   }
-  return routeId;
+
+  return contractLineNos.length > 0 ? contractLineNos : [routeId];
 }
 
 function collectRouteJourneyData(
@@ -337,41 +340,55 @@ export async function buildRouteSchedules(
   await fs.mkdir(scheduleDir, { recursive: true });
 
   for (const routeId of options.routeIds) {
-    const contractLineNo = resolveContractLineNo(options.corpus.lineMap, routeId);
-    const patternUrl = options.urls.patternDataZip(contractLineNo);
-    const patternZip = await fetchIbusZipCached(
-      options.context,
-      patternUrl,
-      `Pattern data (${routeId})`,
-    );
+    const outputPath = path.join(scheduleDir, routeScheduleFilename(routeId));
+    const contractLineNos = resolveContractLineNos(options.corpus.lineMap, routeId);
+    const patterns: ParsedPattern[] = [];
+    const stopsInPattern: ParsedStopInPattern[] = [];
+    let hasMissingPatternArchive = false;
 
-    if (!patternZip) {
+    for (const contractLineNo of contractLineNos) {
+      const patternUrl = options.urls.patternDataZip(contractLineNo);
+      const patternZip = await fetchIbusZipCached(
+        options.context,
+        patternUrl,
+        `Pattern data (${routeId}: ${contractLineNo})`,
+      );
+
+      if (!patternZip) {
+        hasMissingPatternArchive = true;
+        warnings.push(
+          `Pattern data missing for route ${routeId} contract ${contractLineNo}; partial schedule not published`,
+        );
+        continue;
+      }
+
+      const patternFiles = await extractXmlFiles(
+        patternZip,
+        (name) => /Pattern|Stop_In_Pattern/i.test(name),
+      );
+
+      for (const file of patternFiles) {
+        if (/Pattern_/i.test(file.name) && !/Stop_In_Pattern/i.test(file.name)) {
+          const parsed = parsePatternXml(file.content);
+          options.corpus.stats.patternRecordsParsed += parsed.length;
+          patterns.push(...parsed);
+        }
+        if (/Stop_In_Pattern/i.test(file.name)) {
+          stopsInPattern.push(...parseStopInPatternXml(file.content));
+        }
+      }
+    }
+
+    if (hasMissingPatternArchive) {
+      await fs.rm(outputPath, { force: true });
       routesSkipped.push(routeId);
-      warnings.push(`Pattern data missing for route ${routeId}`);
       continue;
     }
 
-    const patternFiles = await extractXmlFiles(
-      patternZip,
-      (name) => /Pattern|Stop_In_Pattern/i.test(name),
-    );
-    const patterns: ParsedPattern[] = [];
-    const stopsInPattern: ParsedStopInPattern[] = [];
-
-    for (const file of patternFiles) {
-      if (/Pattern_/i.test(file.name) && !/Stop_In_Pattern/i.test(file.name)) {
-        const parsed = parsePatternXml(file.content);
-        options.corpus.stats.patternRecordsParsed += parsed.length;
-        patterns.push(...parsed);
-      }
-      if (/Stop_In_Pattern/i.test(file.name)) {
-        stopsInPattern.push(...parseStopInPatternXml(file.content));
-      }
-    }
-
+    const contractLineNoSet = new Set(contractLineNos);
     const routePatternIds = new Set(
       patterns
-        .filter((pattern) => pattern.contractLineNo === routeId)
+        .filter((pattern) => contractLineNoSet.has(pattern.contractLineNo))
         .map((pattern) => pattern.patternIdx),
     );
 
@@ -383,6 +400,7 @@ export async function buildRouteSchedules(
     const schedule: IbusRouteSchedule = buildRouteSchedule({
       baseVersion: options.baseVersion,
       routeId,
+      contractLineNos,
       generatedAt,
       patterns,
       stopsInPattern,
@@ -395,12 +413,15 @@ export async function buildRouteSchedules(
     });
 
     if (schedule.journeys.length === 0) {
+      await fs.rm(outputPath, { force: true });
       routesSkipped.push(routeId);
+      warnings.push(
+        `No scheduled journeys found for route ${routeId}; existing schedule removed`,
+      );
       continue;
     }
 
     const compactSchedule = buildCompactRouteSchedule(schedule);
-    const outputPath = path.join(scheduleDir, routeScheduleFilename(routeId));
     const json = serializeCompactRouteSchedule(compactSchedule);
     await fs.writeFile(outputPath, json, "utf8");
     const sizeBytes = Buffer.byteLength(json, "utf8");

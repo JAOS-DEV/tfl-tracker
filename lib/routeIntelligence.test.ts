@@ -353,6 +353,7 @@ describe("buildRouteIntelligence", () => {
       trackingStates: new Map<string, PredictionTrackingState>(),
       timetables: {},
       includeScheduleMatching: true,
+      collectScheduleGhostDiagnostics: true,
       showScheduleGhosts: false,
       liveBaseVersion: "20260606",
       routeSchedule: {
@@ -404,6 +405,8 @@ describe("buildRouteIntelligence", () => {
     expect(liveVehicle?.scheduleStatus).toBe("late");
     expect(liveVehicle?.adherence).toBe("late");
     expect(liveVehicle?.scheduleDeviationMinutes).toBeGreaterThanOrEqual(2);
+    expect(result.liveBusScheduleDiagnostics).toHaveLength(1);
+    expect(result.liveBusScheduleDiagnostics?.[0]?.trustedTiming).toBe(true);
   });
 
   it("does not compute schedule timing for collapsed routes", () => {

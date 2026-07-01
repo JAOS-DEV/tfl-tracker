@@ -46,6 +46,19 @@ export interface ResolvedRouteIntelligenceOptions {
   showRegistrationEnabled: boolean;
 }
 
+export function resolveIntelligenceClock(
+  arrivalsData: { replay?: { simulatedNow: string } } | undefined,
+  fallbackDataUpdatedAt: number,
+  fallbackNow: number,
+): { now: number; dataUpdatedAt: number } {
+  const simulatedNow = arrivalsData?.replay?.simulatedNow;
+  const parsed = simulatedNow ? Date.parse(simulatedNow) : Number.NaN;
+  if (Number.isFinite(parsed)) {
+    return { now: parsed, dataUpdatedAt: parsed };
+  }
+  return { now: fallbackNow, dataUpdatedAt: fallbackDataUpdatedAt };
+}
+
 export function resolveRouteIntelligenceOptions(
   options: UseRouteIntelligenceOptions = {},
 ): ResolvedRouteIntelligenceOptions {
@@ -113,6 +126,11 @@ export function useRouteIntelligence(
     () => arrivalsQuery.data?.predictions ?? [],
     [arrivalsQuery.data?.predictions],
   );
+  const replayTrackingClock = resolveIntelligenceClock(
+    arrivalsQuery.data,
+    arrivalsQuery.dataUpdatedAt,
+    arrivalsQuery.dataUpdatedAt,
+  );
 
   const liveBaseVersionFromPredictions = useMemo(
     () =>
@@ -133,7 +151,7 @@ export function useRouteIntelligence(
   const predictionTracking = usePredictionTracking(
     routeId,
     predictions,
-    arrivalsQuery.dataUpdatedAt,
+    replayTrackingClock.dataUpdatedAt,
   );
 
   const loopLayout = useMemo(
@@ -154,6 +172,7 @@ export function useRouteIntelligence(
       routeId,
       includeScheduleMatching ? "full" : "lite",
       arrivalsQuery.dataUpdatedAt,
+      arrivalsQuery.data?.replay?.simulatedNow ?? null,
       predictions.length,
       loopLayout.orientation,
       enrichLiveIbusDetails ? "ibus" : "no-ibus",
@@ -166,6 +185,11 @@ export function useRouteIntelligence(
       debugScheduleRunningNos.join(","),
     ],
     queryFn: async () => {
+      const intelligenceClock = resolveIntelligenceClock(
+        arrivalsQuery.data,
+        arrivalsQuery.dataUpdatedAt,
+        Date.now(),
+      );
       const needsIbusManifest =
         enrichLiveIbusDetails ||
         (includeScheduleMatching && showScheduleGhosts);
@@ -197,8 +221,8 @@ export function useRouteIntelligence(
         route: route!,
         predictions,
         layout: loopLayout,
-        dataUpdatedAt: arrivalsQuery.dataUpdatedAt,
-        now: Date.now(),
+        dataUpdatedAt: intelligenceClock.dataUpdatedAt,
+        now: intelligenceClock.now,
         trackingStates: predictionTracking.states,
         timetables: includeScheduleMatching ? timetables : {},
         includeScheduleMatching,
@@ -243,7 +267,9 @@ export function useRouteIntelligence(
     arrivalsQuery,
     intelligence: intelligenceQuery.data ?? null,
     routeSchedule: includeScheduleMatching ? routeSchedule : undefined,
-    now: new Date(),
+    now: arrivalsQuery.data?.replay?.simulatedNow
+      ? new Date(arrivalsQuery.data.replay.simulatedNow)
+      : new Date(),
     isCheckingSchedule:
       includeScheduleMatching && routeScheduleQuery.isFetching,
   };

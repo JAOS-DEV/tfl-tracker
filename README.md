@@ -136,7 +136,7 @@ Positions are **estimated** from arrival predictions and route stop order — no
 
 Stored in `localStorage` under `tfl-tracker:display-settings`:
 
-- Default view: loop or list
+- Default view: map, loop, or list
 - Smooth bus movement on the loop
 - Show schedule ghosts
 - Show bus registration / fleet / running number on markers
@@ -154,7 +154,7 @@ Stored in `localStorage` under `tfl-tracker:display-settings`:
 | Parameter | Example | Effect |
 | --- | --- | --- |
 | `routes` | `?routes=14,N22` | Open up to 3 routes (comma-separated) |
-| `view` | `?view=list` | Default visual mode for shared routes |
+| `view` | `?view=map` | Default visual mode for shared routes (`map`, `loop`, or `list`) |
 | `stop` | `?stop=490000123A` | Open stop arrivals modal |
 
 ### What stays on your device

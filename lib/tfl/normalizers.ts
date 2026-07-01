@@ -9,6 +9,8 @@ import type {
   NormalizedStop,
   NormalizedVehiclePrediction,
   RouteDirection,
+  RouteGeoPoint,
+  RoutePathsByDirection,
   RouteStatus,
   StopSearchResult,
   TflPrediction,
@@ -24,6 +26,7 @@ interface RawStopPointSequence {
 interface RawRouteSequence {
   lineId?: string;
   lineName?: string;
+  lineStrings?: string[];
   stopPointSequences?: RawStopPointSequence[];
 }
 
@@ -38,9 +41,20 @@ function normalizeDirection(direction: string): RouteDirection | null {
   return null;
 }
 
+function isValidStopCoordinate(lat: number, lon: number): boolean {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lon) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lon) <= 180 &&
+    !(lat === 0 && lon === 0)
+  );
+}
+
 function normalizeStop(stop: TflStopPoint): NormalizedStop {
   const naptanId = stop.naptanId ?? stop.id;
   const stopLetter = stop.stopLetter ?? stop.indicator;
+  const hasCoordinates = isValidStopCoordinate(stop.lat, stop.lon);
 
   return {
     id: stop.id,
@@ -48,6 +62,7 @@ function normalizeStop(stop: TflStopPoint): NormalizedStop {
     naptanId,
     stopLetter: stopLetter || undefined,
     towards: stop.towards,
+    ...(hasCoordinates ? { lat: stop.lat, lon: stop.lon } : {}),
     // TODO: mark timing points when TfL sequence metadata exposes them reliably.
     isTimingPoint: false,
     isQsiPoint: false,
@@ -89,18 +104,72 @@ function extractSequences(raw: RawRouteSequence): {
   };
 }
 
+function isValidRouteCoordinate(value: unknown): value is [number, number] {
+  return (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    typeof value[0] === "number" &&
+    typeof value[1] === "number" &&
+    isValidStopCoordinate(value[1], value[0])
+  );
+}
+
+function parseRoutePaths(value: string | undefined): RouteGeoPoint[][] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .filter(
+        (path): path is [number, number][] =>
+          Array.isArray(path) &&
+          path.length >= 2 &&
+          path.every(isValidRouteCoordinate),
+      )
+      .map((path) => path.map(([lon, lat]) => ({ lat, lon })));
+  } catch {
+    return [];
+  }
+}
+
+function extractRoutePaths(raw: RawRouteSequence): RoutePathsByDirection | undefined {
+  const routePaths: RoutePathsByDirection = {};
+
+  for (const [index, sequence] of (raw.stopPointSequences ?? []).entries()) {
+    const direction = normalizeDirection(sequence.direction);
+    if (!direction) {
+      continue;
+    }
+
+    const paths = parseRoutePaths(raw.lineStrings?.[index]);
+    if (paths.length > 0) {
+      routePaths[direction] = [...(routePaths[direction] ?? []), ...paths];
+    }
+  }
+
+  return routePaths.inbound || routePaths.outbound ? routePaths : undefined;
+}
+
 export function normalizeRouteSequence(
   routeId: string,
   raw: RawRouteSequence | RawRouteSequence[],
 ): NormalizedRoute {
   const payload = Array.isArray(raw) ? raw[0] : raw;
   const { inbound, outbound } = extractSequences(payload);
+  const routePaths = extractRoutePaths(payload);
 
   return {
     routeId,
     routeName: payload.lineName ?? routeId,
     inbound,
     outbound,
+    ...(routePaths ? { routePaths } : {}),
   };
 }
 
@@ -142,6 +211,7 @@ export function normalizePredictions(
     direction: normalizeDirection(prediction.direction) ?? "outbound",
     timeToStation: prediction.timeToStation,
     expectedArrival: prediction.expectedArrival,
+    timestamp: prediction.timestamp,
     vehicleId: prediction.vehicleId,
     vehicleRegistration: extractVehicleRegistration(prediction.vehicleId),
     vehicleFleetReference: extractVehicleFleetReference(prediction.vehicleId),

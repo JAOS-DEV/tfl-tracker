@@ -74,6 +74,9 @@ function resolveUnknownReason(input: {
   if (!input.vehicle.nextStop) {
     return "missing-next-stop";
   }
+  if (input.timing?.display.trustedTiming) {
+    return "trusted-schedule";
+  }
   if (input.activeScheduleCount === 0) {
     return "no-active-journey";
   }
@@ -107,9 +110,6 @@ function resolveUnknownReason(input: {
   ) {
     return "missing-block-number";
   }
-  if (input.timing?.display.trustedTiming) {
-    return "trusted-schedule";
-  }
   return mapInternalRejectionToUnknownReason(
     input.timing?.display.rejectionReason,
   );
@@ -122,6 +122,32 @@ function isBlueLiveBus(vehicle: EstimatedVehiclePosition): boolean {
     vehicle.ghostStatus !== "suspectedGhost" &&
     vehicle.adherence === "unknown"
   );
+}
+
+function buildLiveTimingAudit(
+  vehicle: EstimatedVehiclePosition,
+): LiveBusScheduleDiagnostic["liveTimingAudit"] {
+  const apiTimestamp = vehicle.nextPrediction?.timestamp;
+  if (!apiTimestamp || !vehicle.expectedArrival) {
+    return undefined;
+  }
+
+  const timestampMs = Date.parse(apiTimestamp);
+  const expectedArrivalMs = Date.parse(vehicle.expectedArrival);
+  if (!Number.isFinite(timestampMs) || !Number.isFinite(expectedArrivalMs)) {
+    return undefined;
+  }
+
+  const calculatedArrivalMs = timestampMs + vehicle.timeToStation * 1_000;
+  return {
+    apiTimestampUtc: new Date(timestampMs).toISOString(),
+    timeToStationSeconds: vehicle.timeToStation,
+    expectedArrivalUtc: new Date(expectedArrivalMs).toISOString(),
+    timestampPlusTimeToStationUtc: new Date(calculatedArrivalMs).toISOString(),
+    consistencyDifferenceSeconds: Math.round(
+      Math.abs(expectedArrivalMs - calculatedArrivalMs) / 1_000,
+    ),
+  };
 }
 
 export function buildLiveBusScheduleDiagnostic(
@@ -154,6 +180,7 @@ export function buildLiveBusScheduleDiagnostic(
     nextStopName: vehicle.nextStop?.name,
     nextStopNaptan: vehicle.nextStop?.naptanId,
     expectedArrival: vehicle.expectedArrival,
+    liveTimingAudit: buildLiveTimingAudit(vehicle),
     positionKnown: vehicle.matched,
     candidateMatch: timing?.display.candidateMatch ?? false,
     candidateMatchMethod: timing?.matchReason ?? null,
@@ -164,6 +191,7 @@ export function buildLiveBusScheduleDiagnostic(
     unknownReason,
     scheduleExplanation: vehicle.scheduleExplanation,
     internalRejectionReason: timing?.display.rejectionReason,
+    timingTrace: timing?.timingTrace,
   };
 }
 

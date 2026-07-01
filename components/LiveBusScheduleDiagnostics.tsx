@@ -25,6 +25,36 @@ function listCounts(
     .join(", ");
 }
 
+function explainServiceTime(rawTime: string, rolloverDays: number): string {
+  const [rawHour = "0", minute = "00"] = rawTime.split(":");
+  const clockHour = Number(rawHour) % 24;
+  const dayLabel =
+    rolloverDays === 1
+      ? "the next London calendar day"
+      : `${rolloverDays} London calendar days later`;
+  return `${rawTime} means ${String(clockHour).padStart(2, "0")}:${minute} on ${dayLabel}.`;
+}
+
+function formatDiagnosticTimestamp(value: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    return value;
+  }
+
+  const london = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+  const utc = date.toISOString().slice(11, 19);
+  return `${london} London (${utc} UTC)`;
+}
+
 export function LiveBusScheduleDiagnostics({
   summary,
   diagnostics,
@@ -284,6 +314,111 @@ export function LiveBusScheduleDiagnostics({
                   <div className="sm:col-span-2">
                     <dt className="text-zinc-500 dark:text-zinc-400">Explanation</dt>
                     <dd>{entry.scheduleExplanation}</dd>
+                  </div>
+                ) : null}
+                {entry.liveTimingAudit ? (
+                  <div className="sm:col-span-2 rounded border border-sky-200 bg-sky-50 p-2 dark:border-sky-900 dark:bg-sky-950/30">
+                    <p className="font-medium text-zinc-800 dark:text-zinc-100">
+                      Live API clock check
+                    </p>
+                    <p className="mb-1">
+                      This checks TfL&apos;s own calculation before comparing it with the static schedule.
+                    </p>
+                    <dl className="grid gap-1 sm:grid-cols-2">
+                      <div>
+                        <dt>TfL prediction timestamp</dt>
+                        <dd>
+                          {formatDiagnosticTimestamp(
+                            entry.liveTimingAudit.apiTimestampUtc,
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>TfL time to station</dt>
+                        <dd>{entry.liveTimingAudit.timeToStationSeconds} sec</dd>
+                      </div>
+                      <div>
+                        <dt>TfL expected arrival</dt>
+                        <dd>
+                          {formatDiagnosticTimestamp(
+                            entry.liveTimingAudit.expectedArrivalUtc,
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Timestamp + time to station</dt>
+                        <dd>
+                          {formatDiagnosticTimestamp(
+                            entry.liveTimingAudit.timestampPlusTimeToStationUtc,
+                          )}
+                        </dd>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <dt>Live API internal difference</dt>
+                        <dd>{entry.liveTimingAudit.consistencyDifferenceSeconds} sec</dd>
+                      </div>
+                    </dl>
+                  </div>
+                ) : null}
+                {entry.timingTrace ? (
+                  <div className="sm:col-span-2 rounded border border-zinc-200 p-2 dark:border-zinc-700">
+                    <p className="font-medium text-zinc-800 dark:text-zinc-100">
+                      Candidate timing trace
+                    </p>
+                    <dl className="mt-1 grid gap-1 sm:grid-cols-2">
+                      <div>
+                        <dt>Journey</dt>
+                        <dd>{entry.timingTrace.journeyId}</dd>
+                      </div>
+                      <div>
+                        <dt>Raw service-day journey</dt>
+                        <dd>
+                          {entry.timingTrace.rawJourneyStartServiceTime}–
+                          {entry.timingTrace.rawJourneyEndServiceTime}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Raw scheduled stop</dt>
+                        <dd>{entry.timingTrace.rawScheduledServiceTime}</dd>
+                      </div>
+                      <div>
+                        <dt>Static service day (London)</dt>
+                        <dd>{entry.timingTrace.staticServiceDayLondon}</dd>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <dt>Static after-midnight meaning</dt>
+                        <dd>
+                          {explainServiceTime(
+                            entry.timingTrace.rawScheduledServiceTime,
+                            entry.timingTrace.staticRolloverDays,
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Difference</dt>
+                        <dd>{entry.timingTrace.stopTimeDifferenceMinutes} min</dd>
+                      </div>
+                      <div>
+                        <dt>Live expected UTC</dt>
+                        <dd>{entry.timingTrace.liveExpectedArrivalUtc}</dd>
+                      </div>
+                      <div>
+                        <dt>Live expected London</dt>
+                        <dd>{entry.timingTrace.liveExpectedArrivalLondon}</dd>
+                      </div>
+                      <div>
+                        <dt>Scheduled UTC</dt>
+                        <dd>{entry.timingTrace.scheduledArrivalUtc}</dd>
+                      </div>
+                      <div>
+                        <dt>Scheduled London</dt>
+                        <dd>{entry.timingTrace.scheduledArrivalLondon}</dd>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <dt>Candidate rejection</dt>
+                        <dd>{entry.timingTrace.rejectionReason ?? "accepted"}</dd>
+                      </div>
+                    </dl>
                   </div>
                 ) : null}
               </dl>

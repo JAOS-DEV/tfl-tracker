@@ -1,7 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { BusDetailsModal } from "@/components/BusDetailsModal";
+import { AfterMidnightReplayBanner } from "@/components/AfterMidnightReplayBanner";
 import { DirectionSegmentedControl } from "@/components/DirectionSegmentedControl";
 import { ErrorState } from "@/components/ErrorState";
 import { RouteCardActionBar } from "@/components/RouteCardActionBar";
@@ -56,6 +58,18 @@ import type {
   RouteVisualMode,
 } from "@/lib/tfl/types";
 import type { VehicleSearchFocus } from "@/lib/vehicleSearch";
+
+const RouteMapPanel = dynamic(
+  () => import("@/components/RouteMapPanel").then((mod) => mod.RouteMapPanel),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="px-4 py-8 text-sm text-zinc-500 dark:text-zinc-400">
+        Loading map…
+      </div>
+    ),
+  },
+);
 
 interface RouteCardProps {
   activeRoute: ActiveRoute;
@@ -168,7 +182,10 @@ export const RouteCard = memo(function RouteCard({
     activeRoute.routeId,
     vehicles,
     {
-      smoothBusMovementEnabled: isExpanded && displaySettings.smoothBusMovement,
+      smoothBusMovementEnabled:
+        isExpanded &&
+        visualMode === "loop" &&
+        displaySettings.smoothBusMovement,
       prefersReducedMotion,
     },
   );
@@ -497,10 +514,18 @@ export const RouteCard = memo(function RouteCard({
           </div>
         </header>
 
+        {arrivalsQuery.data?.replay ? (
+          <AfterMidnightReplayBanner {...arrivalsQuery.data.replay} />
+        ) : null}
+
         {isExpanded ? (
           <div
             className={
-              visualMode === "loop" ? "space-y-3 sm:space-y-4" : "space-y-4 p-4"
+              visualMode === "loop"
+                ? "space-y-3 sm:space-y-4"
+                : visualMode === "map"
+                  ? "space-y-4"
+                  : "space-y-4 p-4"
             }
           >
             <div
@@ -575,6 +600,18 @@ export const RouteCard = memo(function RouteCard({
                   selectedVehicleId={selectedVehicle?.vehicleId ?? null}
                 />
               </div>
+            ) : visualMode === "map" && route ? (
+              <RouteMapPanel
+                route={displayRoute ?? route}
+                direction={selectedDirection}
+                onDirectionChange={setSelectedDirection}
+                vehicles={vehicles}
+                selectedVehicleId={selectedVehicle?.vehicleId ?? null}
+                loopLabelSettings={loopLabelSettings}
+                onVehicleSelect={setSelectedVehicle}
+                onStopSelect={setSelectedStop}
+                isMobile={isMobile}
+              />
             ) : (
               <div className="px-4">
                 <DirectionSegmentedControl
@@ -603,7 +640,7 @@ export const RouteCard = memo(function RouteCard({
 
             <div
               className={`space-y-3 ${
-                visualMode === "loop" ? "px-3 sm:px-4" : ""
+                visualMode === "loop" ? "px-3 sm:px-4" : visualMode === "map" ? "px-4" : ""
               }`}
             >
               <RouteVisualModeToggle mode={visualMode} onChange={setVisualMode} />

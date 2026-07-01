@@ -435,29 +435,18 @@ export function RouteSearch({
         </button>
       </div>
 
-      <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-        {VEHICLE_SEARCH_HELP_TEXT}
-      </p>
+      <details className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+        <summary className="cursor-pointer font-medium text-zinc-600 dark:text-zinc-300">
+          Search tips
+        </summary>
+        <p className="mt-2">{VEHICLE_SEARCH_HELP_TEXT}</p>
+      </details>
 
       {isLoadingSavedData ? (
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
           Search is ready. Saved routes and favourites are still loading.
         </p>
       ) : null}
-
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <button
-          type="button"
-          onClick={handleFindNearby}
-          disabled={isFindingNearby}
-          className="min-h-11 rounded-xl border border-zinc-300 px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-        >
-          {isFindingNearby ? "Finding nearby stops…" : "Find stops near me"}
-        </button>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Location is only used to find nearby stops.
-        </p>
-      </div>
 
       {error ? (
         <div className="mt-3 text-sm text-red-600 dark:text-red-400" role="alert">
@@ -521,15 +510,6 @@ export function RouteSearch({
 
           {visibleTab === "routes" ? (
             <div className="mt-3 space-y-4">
-              <VehicleSearchSections
-                normalizedQuery={normalizedQuery}
-                activeRouteCount={activeRoutes.length}
-                liveVehicles={groupedVehicleResults.liveVehicles}
-                runningNumbers={groupedVehicleResults.runningNumbers}
-                showEmptyState={hasSearched}
-                onOpen={handleOpenVehicleResult}
-              />
-
               <div className="space-y-2">
                 {results.routes.length > 0 ? (
                   <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
@@ -586,6 +566,16 @@ export function RouteSearch({
                 ))
                 )}
               </div>
+
+              <VehicleSearchSections
+                normalizedQuery={normalizedQuery}
+                activeRouteCount={activeRoutes.length}
+                liveVehicles={groupedVehicleResults.liveVehicles}
+                runningNumbers={groupedVehicleResults.runningNumbers}
+                showEmptyState={hasSearched}
+                routeDiscoveryResultCount={results.routes.length}
+                onOpen={handleOpenVehicleResult}
+              />
             </div>
           ) : null}
 
@@ -653,7 +643,7 @@ export function RouteSearch({
             <div className="mt-3 space-y-2">
               {results.nearby.length === 0 ? (
                 <p className="text-sm text-zinc-500">
-                  Tap “Find stops near me” to search nearby bus stops.
+                  Tap “Find stops near me” below to search nearby bus stops.
                 </p>
               ) : (
                 <>
@@ -736,6 +726,22 @@ export function RouteSearch({
           ) : null}
         </div>
       ) : null}
+
+      <div className="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={handleFindNearby}
+            disabled={isFindingNearby}
+            className="min-h-11 rounded-xl border border-zinc-300 px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            {isFindingNearby ? "Finding nearby stops…" : "Find stops near me"}
+          </button>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Location is only used to find nearby stops.
+          </p>
+        </div>
+      </div>
 
       <FavouritesSection
         favouriteRoutes={favouriteRoutes}

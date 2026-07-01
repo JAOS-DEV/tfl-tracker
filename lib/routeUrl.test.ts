@@ -51,6 +51,9 @@ describe("buildRoutesSearchUrl", () => {
     expect(buildRoutesSearchUrl(["337"], "loop")).toBe(
       "/?routes=337&view=loop",
     );
+    expect(buildRoutesSearchUrl(["337"], "map")).toBe(
+      "/?routes=337&view=map",
+    );
   });
 
   it("returns the home path when there are no routes", () => {
@@ -77,10 +80,10 @@ describe("buildStopSearchUrl", () => {
 
 describe("parseAppUrlState", () => {
   it("parses routes, view, and stop params together", () => {
-    const params = new URLSearchParams("routes=337,220&view=list&stop=490000001A");
+    const params = new URLSearchParams("routes=337,220&view=map&stop=490000001A");
     expect(parseAppUrlState(params)).toEqual({
       routeIds: ["337", "220"],
-      view: "list",
+      view: "map",
       stopPointId: "490000001A",
     });
   });

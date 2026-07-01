@@ -64,6 +64,7 @@ describe("RouteSearch vehicle guidance", () => {
     expect(
       screen.getByPlaceholderText(VEHICLE_SEARCH_PLACEHOLDER),
     ).toBeInTheDocument();
+    expect(screen.getByText("Search tips")).toBeInTheDocument();
     expect(screen.getByText(VEHICLE_SEARCH_HELP_TEXT)).toBeInTheDocument();
   });
 
@@ -154,6 +155,43 @@ describe("RouteSearch vehicle guidance", () => {
       false,
     );
     expect(await screen.findByText(textAcrossNodes("Routes (1)"))).toBeInTheDocument();
+    expect(
+      screen.queryByText(/No live bus with run 14 found on active routes/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("prioritises route matches over running-number empty states for route searches", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        results: [{ id: "337", name: "337", modeName: "bus" }],
+      }),
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ results: [] }),
+    });
+
+    renderRouteSearch([
+      { routeId: "14", routeName: "14", addedAt: Date.now() },
+    ]);
+
+    fireEvent.change(
+      screen.getByPlaceholderText(VEHICLE_SEARCH_PLACEHOLDER),
+      { target: { value: "337" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    const routesHeading = await screen.findByText(textAcrossNodes("Routes (1)"));
+    expect(routesHeading).toBeInTheDocument();
+    expect(
+      screen.queryByText(/No live bus with run 337 found on active routes/i),
+    ).not.toBeInTheDocument();
+
+    const findNearby = screen.getByRole("button", { name: /Find stops near me/i });
+    expect(
+      routesHeading.compareDocumentPosition(findNearby) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("still performs stop search for location queries", async () => {

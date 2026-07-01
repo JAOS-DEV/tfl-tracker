@@ -1,11 +1,16 @@
 import { handleApiErrorResponse, jsonResponse } from "@/lib/api";
 import { TIMETABLE_CACHE_TTL_MS } from "@/lib/constants";
+import { PUBLIC_FEATURES } from "@/lib/publicFeatures";
 import { sortLineSearchResults } from "@/lib/discoverySearch";
 import {
   filterStopDisruptionsForIds,
   normalizeStopDisruptions,
 } from "@/lib/tfl/disruptions";
 import { tflFetch } from "@/lib/tfl/client";
+import {
+  buildAfterMidnightReplay,
+  resolveAfterMidnightReplayScenario,
+} from "@/lib/tfl/afterMidnightReplay";
 import { normalizeTimetable } from "@/lib/tfl/timetableNormalizers";
 import {
   normalizeLineSearch,
@@ -44,6 +49,26 @@ async function handleLineArrivals(
   const { routeId } = routeIdQuerySchema.parse({
     routeId: searchParams.get("routeId"),
   });
+
+  const replayScenario = resolveAfterMidnightReplayScenario(
+    searchParams.get("replay"),
+    process.env.NODE_ENV,
+    PUBLIC_FEATURES.afterMidnightReplay,
+  );
+  if (replayScenario && routeId.toLowerCase() === "14") {
+    const replay = buildAfterMidnightReplay(routeId, replayScenario);
+    const parsedReplay = rawArrivalsResponseSchema.parse(replay.rawPredictions);
+    return jsonResponse({
+      routeId,
+      predictions: normalizePredictions(parsedReplay),
+      fetchedAt: replay.simulatedNow,
+      replay: {
+        scenario: replay.scenario,
+        simulatedNow: replay.simulatedNow,
+        provenance: replay.provenance,
+      },
+    });
+  }
 
   const raw = await tflFetch(`/Line/${encodeURIComponent(routeId)}/Arrivals`, {
     cacheTtlMs: 5_000,

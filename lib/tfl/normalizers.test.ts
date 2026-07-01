@@ -49,6 +49,72 @@ describe("normalizeRouteSequence", () => {
     expect(route.inbound).toHaveLength(1);
     expect(route.outbound[0]?.name).toBe("Stop A");
     expect(route.outbound[0]?.stopLetter).toBe("A");
+    expect(route.outbound[0]?.lat).toBeUndefined();
+    expect(route.outbound[0]?.lon).toBeUndefined();
+  });
+
+  it("preserves valid stop coordinates from TfL route sequence", () => {
+    const route = normalizeRouteSequence("337", {
+      lineId: "337",
+      lineName: "337",
+      stopPointSequences: [
+        {
+          direction: "outbound",
+          stopPoint: [
+            {
+              id: "1",
+              name: "Stop A",
+              lat: 51.4612,
+              lon: -0.215,
+              naptanId: "490000001A",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(route.outbound[0]?.lat).toBe(51.4612);
+    expect(route.outbound[0]?.lon).toBe(-0.215);
+  });
+
+  it("preserves TfL road geometry for each route direction", () => {
+    const route = normalizeRouteSequence("22", {
+      lineId: "22",
+      lineName: "22",
+      lineStrings: [
+        "[[[-0.228249,51.468027],[-0.227806,51.468388]]]",
+        "[[[-0.142204,51.515973],[-0.141741,51.514581]]]",
+      ],
+      stopPointSequences: [
+        { direction: "outbound", stopPoint: [] },
+        { direction: "inbound", stopPoint: [] },
+      ],
+    });
+
+    expect(route.routePaths?.outbound).toEqual([
+      [
+        { lat: 51.468027, lon: -0.228249 },
+        { lat: 51.468388, lon: -0.227806 },
+      ],
+    ]);
+    expect(route.routePaths?.inbound).toEqual([
+      [
+        { lat: 51.515973, lon: -0.142204 },
+        { lat: 51.514581, lon: -0.141741 },
+      ],
+    ]);
+  });
+
+  it("ignores malformed TfL road geometry", () => {
+    const route = normalizeRouteSequence("22", {
+      lineStrings: ["not-json", "[[[999,51.5],[0,0]]]"],
+      stopPointSequences: [
+        { direction: "outbound", stopPoint: [] },
+        { direction: "inbound", stopPoint: [] },
+      ],
+    });
+
+    expect(route.routePaths).toBeUndefined();
   });
 });
 
@@ -232,6 +298,26 @@ describe("normalizePredictions", () => {
 
     expect(normalized[0]?.tripId).toBe("601608");
     expect(normalized[0]?.baseVersion).toBe("20260606");
+  });
+
+  it("preserves the TfL source timestamp for timing diagnostics", () => {
+    const [normalized] = normalizePredictions([
+      {
+        id: "prediction-1",
+        lineId: "14",
+        lineName: "14",
+        naptanId: "490000001A",
+        stationName: "Stop A",
+        destinationName: "Russell Square",
+        direction: "inbound",
+        timeToStation: 120,
+        expectedArrival: "2026-07-01T01:32:00.000Z",
+        modeName: "bus",
+        timestamp: "2026-07-01T01:30:00.000Z",
+      },
+    ]);
+
+    expect(normalized?.timestamp).toBe("2026-07-01T01:30:00.000Z");
   });
 });
 

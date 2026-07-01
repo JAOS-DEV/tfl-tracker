@@ -8,6 +8,10 @@ import {
   type DisplaySettings,
 } from "@/lib/displaySettings";
 import { STORAGE_KEYS } from "@/lib/storage";
+import {
+  applyAdvancedDiagnosticsAvailability,
+  PUBLIC_FEATURES,
+} from "@/lib/publicFeatures";
 
 export function useDisplaySettings(): [
   DisplaySettings,
@@ -19,7 +23,10 @@ export function useDisplaySettings(): [
     DEFAULT_DISPLAY_SETTINGS,
   );
 
-  const settings = normalizeDisplaySettings(rawSettings);
+  const settings = applyAdvancedDiagnosticsAvailability(
+    normalizeDisplaySettings(rawSettings),
+    PUBLIC_FEATURES.advancedDiagnostics,
+  );
 
   const setSettings = useCallback(
     (value: DisplaySettings | ((current: DisplaySettings) => DisplaySettings)) => {

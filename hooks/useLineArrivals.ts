@@ -10,17 +10,41 @@ import {
 } from "@/lib/liveRefreshStatus";
 import { POLL_INTERVAL_MS } from "@/lib/storage";
 
-interface LineArrivalsResponse {
+export interface LineArrivalsResponse {
   routeId: string;
   predictions: NormalizedVehiclePrediction[];
   fetchedAt: string;
+  replay?: {
+    scenario: string;
+    simulatedNow: string;
+    provenance: "synthetic-known-sample" | "recorded-tfl-response";
+  };
+}
+
+export function buildLineArrivalsUrl(
+  routeId: string,
+  replayScenario: string | null,
+  nodeEnv: string | undefined,
+): string {
+  const params = new URLSearchParams({ routeId });
+  if (
+    nodeEnv !== "production" &&
+    routeId.toLowerCase() === "14" &&
+    replayScenario
+  ) {
+    params.set("replay", replayScenario);
+  }
+  return `/api/tfl/line-arrivals?${params.toString()}`;
 }
 
 async function fetchLineArrivals(
   routeId: string,
 ): Promise<LineArrivalsResponse> {
+  const replayScenario = new URLSearchParams(window.location.search).get(
+    "replay",
+  );
   const response = await fetch(
-    `/api/tfl/line-arrivals?routeId=${encodeURIComponent(routeId)}`,
+    buildLineArrivalsUrl(routeId, replayScenario, process.env.NODE_ENV),
   );
 
   if (!response.ok) {
@@ -36,7 +60,13 @@ export function useLineArrivals(routeId: string) {
   const wasVisibleRef = useRef(isDocumentVisible);
 
   const query = useQuery({
-    queryKey: ["line-arrivals", routeId],
+    queryKey: [
+      "line-arrivals",
+      routeId,
+      typeof window === "undefined"
+        ? null
+        : new URLSearchParams(window.location.search).get("replay"),
+    ],
     queryFn: () => fetchLineArrivals(routeId),
     refetchInterval: isDocumentVisible
       ? (currentQuery) =>

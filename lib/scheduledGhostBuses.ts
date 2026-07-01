@@ -208,6 +208,7 @@ export function isJourneyScheduledForServiceWindow(
   journey: IbusScheduledJourney,
   now: Date,
   nowSeconds: number,
+  endGraceMinutes = SCHEDULED_END_GRACE_MINUTES,
 ): boolean {
   if (isJourneyScheduledForToday(journey, now)) {
     return true;
@@ -217,7 +218,7 @@ export function isJourneyScheduledForServiceWindow(
     return true;
   }
 
-  const endGrace = SCHEDULED_END_GRACE_MINUTES * 60;
+  const endGrace = endGraceMinutes * 60;
   const continuesAfterMidnight =
     journey.endSeconds + endGrace >= 24 * 60 * 60 ||
     journey.endSeconds < journey.startSeconds;
@@ -232,9 +233,14 @@ export function isJourneyScheduledForServiceWindow(
 export function isJourneyActiveAtTime(
   journey: IbusScheduledJourney,
   nowSeconds: number,
+  grace: {
+    startMinutes?: number;
+    endMinutes?: number;
+  } = {},
 ): boolean {
-  const startGrace = SCHEDULED_START_GRACE_MINUTES * 60;
-  const endGrace = SCHEDULED_END_GRACE_MINUTES * 60;
+  const startGrace =
+    (grace.startMinutes ?? SCHEDULED_START_GRACE_MINUTES) * 60;
+  const endGrace = (grace.endMinutes ?? SCHEDULED_END_GRACE_MINUTES) * 60;
   const start = journey.startSeconds - startGrace;
   const end = journey.endSeconds + endGrace;
   const daySeconds = 24 * 60 * 60;

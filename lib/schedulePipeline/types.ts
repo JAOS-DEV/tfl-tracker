@@ -52,6 +52,7 @@ export interface LiveBusScheduleDiagnostic {
   nextStopName?: string;
   nextStopNaptan?: string;
   expectedArrival?: string;
+  liveTimingAudit?: LiveApiTimingAudit;
   positionKnown: boolean;
   candidateMatch: boolean;
   candidateMatchMethod: LiveScheduleMatchReason | null;
@@ -62,6 +63,34 @@ export interface LiveBusScheduleDiagnostic {
   unknownReason: LiveBusUnknownReason;
   scheduleExplanation?: string;
   internalRejectionReason?: TimingRejectionReason;
+  timingTrace?: CandidateTimingTrace;
+}
+
+export interface LiveApiTimingAudit {
+  apiTimestampUtc: string;
+  timeToStationSeconds: number;
+  expectedArrivalUtc: string;
+  timestampPlusTimeToStationUtc: string;
+  consistencyDifferenceSeconds: number;
+}
+
+export interface CandidateTimingTrace {
+  journeyId: string;
+  rawJourneyStartServiceTime: string;
+  rawJourneyEndServiceTime: string;
+  rawScheduledServiceTime: string;
+  staticServiceDayLondon: string;
+  staticRolloverDays: number;
+  liveExpectedArrivalUtc: string;
+  liveExpectedArrivalLondon: string;
+  scheduledArrivalUtc: string;
+  scheduledArrivalLondon: string;
+  stopTimeDifferenceMinutes: number;
+  rejectionReason:
+    | "fallback-time-difference"
+    | "direction-mismatch"
+    | "ambiguous-score"
+    | null;
 }
 
 export interface CandidateScheduleMatch {
@@ -127,4 +156,5 @@ export interface IndexedVehicleTimingResult {
   display: ScheduleDisplayState;
   rawDeviationMinutes: number | null;
   matchReason: LiveScheduleMatchReason | null;
+  timingTrace?: CandidateTimingTrace;
 }

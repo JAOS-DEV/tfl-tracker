@@ -3,8 +3,9 @@ import {
   type RouteAlertPreferences,
 } from "@/lib/routeAlerts";
 import { STORAGE_KEYS } from "@/lib/storage";
+import type { RouteVisualMode } from "@/lib/tfl/types";
 
-export type DefaultVisualMode = "loop" | "list";
+export type DefaultVisualMode = RouteVisualMode;
 
 /** @deprecated Migrated to direct toggles; read only during normalization. */
 type LegacyDisplayMode = "simple" | "advanced";
@@ -36,7 +37,7 @@ export interface DisplaySettings {
 const DEFAULT_ROUTE_ALERTS = createDefaultAlertPreferences("__defaults__");
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
-  defaultVisualMode: "loop",
+  defaultVisualMode: "map",
   showServiceDetailsInline: false,
   showHistoryInline: false,
   showAdvancedDiagnostics: false,
@@ -65,7 +66,7 @@ interface LegacyDisplaySettings extends Partial<DisplaySettings> {
 }
 
 function isDefaultVisualMode(value: unknown): value is DefaultVisualMode {
-  return value === "loop" || value === "list";
+  return value === "loop" || value === "list" || value === "map";
 }
 
 function normalizeGlobalAlertDefaults(value: unknown): GlobalAlertDefaults {

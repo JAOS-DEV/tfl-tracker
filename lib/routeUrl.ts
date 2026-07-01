@@ -57,7 +57,7 @@ export function serializeRoutesParam(routeIds: string[]): string | null {
 }
 
 export function parseViewParam(viewParam: string | null): RouteVisualMode | undefined {
-  if (viewParam === "loop" || viewParam === "list") {
+  if (viewParam === "loop" || viewParam === "list" || viewParam === "map") {
     return viewParam;
   }
   return undefined;

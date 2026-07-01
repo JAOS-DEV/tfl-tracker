@@ -6,8 +6,8 @@ import {
 } from "@/lib/displaySettings";
 
 describe("displaySettings", () => {
-  it("uses a simple first-visit default display profile", () => {
-    expect(DEFAULT_DISPLAY_SETTINGS.defaultVisualMode).toBe("loop");
+  it("uses map as the first-visit default view", () => {
+    expect(DEFAULT_DISPLAY_SETTINGS.defaultVisualMode).toBe("map");
     expect(DEFAULT_DISPLAY_SETTINGS.showServiceDetailsInline).toBe(false);
     expect(DEFAULT_DISPLAY_SETTINGS.showHistoryInline).toBe(false);
     expect(DEFAULT_DISPLAY_SETTINGS.showAdvancedDiagnostics).toBe(false);
@@ -20,13 +20,21 @@ describe("displaySettings", () => {
 
   it("normalizes unknown values to defaults", () => {
     const settings = normalizeDisplaySettings({
-      defaultVisualMode: "map",
+      defaultVisualMode: "diagram",
     });
 
-    expect(settings.defaultVisualMode).toBe("loop");
+    expect(settings.defaultVisualMode).toBe("map");
     expect(settings.showServiceDetailsInline).toBe(false);
     expect(settings.showHistoryInline).toBe(false);
     expect(settings.showAdvancedDiagnostics).toBe(false);
+  });
+
+  it("preserves map as the default visual mode when stored", () => {
+    const settings = normalizeDisplaySettings({
+      defaultVisualMode: "map",
+    });
+
+    expect(settings.defaultVisualMode).toBe("map");
   });
 
   it("preserves direct toggles when stored", () => {
@@ -50,7 +58,7 @@ describe("displaySettings", () => {
       compactRouteCards: false,
     });
 
-    expect(settings.defaultVisualMode).toBe("loop");
+    expect(settings.defaultVisualMode).toBe("map");
     expect(settings.showServiceDetailsInline).toBe(false);
     expect(settings.showHistoryInline).toBe(false);
     expect(settings.showAdvancedDiagnostics).toBe(false);

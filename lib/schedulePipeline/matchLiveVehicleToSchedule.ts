@@ -18,10 +18,12 @@ import {
   buildUnknownScheduleDisplayState,
 } from "@/lib/schedulePipeline/buildScheduleDisplayState";
 import type {
+  CandidateTimingTrace,
   CandidateScheduleMatch,
   IndexedVehicleTimingResult,
 } from "@/lib/schedulePipeline/types";
 import type { EstimatedVehiclePosition, NormalizedRoute } from "@/lib/tfl/types";
+import { addLondonCalendarDays, readLondonDateParts } from "@/lib/londonTime";
 
 const MATCH_PRIORITY: Record<LiveScheduleMatchReason, number> = {
   "tripId/baseVersion": 5,
@@ -131,7 +133,7 @@ export function collectIndexedMatchCandidates(
     return [];
   }
 
-  return pool.activeJourneys.filter((journey) => {
+  return pool.liveMatchingJourneys.filter((journey) => {
     const direction = mapIbusDirectionToRouteDirection(
       journey.direction,
       journey,
@@ -150,7 +152,7 @@ export function collectDirectionalActiveCandidates(
     return [];
   }
 
-  return pool.activeJourneys.filter((journey) => {
+  return pool.liveMatchingJourneys.filter((journey) => {
     const direction = mapIbusDirectionToRouteDirection(
       journey.direction,
       journey,
@@ -160,15 +162,64 @@ export function collectDirectionalActiveCandidates(
   });
 }
 
-function findBestMatchingJourney(
+const FALLBACK_MATCH_MAX_STOP_TIME_DIFFERENCE_MINUTES = 30;
+
+function formatServiceTime(seconds: number): string {
+  const hour = Math.floor(seconds / 3600);
+  const minute = Math.floor((seconds % 3600) / 60);
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function formatLondonInstant(date: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function describeStaticServiceDay(
+  scheduledSeconds: number,
+  scheduledInstant: Date,
+): { staticServiceDayLondon: string; staticRolloverDays: number } {
+  const staticRolloverDays = Math.floor(scheduledSeconds / 86_400);
+  const arrivalDate = readLondonDateParts(scheduledInstant);
+  const serviceDate = addLondonCalendarDays(
+    arrivalDate.year,
+    arrivalDate.month,
+    arrivalDate.day,
+    -staticRolloverDays,
+  );
+  return {
+    staticServiceDayLondon: `${serviceDate.year}-${String(serviceDate.month).padStart(2, "0")}-${String(serviceDate.day).padStart(2, "0")}`,
+    staticRolloverDays,
+  };
+}
+
+export interface ScheduleMatchSelectionResult {
+  match: CandidateScheduleMatch | null;
+  trace?: CandidateTimingTrace;
+}
+
+export function selectBestScheduleMatchWithDiagnostics(
   vehicle: EstimatedVehiclePosition,
   journeys: IbusScheduledJourney[],
   route: NormalizedRoute,
   pool: LiveSchedulePool,
   scheduleBaseVersion: string,
-): CandidateScheduleMatch | null {
+): ScheduleMatchSelectionResult {
   const live = buildLiveVehicleMatchContext(vehicle);
-  let best: CandidateScheduleMatch & { priority: number } | null = null;
+  let best:
+    | (CandidateScheduleMatch & { priority: number; score: number })
+    | null = null;
+  let bestScoreTied = false;
+  let bestTrace: CandidateTimingTrace | undefined;
+  let bestRejectedTrace: CandidateTimingTrace | undefined;
+  let bestRejectedScore = Number.NEGATIVE_INFINITY;
 
   for (const journey of journeys) {
     const currentStop = findCurrentScheduledStop(
@@ -188,12 +239,120 @@ function findBestMatchingJourney(
     }
 
     const priority = MATCH_PRIORITY[reason];
-    if (!best || priority > best.priority) {
-      best = { journey, reason, priority };
+    const scheduledStop = findJourneyStopForVehicle(journey, vehicle, route);
+    const isExactTripMatch = reason === "tripId/baseVersion";
+    const journeyDirection = mapIbusDirectionToRouteDirection(
+      journey.direction,
+      journey,
+      route,
+    );
+
+    let stopTimeDifferenceMinutes = 0;
+    let trace: CandidateTimingTrace | undefined;
+    if (vehicle.expectedArrival && scheduledStop) {
+      const expectedArrival = new Date(vehicle.expectedArrival);
+      const scheduledInstant = ibusScheduledSecondsToInstant(
+        scheduledStop.scheduledSeconds,
+        expectedArrival,
+      );
+      stopTimeDifferenceMinutes =
+        Math.abs(
+            scheduledInstant.getTime() -
+            expectedArrival.getTime(),
+        ) / 60_000;
+      trace = {
+        journeyId: journey.tripId,
+        rawJourneyStartServiceTime: formatServiceTime(journey.startSeconds),
+        rawJourneyEndServiceTime: formatServiceTime(journey.endSeconds),
+        rawScheduledServiceTime: formatServiceTime(
+          scheduledStop.scheduledSeconds,
+        ),
+        ...describeStaticServiceDay(
+          scheduledStop.scheduledSeconds,
+          scheduledInstant,
+        ),
+        liveExpectedArrivalUtc: expectedArrival.toISOString(),
+        liveExpectedArrivalLondon: formatLondonInstant(expectedArrival),
+        scheduledArrivalUtc: scheduledInstant.toISOString(),
+        scheduledArrivalLondon: formatLondonInstant(scheduledInstant),
+        stopTimeDifferenceMinutes: Math.round(stopTimeDifferenceMinutes),
+        rejectionReason: null,
+      };
+    } else if (!isExactTripMatch) {
+      continue;
+    }
+
+    const directionMismatch =
+      !isExactTripMatch &&
+      vehicle.direction &&
+      journeyDirection &&
+      vehicle.direction !== journeyDirection;
+
+    const directionScore =
+      vehicle.direction && journeyDirection === vehicle.direction ? 100 : 0;
+    const score = priority * 10_000 + directionScore - stopTimeDifferenceMinutes;
+
+    if (directionMismatch) {
+      if (trace && score > bestRejectedScore) {
+        bestRejectedTrace = { ...trace, rejectionReason: "direction-mismatch" };
+        bestRejectedScore = score;
+      }
+      continue;
+    }
+
+    if (
+      !isExactTripMatch &&
+      stopTimeDifferenceMinutes > FALLBACK_MATCH_MAX_STOP_TIME_DIFFERENCE_MINUTES
+    ) {
+      if (trace && score > bestRejectedScore) {
+        bestRejectedTrace = {
+          ...trace,
+          rejectionReason: "fallback-time-difference",
+        };
+        bestRejectedScore = score;
+      }
+      continue;
+    }
+
+    if (!best || score > best.score) {
+      best = { journey, reason, priority, score };
+      bestTrace = trace;
+      bestScoreTied = false;
+    } else if (score === best.score) {
+      bestScoreTied = true;
     }
   }
 
-  return best ? { journey: best.journey, reason: best.reason } : null;
+  if (best && !bestScoreTied) {
+    return {
+      match: { journey: best.journey, reason: best.reason },
+      trace: bestTrace,
+    };
+  }
+
+  return {
+    match: null,
+    trace:
+      best && bestScoreTied && bestTrace
+        ? { ...bestTrace, rejectionReason: "ambiguous-score" }
+        : bestRejectedTrace,
+  };
+}
+
+export function selectBestScheduleMatch(
+  vehicle: EstimatedVehiclePosition,
+  journeys: IbusScheduledJourney[],
+  route: NormalizedRoute,
+  pool: LiveSchedulePool,
+  scheduleBaseVersion: string,
+): CandidateScheduleMatch | null {
+  return selectBestScheduleMatchWithDiagnostics(
+    vehicle,
+    journeys,
+    route,
+    pool,
+    scheduleBaseVersion,
+  ).match;
 }
 
 export function matchLiveVehicleToSchedule(
@@ -223,13 +382,14 @@ export function matchLiveVehicleToSchedule(
     route,
     scheduleBaseVersion,
   );
-  let match = findBestMatchingJourney(
+  let selection = selectBestScheduleMatchWithDiagnostics(
     vehicle,
     indexedCandidates,
     route,
     pool,
     scheduleBaseVersion,
   );
+  let match = selection.match;
 
   if (!match) {
     const directionalCandidates = collectDirectionalActiveCandidates(
@@ -237,13 +397,17 @@ export function matchLiveVehicleToSchedule(
       pool,
       route,
     );
-    match = findBestMatchingJourney(
+    const fallbackSelection = selectBestScheduleMatchWithDiagnostics(
       vehicle,
       directionalCandidates,
       route,
       pool,
       scheduleBaseVersion,
     );
+    match = fallbackSelection.match;
+    if (fallbackSelection.match || !selection.trace) {
+      selection = fallbackSelection;
+    }
   }
 
   const scheduledStop = match
@@ -270,6 +434,7 @@ export function matchLiveVehicleToSchedule(
     display,
     rawDeviationMinutes: display.deviationMinutes,
     matchReason: match?.reason ?? null,
+    timingTrace: selection.trace,
   };
 }
 

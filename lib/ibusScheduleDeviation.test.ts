@@ -237,7 +237,7 @@ describe("buildIbusVehicleScheduleMatch", () => {
     ).toBe("+59");
   });
 
-  it("hides loop badges for strong block matches beyond 60 minutes late", () => {
+  it("rejects implausibly late running/block fallback matches", () => {
     const match = buildIbusVehicleScheduleMatch(
       buildVehicle({
         tripId: undefined,
@@ -251,7 +251,7 @@ describe("buildIbusVehicleScheduleMatch", () => {
       now,
     );
 
-    expect(match.deviationMinutes).toBe(61);
+    expect(match.deviationMinutes).toBeNull();
     expect(match.scheduleMatchConfidence).toBe("unknown");
     expect(match.scheduleStatus).toBe("unknown");
     expect(

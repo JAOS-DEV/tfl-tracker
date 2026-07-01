@@ -15,6 +15,7 @@ interface VehicleSearchSectionsProps {
   liveVehicles: VehicleSearchResult[];
   runningNumbers: VehicleSearchResult[];
   showEmptyState: boolean;
+  routeDiscoveryResultCount?: number;
   onOpen: (result: VehicleSearchResult) => void;
 }
 
@@ -24,6 +25,7 @@ export function VehicleSearchSections({
   liveVehicles,
   runningNumbers,
   showEmptyState,
+  routeDiscoveryResultCount = 0,
   onOpen,
 }: VehicleSearchSectionsProps): React.ReactElement | null {
   const hasResults = liveVehicles.length > 0 || runningNumbers.length > 0;
@@ -33,6 +35,7 @@ export function VehicleSearchSections({
       normalizedQuery,
       activeRouteCount,
       liveVehicles.length + runningNumbers.length,
+      { routeDiscoveryResultCount },
     );
 
   if (!hasResults && !shouldShowEmpty) {

@@ -48,7 +48,7 @@ export function runScheduleTimingPipeline(
 ): RunSchedulePipelineResult {
   const pool = buildLiveSchedulePool(input.routeSchedule, input.now);
   const indexes = buildScheduleIndexes(
-    pool.activeJourneys,
+    pool.allJourneys,
     pool.baseVersion,
   );
 
@@ -130,7 +130,7 @@ function buildTimingDiagnostics(
 
   return {
     activeScheduleCount: pool.activeJourneys.length,
-    liveMatchingPoolCount: pool.activeJourneys.length,
+    liveMatchingPoolCount: pool.liveMatchingJourneys.length,
     candidateMatchCount: timingResults.filter(
       (result) => result.display.candidateMatch,
     ).length,

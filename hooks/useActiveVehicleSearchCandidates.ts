@@ -22,6 +22,36 @@ function buildCandidateSignature(
     .join("|");
 }
 
+type CacheSubscribe = (listener: () => void) => () => void;
+
+export function subscribeToQueryCacheDeferred(
+  subscribe: CacheSubscribe,
+  onStoreChange: () => void,
+): () => void {
+  let active = true;
+  let notificationTimer: ReturnType<typeof setTimeout> | null = null;
+  const unsubscribe = subscribe(() => {
+    if (notificationTimer !== null) {
+      return;
+    }
+    notificationTimer = setTimeout(() => {
+      notificationTimer = null;
+      if (active) {
+        onStoreChange();
+      }
+    }, 0);
+  });
+
+  return () => {
+    active = false;
+    if (notificationTimer !== null) {
+      clearTimeout(notificationTimer);
+      notificationTimer = null;
+    }
+    unsubscribe();
+  };
+}
+
 export function useActiveVehicleSearchCandidates(
   activeRoutes: ActiveRoute[],
 ): VehicleSearchCandidate[] {
@@ -34,8 +64,13 @@ export function useActiveVehicleSearchCandidates(
   );
 
   const subscribe = useCallback(
-    (onStoreChange: () => void) =>
-      queryClient.getQueryCache().subscribe(onStoreChange),
+    (onStoreChange: () => void) => {
+      const queryCache = queryClient.getQueryCache();
+      return subscribeToQueryCacheDeferred(
+        (listener) => queryCache.subscribe(listener),
+        onStoreChange,
+      );
+    },
     [queryClient],
   );
 
