@@ -17,6 +17,7 @@ import { useRoutesFromUrl } from "@/hooks/useRoutesFromUrl";
 import { useStopFromUrl } from "@/hooks/useStopFromUrl";
 import { useViewFromUrl } from "@/hooks/useViewFromUrl";
 import { normalizeDisplaySettings } from "@/lib/displaySettings";
+import { APP_NAME } from "@/lib/appBranding";
 import {
   migrateFavouriteRoutes,
   removeFavouriteRoute,
@@ -203,7 +204,7 @@ export default function HomePage(): React.ReactElement {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-5">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-              London Bus Tracker
+              {APP_NAME}
             </h1>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
               Live bus routes at a glance — tap a route for details.

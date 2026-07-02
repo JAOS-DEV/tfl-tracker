@@ -38,7 +38,7 @@ describe("HomePage", () => {
     renderHomePage();
 
     expect(
-      screen.getByRole("heading", { name: /London Bus Tracker/i }),
+      screen.getByRole("heading", { name: /Where's My Bus\?/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/Discover routes & stops/i)).toBeInTheDocument();
     expect(screen.getByText(/Powered by TfL Open Data/i)).toBeInTheDocument();

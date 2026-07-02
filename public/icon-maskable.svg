@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="London Bus Tracker">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Where's My Bus?">
   <rect width="512" height="512" fill="#0284c7"/>
   <rect x="112" y="184" width="288" height="176" rx="24" fill="#ffffff"/>
   <rect x="144" y="216" width="80" height="64" rx="8" fill="#bae6fd"/>

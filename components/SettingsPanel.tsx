@@ -372,15 +372,7 @@ export function SettingsPanel({
             Sharing &amp; privacy
           </h3>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Share links copy your active routes to the URL, for example{" "}
-            <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
-              ?routes=337,220&amp;view=loop
-            </code>
-            . Stop links use{" "}
-            <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
-              ?stop=490000001A
-            </code>
-            . Nothing is stored on a server.
+            Nothing is stored on a server.
           </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Nearby stops uses your browser location only when you tap “Find

@@ -2,6 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "@/app/providers";
 import { PwaRegistration } from "@/components/PwaRegistration";
+import {
+  APP_DESCRIPTION,
+  APP_NAME,
+} from "@/lib/appBranding";
 import { themeInitScript } from "@/lib/theme";
 import "./globals.css";
 
@@ -16,14 +20,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "London Bus Tracker",
-  description:
-    "Monitor London bus routes with live TfL Open Data predictions, schematic loops, favourites, and local service alerts.",
-  applicationName: "London Bus Tracker",
+  title: APP_NAME,
+  description: APP_DESCRIPTION,
+  applicationName: APP_NAME,
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "London Bus Tracker",
+    title: APP_NAME,
   },
   formatDetection: {
     telephone: false,

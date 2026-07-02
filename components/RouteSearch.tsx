@@ -1,20 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { FavouritesSection } from "@/components/FavouritesSection";
 import { VehicleSearchSections } from "@/components/VehicleSearchSections";
 import { useActiveVehicleSearchCandidates } from "@/hooks/useActiveVehicleSearchCandidates";
-import type { FavouriteRoute } from "@/lib/favouriteRoutes";
-import type { FavouriteStop } from "@/lib/favouriteStops";
-import {
-  formatStopSearchSubtitle,
-  formatStopTitle,
-} from "@/lib/stopDisplay";
 import {
   looksLikeRouteNumber,
   normalizeDiscoveryQuery,
 } from "@/lib/discoverySearch";
 import { formatFriendlyError } from "@/lib/errors";
+import type { FavouriteRoute } from "@/lib/favouriteRoutes";
+import type { FavouriteStop } from "@/lib/favouriteStops";
 import {
   getGeolocationErrorInfo,
   getNextNearbyStopsVisibleCount,
@@ -23,6 +18,14 @@ import {
   requestCurrentPosition,
 } from "@/lib/nearbyStops";
 import type { StopDetailTarget } from "@/lib/stopDetail";
+import { formatStopSearchSubtitle, formatStopTitle } from "@/lib/stopDisplay";
+import {
+  addActiveRoute,
+  addRecentRoute,
+  createActiveRoute,
+  MAX_ACTIVE_ROUTES,
+  removeRecentRoute,
+} from "@/lib/storage";
 import type {
   ActiveRoute,
   LineSearchResult,
@@ -39,13 +42,7 @@ import {
   VEHICLE_SEARCH_PLACEHOLDER,
   type VehicleSearchResult,
 } from "@/lib/vehicleSearch";
-import {
-  MAX_ACTIVE_ROUTES,
-  addActiveRoute,
-  addRecentRoute,
-  createActiveRoute,
-  removeRecentRoute,
-} from "@/lib/storage";
+import { useMemo, useState } from "react";
 
 type DiscoveryTab = "routes" | "stops" | "nearby";
 
@@ -257,7 +254,8 @@ export function RouteSearch({
         nearby: [],
       });
 
-      const hasRemoteResults = routeResults.length > 0 || stopResults.length > 0;
+      const hasRemoteResults =
+        routeResults.length > 0 || stopResults.length > 0;
       const hasVehicleResults = localVehicleResults.length > 0;
 
       if (!hasRemoteResults && !hasVehicleResults) {
@@ -286,11 +284,14 @@ export function RouteSearch({
         lon: position.coords.longitude.toFixed(6),
         radius: "1000",
       });
-      const response = await fetch(`/api/tfl/nearby-stops?${params.toString()}`);
+      const response = await fetch(
+        `/api/tfl/nearby-stops?${params.toString()}`,
+      );
 
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string; results?: NearbyStopResult[] }
-        | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        results?: NearbyStopResult[];
+      } | null;
 
       if (!response.ok) {
         const friendly = formatFriendlyError(
@@ -384,7 +385,9 @@ export function RouteSearch({
     );
   };
 
-  const openStop = (stop: StopSearchResult | NearbyStopResult | FavouriteStop) => {
+  const openStop = (
+    stop: StopSearchResult | NearbyStopResult | FavouriteStop,
+  ) => {
     onOpenStop({
       stopPointId: stop.stopPointId,
       name: stop.name,
@@ -403,9 +406,8 @@ export function RouteSearch({
             Discover routes &amp; stops
           </h2>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Search routes and stops anywhere. Registration, fleet, and running-number
-            search checks live buses on routes you have open (up to{" "}
-            {MAX_ACTIVE_ROUTES}).
+            Search routes and stops. Registration, fleet, and running-number on
+            routes you have open (up to {MAX_ACTIVE_ROUTES} at a time).
           </p>
         </div>
       </div>
@@ -449,10 +451,11 @@ export function RouteSearch({
       ) : null}
 
       {error ? (
-        <div className="mt-3 text-sm text-red-600 dark:text-red-400" role="alert">
-          {errorAction ? (
-            <p className="font-semibold">{errorAction}</p>
-          ) : null}
+        <div
+          className="mt-3 text-sm text-red-600 dark:text-red-400"
+          role="alert"
+        >
+          {errorAction ? <p className="font-semibold">{errorAction}</p> : null}
           <p className={errorAction ? "mt-1" : undefined}>{error}</p>
         </div>
       ) : null}
@@ -523,47 +526,49 @@ export function RouteSearch({
                   ) : null
                 ) : (
                   results.routes.map((route) => (
-                  <div
-                    key={route.id}
-                    className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="rounded-lg bg-red-600 px-2 py-0.5 text-sm font-bold text-white">
-                          {route.id}
-                        </span>
-                        {route.name !== route.id ? (
-                          <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                            {route.name}
-                          </p>
-                        ) : null}
+                    <div
+                      key={route.id}
+                      className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-lg bg-red-600 px-2 py-0.5 text-sm font-bold text-white">
+                            {route.id}
+                          </span>
+                          {route.name !== route.id ? (
+                            <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                              {route.name}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void handleAddRoute(route.id, route.name);
+                          }}
+                          className="min-h-11 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white"
+                        >
+                          Add route
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onToggleFavouriteRoute({
+                              routeId: route.id,
+                              routeName: route.name,
+                            })
+                          }
+                          className="min-h-11 rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+                        >
+                          {isFavouriteRoute(route.id)
+                            ? "★ Favourited"
+                            : "☆ Favourite"}
+                        </button>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleAddRoute(route.id, route.name);
-                        }}
-                        className="min-h-11 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white"
-                      >
-                        Add route
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onToggleFavouriteRoute({
-                            routeId: route.id,
-                            routeName: route.name,
-                          })
-                        }
-                        className="min-h-11 rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
-                      >
-                        {isFavouriteRoute(route.id) ? "★ Favourited" : "☆ Favourite"}
-                      </button>
-                    </div>
-                  </div>
-                ))
+                  ))
                 )}
               </div>
 
@@ -593,46 +598,46 @@ export function RouteSearch({
                   const subtitle = formatStopSearchSubtitle(stop);
 
                   return (
-                  <div
-                    key={stop.stopPointId}
-                    className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                        {formatStopTitle(stop.name, stop.stopLetter)}
-                      </p>
-                      {subtitle ? (
-                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                          {subtitle}
+                    <div
+                      key={stop.stopPointId}
+                      className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                          {formatStopTitle(stop.name, stop.stopLetter)}
                         </p>
-                      ) : null}
+                        {subtitle ? (
+                          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            {subtitle}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openStop(stop)}
+                          className="min-h-11 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white"
+                        >
+                          View arrivals
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onToggleFavouriteStop({
+                              stopPointId: stop.stopPointId,
+                              name: stop.name,
+                              stopLetter: stop.stopLetter,
+                              routesServed: stop.routesServed,
+                            })
+                          }
+                          className="min-h-11 rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+                        >
+                          {isFavouriteStop(stop.stopPointId)
+                            ? "★ Favourited"
+                            : "☆ Favourite"}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openStop(stop)}
-                        className="min-h-11 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white"
-                      >
-                        View arrivals
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onToggleFavouriteStop({
-                            stopPointId: stop.stopPointId,
-                            name: stop.name,
-                            stopLetter: stop.stopLetter,
-                            routesServed: stop.routesServed,
-                          })
-                        }
-                        className="min-h-11 rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
-                      >
-                        {isFavouriteStop(stop.stopPointId)
-                          ? "★ Favourited"
-                          : "☆ Favourite"}
-                      </button>
-                    </div>
-                  </div>
                   );
                 })
               )}
@@ -665,45 +670,45 @@ export function RouteSearch({
                     const subtitle = formatStopSearchSubtitle(stop);
 
                     return (
-                    <div
-                      key={stop.stopPointId}
-                      className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                          {formatStopTitle(stop.name, stop.stopLetter)}
-                        </p>
-                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                          {Math.round(stop.distanceMetres)} m away
-                          {subtitle ? ` · ${subtitle}` : ""}
-                        </p>
+                      <div
+                        key={stop.stopPointId}
+                        className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                            {formatStopTitle(stop.name, stop.stopLetter)}
+                          </p>
+                          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            {Math.round(stop.distanceMetres)} m away
+                            {subtitle ? ` · ${subtitle}` : ""}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openStop(stop)}
+                            className="min-h-11 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white"
+                          >
+                            View arrivals
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onToggleFavouriteStop({
+                                stopPointId: stop.stopPointId,
+                                name: stop.name,
+                                stopLetter: stop.stopLetter,
+                                routesServed: stop.routesServed,
+                              })
+                            }
+                            className="min-h-11 rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+                          >
+                            {isFavouriteStop(stop.stopPointId)
+                              ? "★ Favourited"
+                              : "☆ Favourite"}
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openStop(stop)}
-                          className="min-h-11 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white"
-                        >
-                          View arrivals
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onToggleFavouriteStop({
-                              stopPointId: stop.stopPointId,
-                              name: stop.name,
-                              stopLetter: stop.stopLetter,
-                              routesServed: stop.routesServed,
-                            })
-                          }
-                          className="min-h-11 rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
-                        >
-                          {isFavouriteStop(stop.stopPointId)
-                            ? "★ Favourited"
-                            : "☆ Favourite"}
-                        </button>
-                      </div>
-                    </div>
                     );
                   })}
 
@@ -713,7 +718,8 @@ export function RouteSearch({
                       onClick={handleLoadMoreNearby}
                       className="min-h-11 w-full rounded-xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
                     >
-                      Load next {Math.min(
+                      Load next{" "}
+                      {Math.min(
                         NEARBY_STOPS_PAGE_SIZE,
                         nearbyPage.total - nearbyPage.visible.length,
                       )}{" "}

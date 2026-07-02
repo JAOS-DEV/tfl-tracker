@@ -148,8 +148,7 @@ export const RouteMapPanel = memo(function RouteMapPanel({
 
       <p className="text-xs text-zinc-500 dark:text-zinc-400">
         Geographic map view uses stop coordinates from the route sequence. For a
-        fully accessible stop-by-stop view, use the List tab. Production or heavy
-        usage may need a dedicated map tile provider.
+        fully accessible stop-by-stop view, use the List tab.
       </p>
     </div>
   );

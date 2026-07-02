@@ -1,11 +1,15 @@
 import type { MetadataRoute } from "next";
+import {
+  APP_DESCRIPTION,
+  APP_NAME,
+  APP_SHORT_NAME,
+} from "@/lib/appBranding";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "London Bus Tracker",
-    short_name: "Bus Tracker",
-    description:
-      "Monitor London bus routes with live TfL Open Data predictions, schematic loops, and local service alerts.",
+    name: APP_NAME,
+    short_name: APP_SHORT_NAME,
+    description: APP_DESCRIPTION,
     start_url: "/",
     display: "standalone",
     background_color: "#fafafa",
