@@ -12,7 +12,7 @@ export interface BaseVersionImportConfig {
   baseVersions: string[];
 }
 
-const ROUTE_ID_PATTERN = /^[A-Za-z0-9]+$/;
+const ROUTE_ID_PATTERN = /^[A-Za-z0-9-]+$/;
 
 export function normalizeRouteId(routeId: string): string {
   return routeId.trim();

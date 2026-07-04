@@ -38,6 +38,8 @@ describe("ibus import config", () => {
     expect(routeScheduleFilename("337")).toBe("337.json");
     expect(routeScheduleFilename("N22")).toBe("N22.json");
     expect(routeScheduleFilename("X26")).toBe("X26.json");
+    expect(routeScheduleFilename("DL-7")).toBe("DL-7.json");
     expect(normalizeRouteId(" 156 ")).toBe("156");
+    expect(() => routeScheduleFilename("../337")).toThrow(/Invalid route id/);
   });
 });
