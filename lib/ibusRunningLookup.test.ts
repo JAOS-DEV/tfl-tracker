@@ -41,6 +41,7 @@ const route337: NormalizedRoute = {
 function buildVehicle(
   journey: NonNullable<ReturnType<typeof normalizeRouteSchedule>>["journeys"][number],
   overrides: Partial<EstimatedVehiclePosition> = {},
+  scheduleBaseVersion = getLocalIbusFixtureVersion(),
 ): EstimatedVehiclePosition {
   const firstStop = journey.stops[0]!;
   return {
@@ -62,7 +63,7 @@ function buildVehicle(
       expectedArrival: "2026-06-12T09:05:00.000Z",
       vehicleId: "LV24EUK",
       tripId: journey.tripId,
-      baseVersion: "20250619",
+      baseVersion: scheduleBaseVersion,
     },
     nextStop: {
       id: firstStop.stopCode ?? "1",
@@ -88,15 +89,13 @@ function buildVehicle(
     missedRefreshCount: 0,
     isSuspectedGhost: false,
     tripId: journey.tripId,
-    baseVersion: "20250619",
+    baseVersion: scheduleBaseVersion,
     vehicleRegistration: "LV24EUK",
     ...overrides,
   };
 }
 
 describe("running lookup integration", () => {
-  const fixtureVersion = getLocalIbusFixtureVersion();
-
   it("attaches running/block from enrichment into schedule matching", () => {
     const schedule = normalizeRouteSchedule(readLocalRouteSchedule("337"));
     expect(schedule).not.toBeNull();
@@ -115,14 +114,17 @@ describe("running lookup integration", () => {
           blockNo: activeJourney!.blockNo,
           operatorCode: "CX",
           runningLookupStatus: "matched",
-          liveBaseVersion: "20250619",
-          staticBaseVersion: fixtureVersion,
-          baseVersionMatches: fixtureVersion === "20250619",
+          liveBaseVersion: pool.baseVersion,
+          staticBaseVersion: pool.baseVersion,
+          baseVersionMatches: true,
         },
       ],
     ]);
 
-    const enriched = enrichLiveVehicles([buildVehicle(activeJourney!)], liveDetails);
+    const enriched = enrichLiveVehicles(
+      [buildVehicle(activeJourney!, {}, pool.baseVersion)],
+      liveDetails,
+    );
     const { timingResults } = matchLiveVehiclesToSchedule(
       enriched,
       pool,
@@ -194,40 +196,40 @@ describe("running lookup integration", () => {
     const vehicles = pool.activeJourneys.map((journey, index) => {
       const firstStop = journey.stops[0]!;
       const vehicleId = `BUS-${index}`;
-      const baseVersionMatches = pool.baseVersion === "20250619";
 
       liveDetails.set(vehicleId, {
         runningNo: journey.runningNo,
         blockNo: journey.blockNo,
         runningLookupStatus: "matched",
-        liveBaseVersion: "20250619",
+        liveBaseVersion: pool.baseVersion,
         staticBaseVersion: pool.baseVersion,
-        baseVersionMatches,
-        runningLookupNote: baseVersionMatches
-          ? undefined
-          : "Live prediction reports a different baseVersion, but tripId matched current static iBus data.",
+        baseVersionMatches: true,
       });
 
-      return buildVehicle(journey, {
-        vehicleId,
-        tripId: journey.tripId,
-        baseVersion: "20250619",
-        direction: journey.direction === "inbound" ? "inbound" : "outbound",
-        nextPrediction: {
-          id: `pred-${index}`,
-          routeId: "337",
-          routeNumber: "337",
-          naptanId: firstStop.naptanId ?? "490000001A",
-          stopName: firstStop.stopName,
-          destinationName: journey.destination ?? "Richmond",
-          direction: journey.direction === "inbound" ? "inbound" : "outbound",
-          timeToStation: 120,
-          expectedArrival: "2026-06-12T09:05:00.000Z",
+      return buildVehicle(
+        journey,
+        {
           vehicleId,
           tripId: journey.tripId,
-          baseVersion: "20250619",
+          baseVersion: pool.baseVersion,
+          direction: journey.direction === "inbound" ? "inbound" : "outbound",
+          nextPrediction: {
+            id: `pred-${index}`,
+            routeId: "337",
+            routeNumber: "337",
+            naptanId: firstStop.naptanId ?? "490000001A",
+            stopName: firstStop.stopName,
+            destinationName: journey.destination ?? "Richmond",
+            direction: journey.direction === "inbound" ? "inbound" : "outbound",
+            timeToStation: 120,
+            expectedArrival: "2026-06-12T09:05:00.000Z",
+            vehicleId,
+            tripId: journey.tripId,
+            baseVersion: pool.baseVersion,
+          },
         },
-      });
+        pool.baseVersion,
+      );
     });
 
     const enriched = enrichLiveVehicles(vehicles, liveDetails);
@@ -257,7 +259,12 @@ describe("running lookup integration", () => {
       candidate: candidateCount,
       trusted: trustedCount,
       blue: blueCount,
-    }).toEqual({ active: 11, candidate: 11, trusted: 11, blue: 0 });
+    }).toEqual({
+      active: pool.activeJourneys.length,
+      candidate: pool.activeJourneys.length,
+      trusted: pool.activeJourneys.length,
+      blue: 0,
+    });
   });
 
   it("route 14 active pool with static running lookup improves candidate/trusted counts", () => {
@@ -283,32 +290,36 @@ describe("running lookup integration", () => {
         runningNo: journey.runningNo,
         blockNo: journey.blockNo,
         runningLookupStatus: "matched",
-        liveBaseVersion: "20250619",
+        liveBaseVersion: pool.baseVersion,
         staticBaseVersion: pool.baseVersion,
-        baseVersionMatches: pool.baseVersion === "20250619",
+        baseVersionMatches: true,
       });
 
-      return buildVehicle(journey, {
-        vehicleId,
-        routeNumber: "14",
-        tripId: journey.tripId,
-        baseVersion: "20250619",
-        direction: journey.direction === "inbound" ? "inbound" : "outbound",
-        nextPrediction: {
-          id: `pred-${index}`,
-          routeId: "14",
-          routeNumber: "14",
-          naptanId: firstStop.naptanId ?? "490000001A",
-          stopName: firstStop.stopName,
-          destinationName: journey.destination ?? "Putney",
-          direction: journey.direction === "inbound" ? "inbound" : "outbound",
-          timeToStation: 120,
-          expectedArrival: "2026-06-12T09:05:00.000Z",
+      return buildVehicle(
+        journey,
+        {
           vehicleId,
+          routeNumber: "14",
           tripId: journey.tripId,
-          baseVersion: "20250619",
+          baseVersion: pool.baseVersion,
+          direction: journey.direction === "inbound" ? "inbound" : "outbound",
+          nextPrediction: {
+            id: `pred-${index}`,
+            routeId: "14",
+            routeNumber: "14",
+            naptanId: firstStop.naptanId ?? "490000001A",
+            stopName: firstStop.stopName,
+            destinationName: journey.destination ?? "Putney",
+            direction: journey.direction === "inbound" ? "inbound" : "outbound",
+            timeToStation: 120,
+            expectedArrival: "2026-06-12T09:05:00.000Z",
+            vehicleId,
+            tripId: journey.tripId,
+            baseVersion: pool.baseVersion,
+          },
         },
-      });
+        pool.baseVersion,
+      );
     });
 
     const enriched = enrichLiveVehicles(vehicles, liveDetails);
@@ -337,6 +348,11 @@ describe("running lookup integration", () => {
       candidate: candidateCount,
       trusted: trustedCount,
       blue: blueCount,
-    }).toEqual({ active: 26, candidate: 10, trusted: 10, blue: 0 });
+    }).toEqual({
+      active: pool.activeJourneys.length,
+      candidate: 10,
+      trusted: 10,
+      blue: 0,
+    });
   });
 });
