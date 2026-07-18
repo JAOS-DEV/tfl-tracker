@@ -7,6 +7,7 @@ import {
   isPossibleGhostBus,
   POSSIBLE_GHOST_LABEL,
 } from "@/lib/ghostDisplay";
+import { buildMapVehicleAriaLabel } from "@/lib/mapVehicleList";
 import type { GeographicStop } from "@/lib/routeMapGeometry";
 import type {
   EstimatedVehiclePosition,
@@ -163,14 +164,5 @@ export function buildStopPopupWithActionHtml(
 }
 
 export function buildBusAriaLabel(vehicle: EstimatedVehiclePosition): string {
-  if (isPossibleGhostBus(vehicle)) {
-    return `${POSSIBLE_GHOST_LABEL}, running number ${getGhostMarkerIconText(vehicle)}`;
-  }
-
-  const near = vehicle.nextStop?.name ?? "route";
-  const timing = buildTimingLine(vehicle);
-
-  return timing
-    ? `Bus ${vehicle.routeNumber}, ${timing}, near ${near}`
-    : `Bus ${vehicle.routeNumber}, near ${near}`;
+  return buildMapVehicleAriaLabel(vehicle);
 }

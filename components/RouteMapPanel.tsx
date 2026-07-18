@@ -4,12 +4,12 @@ import dynamic from "next/dynamic";
 import { memo, useMemo, useState } from "react";
 import { DirectionSegmentedControl } from "@/components/DirectionSegmentedControl";
 import type { LoopMarkerLabelSettings } from "@/components/LoopMarkerInfoBadges";
+import { MapVehicleListItem } from "@/components/MapVehicleListItem";
 import {
   buildRouteMapVehicleMarkers,
   hasRouteMapGeometry,
   ROUTE_MAP_UNAVAILABLE_MESSAGE,
 } from "@/lib/routeMapGeometry";
-import { buildBusAriaLabel } from "@/lib/routeMapPopups";
 import type {
   EstimatedVehiclePosition,
   NormalizedRoute,
@@ -63,9 +63,18 @@ export const RouteMapPanel = memo(function RouteMapPanel({
     () => buildRouteMapVehicleMarkers(vehicles, route, direction),
     [vehicles, route, direction],
   );
+  const directionVehicleCount = useMemo(
+    () => vehicles.filter((vehicle) => vehicle.direction === direction).length,
+    [vehicles, direction],
+  );
 
   const handleStopSelect = (stop: NormalizedStop): void => {
     onStopSelect?.(stop);
+  };
+
+  const handleBusListSelect = (vehicle: EstimatedVehiclePosition): void => {
+    onVehicleSelect(vehicle);
+    setMapExpanded(true);
   };
 
   return (
@@ -101,29 +110,29 @@ export const RouteMapPanel = memo(function RouteMapPanel({
             ) : null}
           </div>
 
-          {vehicleMarkers.length > 0 ? (
-            <details className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950">
-              <summary className="cursor-pointer text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                Bus list ({vehicleMarkers.length})
-              </summary>
-              <ul className="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-300">
+          <details className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950">
+            <summary className="cursor-pointer text-sm font-medium text-zinc-700 dark:text-zinc-200">
+              Bus list ({vehicleMarkers.length})
+            </summary>
+            {vehicleMarkers.length > 0 ? (
+              <ul className="mt-2 space-y-1.5">
                 {vehicleMarkers.map(({ vehicle }) => (
-                  <li key={`summary-${vehicle.vehicleId}`}>
-                    <button
-                      type="button"
-                      className="min-h-11 w-full rounded-lg px-2 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                      onClick={() => {
-                        onVehicleSelect(vehicle);
-                        setMapExpanded(true);
-                      }}
-                    >
-                      {buildBusAriaLabel(vehicle)}
-                    </button>
-                  </li>
+                  <MapVehicleListItem
+                    key={`summary-${vehicle.vehicleId}`}
+                    vehicle={vehicle}
+                    selected={selectedVehicleId === vehicle.vehicleId}
+                    onSelect={handleBusListSelect}
+                  />
                 ))}
               </ul>
-            </details>
-          ) : null}
+            ) : (
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                {directionVehicleCount > 0
+                  ? "Live buses are available for this direction, but map positions aren't ready yet."
+                  : "No live buses to show for this direction right now."}
+              </p>
+            )}
+          </details>
         </div>
       ) : (
         <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RouteMapPanel } from "@/components/RouteMapPanel";
@@ -73,8 +75,10 @@ const liveVehicle = {
   scheduleStatus: "onTime",
   scheduleStatusLabel: "On time",
   scheduleDeviationMinutes: 0,
+  scheduleMatchConfidence: "high",
   destinationName: "Richmond Bus Station",
   vehicleRegistration: "LV24EUK",
+  ibusFleetNo: "3051",
   ibusRunningNo: "562",
   nextStop: { name: "Kings Road", naptanId: "490000001A" },
 } as unknown as EstimatedVehiclePosition;
@@ -262,6 +266,117 @@ describe("RouteMapPanel", () => {
 
     expect(screen.getByText(/Bus list \(1\)/i)).toBeInTheDocument();
     expect(screen.getByText(/near Kings Road/i)).not.toBeVisible();
+  });
+
+  it("shows useful vehicle identity without repeating the route number", () => {
+    render(
+      <RouteMapPanel
+        route={routeWithGeometry}
+        direction="outbound"
+        onDirectionChange={vi.fn()}
+        vehicles={[liveVehicle]}
+        selectedVehicleId={null}
+        loopLabelSettings={{
+          showRegistration: true,
+          showFleetNumber: true,
+          showRunningNumber: true,
+        }}
+        onVehicleSelect={vi.fn()}
+        isMobile={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByText(/Bus list \(1\)/i));
+
+    expect(
+      screen.getByText("Run 562 · LV24EUK · Fleet 3051"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/On time · near Kings Road/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Bus 337/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /Run 562, LV24EUK, fleet 3051, on time, near Kings Road/i,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an empty state when there are no buses for the direction", () => {
+    render(
+      <RouteMapPanel
+        route={routeWithGeometry}
+        direction="outbound"
+        onDirectionChange={vi.fn()}
+        vehicles={[]}
+        selectedVehicleId={null}
+        loopLabelSettings={{
+          showRegistration: true,
+          showFleetNumber: true,
+          showRunningNumber: true,
+        }}
+        onVehicleSelect={vi.fn()}
+        isMobile={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByText(/Bus list \(0\)/i));
+    expect(
+      screen.getByText(/No live buses to show for this direction right now/i),
+    ).toBeInTheDocument();
+  });
+
+  it("selects a bus when its list row is tapped", async () => {
+    const onVehicleSelect = vi.fn();
+    render(
+      <RouteMapPanel
+        route={routeWithGeometry}
+        direction="outbound"
+        onDirectionChange={vi.fn()}
+        vehicles={[liveVehicle]}
+        selectedVehicleId={null}
+        loopLabelSettings={{
+          showRegistration: true,
+          showFleetNumber: true,
+          showRunningNumber: true,
+        }}
+        onVehicleSelect={onVehicleSelect}
+        isMobile={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByText(/Bus list \(1\)/i));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Run 562, LV24EUK, fleet 3051, on time, near Kings Road/i,
+      }),
+    );
+
+    expect(onVehicleSelect).toHaveBeenCalledWith(liveVehicle);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("dialog", { name: /Interactive route map/i }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("does not re-enable timetable or add bulk iBus fetches in the map panel", () => {
+    const panelSource = readFileSync(
+      resolve(process.cwd(), "components/RouteMapPanel.tsx"),
+      "utf8",
+    );
+    const listItemSource = readFileSync(
+      resolve(process.cwd(), "components/MapVehicleListItem.tsx"),
+      "utf8",
+    );
+    const helperSource = readFileSync(
+      resolve(process.cwd(), "lib/mapVehicleList.ts"),
+      "utf8",
+    );
+
+    for (const source of [panelSource, listItemSource, helperSource]) {
+      expect(source).not.toContain("/api/tfl/timetable");
+      expect(source).not.toContain("import:ibus");
+      expect(source).not.toContain("readLocalRouteSchedule");
+    }
   });
 });
 
