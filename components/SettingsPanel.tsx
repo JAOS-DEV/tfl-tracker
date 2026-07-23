@@ -97,7 +97,12 @@ export function SettingsPanel({
   };
 
   return (
-    <MobileBottomSheet title="Settings" titleId="settings-title" onClose={onClose}>
+    <MobileBottomSheet
+      title="Settings"
+      titleId="settings-title"
+      onClose={onClose}
+      closeAriaLabel="Close settings"
+    >
       <div className="space-y-6">
         {PUBLIC_FEATURES.afterMidnightReplay ? (
           <AfterMidnightReplayControls

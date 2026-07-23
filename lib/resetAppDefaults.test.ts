@@ -92,4 +92,25 @@ describe("resetAppToDefaults", () => {
     expect(readJsonStorage(STORAGE_KEYS.theme, "system")).toBe("system");
     expect(loadAllSnapshots()).toEqual([]);
   });
+
+  it("restores defaultVisualMode to map when a saved Loop preference is reset", () => {
+    window.localStorage.setItem(
+      STORAGE_KEYS.displaySettings,
+      JSON.stringify({
+        ...DEFAULT_DISPLAY_SETTINGS,
+        defaultVisualMode: "loop",
+        showServiceDetailsInline: true,
+      }),
+    );
+
+    resetAppToDefaults();
+
+    const settings = readJsonStorage(
+      STORAGE_KEYS.displaySettings,
+      DEFAULT_DISPLAY_SETTINGS,
+    );
+    expect(settings.defaultVisualMode).toBe("map");
+    expect(settings.showServiceDetailsInline).toBe(false);
+    expect(settings).toEqual(DEFAULT_DISPLAY_SETTINGS);
+  });
 });

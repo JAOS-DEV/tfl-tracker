@@ -108,4 +108,18 @@ describe("displaySettings", () => {
     expect(prefs.routeId).toBe("337");
     expect(prefs.warnEstimatedLateBus).toBe(true);
   });
+
+  it("preserves a saved Loop preference until settings are reset", () => {
+    const settings = normalizeDisplaySettings({
+      defaultVisualMode: "loop",
+    });
+
+    expect(settings.defaultVisualMode).toBe("loop");
+  });
+
+  it("uses map when stored settings are missing or empty", () => {
+    expect(normalizeDisplaySettings(null).defaultVisualMode).toBe("map");
+    expect(normalizeDisplaySettings(undefined).defaultVisualMode).toBe("map");
+    expect(normalizeDisplaySettings({}).defaultVisualMode).toBe("map");
+  });
 });
