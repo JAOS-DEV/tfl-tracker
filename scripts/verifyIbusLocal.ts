@@ -8,7 +8,10 @@ async function main(): Promise<void> {
   console.log("=== Local iBus verification ===");
   console.log(`Manifest: ${result.manifestPath}`);
   console.log(
-    `Active baseVersion (Base_Version.xml): ${result.activeBaseVersionFromXml ?? "unknown"}`,
+    `TfL active version (live predictions use this): ${result.activeBaseVersionFromXml ?? "unknown"}`,
+  );
+  console.log(
+    `App current version (what this project uses):   ${result.manifestBaseVersion ?? "unknown"}`,
   );
   console.log(
     `Manifest activeBaseVersionFromXml: ${result.manifestActiveBaseVersion ?? "unknown"}`,

@@ -92,10 +92,84 @@ export async function listLocalBaseVersions(
 
 export interface BaseVersionDiscoveryReport {
   activeBaseVersionFromXml: string | null;
+  /** Primary version the app points at via public/data/ibus/current.json */
+  appCurrentBaseVersion: string | null;
   remoteAvailableBaseVersions: string[];
   localImportedBaseVersions: string[];
   missingLocally: string[];
   missingRemotely: string[];
+}
+
+export async function readAppCurrentBaseVersion(
+  ibusRoot = getIbusDataRoot(),
+): Promise<string | null> {
+  try {
+    const raw = await fs.readFile(path.join(ibusRoot, "current.json"), "utf8");
+    const manifest = JSON.parse(raw) as { baseVersion?: unknown };
+    return typeof manifest.baseVersion === "string" &&
+      isValidBaseVersionId(manifest.baseVersion)
+      ? manifest.baseVersion
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export type BaseVersionSyncStatus =
+  | "up-to-date"
+  | "update-needed"
+  | "unknown";
+
+export function resolveBaseVersionSyncStatus(
+  activeBaseVersionFromXml: string | null,
+  appCurrentBaseVersion: string | null,
+  localImportedBaseVersions: string[] = [],
+): BaseVersionSyncStatus {
+  if (!activeBaseVersionFromXml) {
+    return "unknown";
+  }
+
+  if (appCurrentBaseVersion === activeBaseVersionFromXml) {
+    return "up-to-date";
+  }
+
+  if (localImportedBaseVersions.includes(activeBaseVersionFromXml)) {
+    // Folder exists but current.json still points elsewhere
+    return "update-needed";
+  }
+
+  if (appCurrentBaseVersion && appCurrentBaseVersion !== activeBaseVersionFromXml) {
+    return "update-needed";
+  }
+
+  return "update-needed";
+}
+
+export function formatBaseVersionStatusLines(report: {
+  activeBaseVersionFromXml: string | null;
+  appCurrentBaseVersion: string | null;
+  localImportedBaseVersions: string[];
+}): string[] {
+  const active = report.activeBaseVersionFromXml ?? "unknown";
+  const current = report.appCurrentBaseVersion ?? "none (no current.json)";
+  const status = resolveBaseVersionSyncStatus(
+    report.activeBaseVersionFromXml,
+    report.appCurrentBaseVersion,
+    report.localImportedBaseVersions,
+  );
+
+  const statusLabel =
+    status === "up-to-date"
+      ? "UP TO DATE — app is using the TfL active version"
+      : status === "update-needed"
+        ? "UPDATE NEEDED — run: npm run import:ibus:active"
+        : "UNKNOWN — could not read TfL active version";
+
+  return [
+    `TfL active version (live predictions use this): ${active}`,
+    `App current version (what this project uses):   ${current}`,
+    `Status: ${statusLabel}`,
+  ];
 }
 
 export async function buildBaseVersionDiscoveryReport(
@@ -104,6 +178,7 @@ export async function buildBaseVersionDiscoveryReport(
   const activeBaseVersionFromXml = await fetchActiveBaseVersionFromXml().catch(
     () => null,
   );
+  const appCurrentBaseVersion = await readAppCurrentBaseVersion();
   const remoteAvailableBaseVersions = await discoverRemoteBaseVersions(seeds);
   const localImportedBaseVersions = await listLocalBaseVersions();
   const remoteSet = new Set(remoteAvailableBaseVersions);
@@ -111,6 +186,7 @@ export async function buildBaseVersionDiscoveryReport(
 
   return {
     activeBaseVersionFromXml,
+    appCurrentBaseVersion,
     remoteAvailableBaseVersions,
     localImportedBaseVersions,
     missingLocally: remoteAvailableBaseVersions.filter(

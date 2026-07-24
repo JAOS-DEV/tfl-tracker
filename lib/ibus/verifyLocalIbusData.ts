@@ -15,6 +15,7 @@ export interface VerifyLocalIbusDataResult {
   warnings: string[];
   manifestPath: string;
   activeBaseVersionFromXml: string | null;
+  manifestBaseVersion: string | null;
   manifestActiveBaseVersion: string | null;
   localBaseVersions: string[];
   activeVersionRouteCount: number | null;
@@ -59,6 +60,7 @@ export async function verifyLocalIbusData(): Promise<VerifyLocalIbusDataResult> 
     () => null,
   );
   const manifestActiveBaseVersion = manifest?.activeBaseVersionFromXml ?? null;
+  const manifestBaseVersion = manifest?.baseVersion ?? null;
 
   if (!manifestActiveBaseVersion) {
     errors.push("Manifest is missing activeBaseVersionFromXml.");
@@ -128,6 +130,7 @@ export async function verifyLocalIbusData(): Promise<VerifyLocalIbusDataResult> 
     warnings,
     manifestPath,
     activeBaseVersionFromXml,
+    manifestBaseVersion,
     manifestActiveBaseVersion,
     localBaseVersions,
     activeVersionRouteCount,

@@ -1,0 +1,128 @@
+name: Check iBus base version
+
+on:
+  schedule:
+    # Daily at 06:00 UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: check-ibus-base-version
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check iBus base versions
+        id: check
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run check:ibus-base-versions -- --fail-on-outdated | tee check-output.txt
+
+      - name: Ensure alert label exists
+        if: steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create "ibus-base-version" \
+            --description "App iBus static data is behind TfL active base version" \
+            --color "D93F0B" \
+            --force
+
+      - name: Open or update GitHub Issue
+        if: steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITLE='[iBus] Base version update needed'
+          CHECK_OUTPUT=$(cat check-output.txt)
+          BODY=$(cat <<EOF
+          ## iBus base version is out of date
+
+          The daily check found that this repo’s app current base version does not match TfL’s active version.
+
+          ### What to do
+
+          \`\`\`bash
+          npm run check:ibus-base-versions
+          npm run import:ibus:active
+          npm run rebuild:ibus-manifest
+          npm run verify:ibus-local
+          git add public/data/ibus/current.json
+          git add -f public/data/ibus/<NEW_VERSION>
+          \`\`\`
+
+          Then commit, push, and deploy.
+
+          ### Latest check output
+
+          \`\`\`text
+          ${CHECK_OUTPUT}
+          \`\`\`
+
+          _Opened/updated by the \`Check iBus base version\` workflow._
+          EOF
+          )
+
+          EXISTING=$(gh issue list \
+            --label ibus-base-version \
+            --state open \
+            --json number,title \
+            --jq ".[] | select(.title==\"${TITLE}\") | .number" \
+            | head -n1)
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "Still outdated as of $(date -u +%Y-%m-%dT%H:%MZ).
+
+          \`\`\`text
+          ${CHECK_OUTPUT}
+          \`\`\`"
+            echo "Commented on existing issue #$EXISTING"
+          else
+            gh issue create --title "$TITLE" --label "ibus-base-version" --body "$BODY"
+            echo "Created new alert issue"
+          fi
+
+      - name: Close alert issue if up to date
+        if: steps.check.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITLE='[iBus] Base version update needed'
+          EXISTING=$(gh issue list \
+            --label ibus-base-version \
+            --state open \
+            --json number,title \
+            --jq ".[] | select(.title==\"${TITLE}\") | .number" \
+            | head -n1)
+
+          if [ -n "$EXISTING" ]; then
+            gh issue close "$EXISTING" \
+              --comment "Closing: iBus base version check is now UP TO DATE ($(date -u +%Y-%m-%dT%H:%MZ))."
+            echo "Closed issue #$EXISTING"
+          else
+            echo "No open alert issue to close"
+          fi
+
+      - name: Fail job when outdated (triggers Actions email)
+        if: steps.check.outcome == 'failure'
+        run: |
+          echo "iBus base version check failed — see the GitHub Issue and workflow log."
+          exit 1

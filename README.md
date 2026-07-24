@@ -215,6 +215,24 @@ This is the **default, free approach** we use today:
 - Runtime uses local `/data/ibus/`.
 - When TfL’s active base version changes, manually import the new version and redeploy.
 
+### Daily automated check (GitHub Actions)
+
+A scheduled workflow (`.github/workflows/check-ibus-base-version.yml`) runs **daily at 06:00 UTC** and compares TfL’s active base version with `public/data/ibus/current.json`.
+
+If they differ, it:
+
+1. **Fails the workflow** (so GitHub can email you an Actions failure)
+2. **Opens or updates a GitHub Issue** titled `[iBus] Base version update needed` (label `ibus-base-version`)
+
+When the versions match again, it closes that issue.
+
+**How you’ll be alerted**
+
+- **GitHub Issue** — watch the repo (or Issues) so new/updated issues notify you by email
+- **Actions email** — in GitHub: Settings → Notifications → Actions → enable email for failed workflows
+
+You can also run it manually from the Actions tab → **Check iBus base version** → **Run workflow**.
+
 ### Routine update (recommended)
 
 ```bash
@@ -230,7 +248,7 @@ npm run build
 
 | Command | Purpose |
 | --- | --- |
-| `check:ibus-base-versions` | Shows active version from `Base_Version.xml`, remote probes, and what is imported locally |
+| `check:ibus-base-versions` | Shows TfL active vs app current version, plus remote/local details. Add `--fail-on-outdated` to exit non-zero when behind (used by CI). |
 | `import:ibus:active` | Imports **all routes** for the active base version and rebuilds the manifest |
 | `rebuild:ibus-manifest` | Refreshes `public/data/ibus/current.json` from local version folders |
 | `verify:ibus-local` | Checks manifest, active folder, route count; warns if too many local versions or remote URL is set |
