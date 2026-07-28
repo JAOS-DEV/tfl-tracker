@@ -14,6 +14,7 @@ import {
   clearPositionWatch,
   getMapGeolocationErrorInfo,
   queryGeolocationPermission,
+  requestCurrentPosition,
   watchCurrentPosition,
   type GeolocationErrorInfo,
 } from "@/lib/nearbyStops";
@@ -37,19 +38,6 @@ function toGeoPoint(position: GeolocationPosition): GeoPoint {
     lat: position.coords.latitude,
     lon: position.coords.longitude,
   };
-}
-
-function isGeolocationTimeout(
-  error: GeolocationPositionError | Error,
-): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    typeof (error as GeolocationPositionError).TIMEOUT === "number" &&
-    (error as GeolocationPositionError).code ===
-      (error as GeolocationPositionError).TIMEOUT
-  );
 }
 
 function toErrorInfo(error: GeolocationPositionError | Error): GeolocationErrorInfo {
@@ -93,11 +81,7 @@ export function useMapUserLocation(
   const watchGenerationRef = useRef(0);
   const firstFixHandledRef = useRef(false);
   const autoResumeSessionRef = useRef(false);
-  const timeoutRetryUsedRef = useRef(false);
   const geographicStopsRef = useRef(geographicStops);
-  const startWatchingRef = useRef<(fromAutoResume: boolean) => void>(
-    () => undefined,
-  );
 
   useEffect(() => {
     geographicStopsRef.current = geographicStops;
@@ -140,16 +124,6 @@ export function useMapUserLocation(
 
   const handlePositionError = useCallback(
     (watchError: GeolocationPositionError | Error): void => {
-      // One quiet retry on timeout — common while the map is still loading.
-      if (
-        isGeolocationTimeout(watchError) &&
-        !timeoutRetryUsedRef.current
-      ) {
-        timeoutRetryUsedRef.current = true;
-        startWatchingRef.current(autoResumeSessionRef.current);
-        return;
-      }
-
       stopWatching();
       setStatus("error");
       setError(toErrorInfo(watchError));
@@ -157,22 +131,8 @@ export function useMapUserLocation(
     [stopWatching],
   );
 
-  const startWatching = useCallback(
-    (fromAutoResume: boolean): void => {
-      if (!enabled) {
-        return;
-      }
-
-      clearPositionWatch(watchIdRef.current);
-      watchIdRef.current = null;
-
-      const generation = watchGenerationRef.current + 1;
-      watchGenerationRef.current = generation;
-      firstFixHandledRef.current = false;
-      autoResumeSessionRef.current = fromAutoResume;
-      setStatus("locating");
-      setError(null);
-
+  const attachWatch = useCallback(
+    (generation: number): void => {
       const watchId = watchCurrentPosition(
         (geoPosition) => {
           if (generation !== watchGenerationRef.current) {
@@ -184,32 +144,87 @@ export function useMapUserLocation(
           if (generation !== watchGenerationRef.current) {
             return;
           }
+          // If we already have a fix from the button tap, keep it and ignore
+          // later watch noise (common on iOS after permission is settled).
+          if (firstFixHandledRef.current) {
+            return;
+          }
           handlePositionError(watchError);
         },
       );
 
       if (watchId === null) {
-        setStatus("error");
-        setError({
-          title: "Location unavailable",
-          message: "Geolocation is not supported on this device.",
-        });
+        if (!firstFixHandledRef.current) {
+          setStatus("error");
+          setError({
+            title: "Location unavailable",
+            message: "Geolocation is not supported on this device.",
+          });
+        }
         return;
       }
 
       watchIdRef.current = watchId;
     },
-    [enabled, handlePositionError, handlePositionSuccess],
+    [handlePositionError, handlePositionSuccess],
   );
 
-  useEffect(() => {
-    startWatchingRef.current = startWatching;
-  }, [startWatching]);
+  const beginLocating = useCallback(
+    (fromAutoResume: boolean): number | null => {
+      if (!enabled) {
+        return null;
+      }
+
+      clearPositionWatch(watchIdRef.current);
+      watchIdRef.current = null;
+
+      const generation = watchGenerationRef.current + 1;
+      watchGenerationRef.current = generation;
+      firstFixHandledRef.current = false;
+      autoResumeSessionRef.current = fromAutoResume;
+      setStatus("locating");
+      setError(null);
+      return generation;
+    },
+    [enabled],
+  );
+
+  const startWatching = useCallback(
+    (fromAutoResume: boolean): void => {
+      const generation = beginLocating(fromAutoResume);
+      if (generation === null) {
+        return;
+      }
+
+      attachWatch(generation);
+    },
+    [attachWatch, beginLocating],
+  );
 
   const enableLocation = useCallback((): void => {
-    timeoutRetryUsedRef.current = false;
-    startWatching(false);
-  }, [startWatching]);
+    const generation = beginLocating(false);
+    if (generation === null) {
+      return;
+    }
+
+    // Prime with getCurrentPosition inside the tap gesture — required on iOS
+    // Safari so the permission prompt can appear for this preview URL.
+    requestCurrentPosition(
+      (geoPosition) => {
+        if (generation !== watchGenerationRef.current) {
+          return;
+        }
+        handlePositionSuccess(geoPosition);
+        attachWatch(generation);
+      },
+      (requestError) => {
+        if (generation !== watchGenerationRef.current) {
+          return;
+        }
+        handlePositionError(requestError);
+      },
+    );
+  }, [attachWatch, beginLocating, handlePositionError, handlePositionSuccess]);
 
   const findMe = useCallback((): void => {
     if (!position) {
@@ -233,7 +248,6 @@ export function useMapUserLocation(
     }
 
     let cancelled = false;
-    timeoutRetryUsedRef.current = false;
 
     async function maybeAutoResume(): Promise<void> {
       if (!readMapLocationEnabled()) {
@@ -245,6 +259,8 @@ export function useMapUserLocation(
         return;
       }
 
+      // Only auto-resume when the browser already reports granted. Never request
+      // permission from an effect — iOS Safari will deny that without a prompt.
       if (permission !== "granted") {
         return;
       }

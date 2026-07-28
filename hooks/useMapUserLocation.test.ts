@@ -24,7 +24,28 @@ const stops: GeographicStop[] = [
   },
 ];
 
+function createPosition(lat: number, lon: number): GeolocationPosition {
+  return {
+    coords: {
+      latitude: lat,
+      longitude: lon,
+      accuracy: 10,
+      altitude: null,
+      altitudeAccuracy: null,
+      heading: null,
+      speed: null,
+      toJSON: () => ({}),
+    },
+    timestamp: Date.now(),
+    toJSON: () => ({}),
+  } as GeolocationPosition;
+}
+
 function mockGeolocation(options: {
+  getCurrentImpl?: (
+    success: PositionCallback,
+    error?: PositionErrorCallback | null,
+  ) => void;
   watchImpl?: (
     success: PositionCallback,
     error?: PositionErrorCallback | null,
@@ -33,8 +54,21 @@ function mockGeolocation(options: {
 }): {
   clearWatch: ReturnType<typeof vi.fn>;
   watchPosition: ReturnType<typeof vi.fn>;
+  getCurrentPosition: ReturnType<typeof vi.fn>;
 } {
   const clearWatch = vi.fn();
+  const getCurrentPosition = vi.fn(
+    (
+      success: PositionCallback,
+      error?: PositionErrorCallback | null,
+    ): void => {
+      if (options.getCurrentImpl) {
+        options.getCurrentImpl(success, error);
+        return;
+      }
+      success(createPosition(51.5002, -0.1002));
+    },
+  );
   const watchPosition = vi.fn(
     (
       success: PositionCallback,
@@ -52,7 +86,7 @@ function mockGeolocation(options: {
     value: {
       watchPosition,
       clearWatch,
-      getCurrentPosition: vi.fn(),
+      getCurrentPosition,
     },
   });
 
@@ -72,7 +106,7 @@ function mockGeolocation(options: {
     });
   }
 
-  return { clearWatch, watchPosition };
+  return { clearWatch, watchPosition, getCurrentPosition };
 }
 
 describe("useMapUserLocation", () => {
@@ -87,40 +121,17 @@ describe("useMapUserLocation", () => {
     vi.restoreAllMocks();
   });
 
-  it("starts watching on Use my location and clears watch on unmount", async () => {
-    const { clearWatch, watchPosition } = mockGeolocation({
-      watchImpl: (success) => {
-        success({
-          coords: {
-            latitude: 51.5002,
-            longitude: -0.1002,
-            accuracy: 10,
-            altitude: null,
-            altitudeAccuracy: null,
-            heading: null,
-            speed: null,
-            toJSON: () => ({}),
-          },
-          timestamp: Date.now(),
-          toJSON: () => ({}),
-        } as GeolocationPosition);
-        return 7;
-      },
-    });
+  it("primes location from a tap with getCurrentPosition then watches", async () => {
+    const { clearWatch, watchPosition, getCurrentPosition } = mockGeolocation({});
 
     const view = renderHook(() => useMapUserLocation(stops, { enabled: true }));
-
-    expect(
-      view.result.current.status === "idle" ||
-        view.result.current.status === "locating",
-    ).toBe(true);
-
     view.result.current.enableLocation();
 
     await waitFor(() => {
       expect(view.result.current.status).toBe("ready");
     });
 
+    expect(getCurrentPosition).toHaveBeenCalled();
     expect(watchPosition).toHaveBeenCalled();
     expect(view.result.current.position).toEqual({
       lat: 51.5002,
@@ -133,28 +144,15 @@ describe("useMapUserLocation", () => {
     expect(fetch).not.toHaveBeenCalled();
 
     view.unmount();
-    expect(clearWatch).toHaveBeenCalledWith(7);
+    expect(clearWatch).toHaveBeenCalled();
   });
 
   it("auto-resumes when preference is on and permission is granted", async () => {
     writeMapLocationEnabled(true);
-    const { watchPosition } = mockGeolocation({
+    const { watchPosition, getCurrentPosition } = mockGeolocation({
       permission: "granted",
       watchImpl: (success) => {
-        success({
-          coords: {
-            latitude: 51.5002,
-            longitude: -0.1002,
-            accuracy: 10,
-            altitude: null,
-            altitudeAccuracy: null,
-            heading: null,
-            speed: null,
-            toJSON: () => ({}),
-          },
-          timestamp: Date.now(),
-          toJSON: () => ({}),
-        } as GeolocationPosition);
+        success(createPosition(51.5002, -0.1002));
         return 9;
       },
     });
@@ -166,12 +164,15 @@ describe("useMapUserLocation", () => {
     });
 
     expect(watchPosition).toHaveBeenCalled();
+    expect(getCurrentPosition).not.toHaveBeenCalled();
     expect(view.result.current.fitUserAndRouteSignal).toBe(0);
   });
 
   it("does not auto-resume when permission is prompt", async () => {
     writeMapLocationEnabled(true);
-    const { watchPosition } = mockGeolocation({ permission: "prompt" });
+    const { watchPosition, getCurrentPosition } = mockGeolocation({
+      permission: "prompt",
+    });
 
     const view = renderHook(() => useMapUserLocation(stops, { enabled: true }));
 
@@ -180,11 +181,12 @@ describe("useMapUserLocation", () => {
     });
 
     expect(watchPosition).not.toHaveBeenCalled();
+    expect(getCurrentPosition).not.toHaveBeenCalled();
   });
 
   it("does not enable preference after a failed opt-in", async () => {
-    const { watchPosition } = mockGeolocation({
-      watchImpl: (_success, error) => {
+    const { getCurrentPosition } = mockGeolocation({
+      getCurrentImpl: (_success, error) => {
         error?.({
           code: 1,
           PERMISSION_DENIED: 1,
@@ -192,7 +194,6 @@ describe("useMapUserLocation", () => {
           TIMEOUT: 3,
           message: "denied",
         } as GeolocationPositionError);
-        return 3;
       },
     });
 
@@ -203,7 +204,7 @@ describe("useMapUserLocation", () => {
       expect(view.result.current.status).toBe("error");
     });
 
-    expect(watchPosition).toHaveBeenCalled();
+    expect(getCurrentPosition).toHaveBeenCalled();
     expect(window.localStorage.getItem(STORAGE_KEYS.mapLocationEnabled)).toBe(
       null,
     );
@@ -211,31 +212,19 @@ describe("useMapUserLocation", () => {
   });
 
   it("Find me fits nearby users and centres far users", async () => {
-    let latestSuccess: PositionCallback | undefined;
+    let latestWatchSuccess: PositionCallback | undefined;
     mockGeolocation({
+      getCurrentImpl: (success) => {
+        success(createPosition(51.5001, -0.1001));
+      },
       watchImpl: (success) => {
-        latestSuccess = success;
+        latestWatchSuccess = success;
         return 1;
       },
     });
 
     const view = renderHook(() => useMapUserLocation(stops, { enabled: true }));
     view.result.current.enableLocation();
-
-    latestSuccess?.({
-      coords: {
-        latitude: 51.5001,
-        longitude: -0.1001,
-        accuracy: 10,
-        altitude: null,
-        altitudeAccuracy: null,
-        heading: null,
-        speed: null,
-        toJSON: () => ({}),
-      },
-      timestamp: Date.now(),
-      toJSON: () => ({}),
-    } as GeolocationPosition);
 
     await waitFor(() => {
       expect(view.result.current.status).toBe("ready");
@@ -249,20 +238,7 @@ describe("useMapUserLocation", () => {
     });
     expect(view.result.current.fitUserAndRouteSignal).toBe(nearbyFit + 1);
 
-    latestSuccess?.({
-      coords: {
-        latitude: 52.5,
-        longitude: -1.5,
-        accuracy: 10,
-        altitude: null,
-        altitudeAccuracy: null,
-        heading: null,
-        speed: null,
-        toJSON: () => ({}),
-      },
-      timestamp: Date.now(),
-      toJSON: () => ({}),
-    } as GeolocationPosition);
+    latestWatchSuccess?.(createPosition(52.5, -1.5));
 
     await waitFor(() => {
       expect(view.result.current.nearestStop?.distanceMetres).toBeGreaterThan(
@@ -277,54 +253,12 @@ describe("useMapUserLocation", () => {
     expect(view.result.current.centerOnUserSignal).toBe(centerBefore + 1);
   });
 
-  it("retries once after a timeout before showing an error", async () => {
-    let attempt = 0;
-    const { watchPosition } = mockGeolocation({
-      watchImpl: (success, error) => {
-        attempt += 1;
-        if (attempt === 1) {
-          error?.({
-            code: 3,
-            PERMISSION_DENIED: 1,
-            POSITION_UNAVAILABLE: 2,
-            TIMEOUT: 3,
-            message: "timeout",
-          } as GeolocationPositionError);
-          return attempt;
-        }
-
-        success({
-          coords: {
-            latitude: 51.5002,
-            longitude: -0.1002,
-            accuracy: 10,
-            altitude: null,
-            altitudeAccuracy: null,
-            heading: null,
-            speed: null,
-            toJSON: () => ({}),
-          },
-          timestamp: Date.now(),
-          toJSON: () => ({}),
-        } as GeolocationPosition);
-        return attempt;
-      },
-    });
-
-    const view = renderHook(() => useMapUserLocation(stops, { enabled: true }));
-    view.result.current.enableLocation();
-
-    await waitFor(() => {
-      expect(view.result.current.status).toBe("ready");
-    });
-
-    expect(watchPosition).toHaveBeenCalledTimes(2);
-    expect(view.result.current.error).toBeNull();
-  });
-
   it("ignores stale geolocation errors after the watch is cleared", async () => {
     let firstError: PositionErrorCallback | null = null;
     mockGeolocation({
+      getCurrentImpl: (success) => {
+        success(createPosition(51.5, -0.1));
+      },
       watchImpl: (_success, error) => {
         firstError = error ?? null;
         return 11;
@@ -335,7 +269,7 @@ describe("useMapUserLocation", () => {
     view.result.current.enableLocation();
 
     await waitFor(() => {
-      expect(firstError).not.toBeNull();
+      expect(view.result.current.status).toBe("ready");
     });
 
     view.unmount();

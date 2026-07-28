@@ -75,6 +75,14 @@ export function getGeolocationDeniedInfo(
 }
 
 export function getMapGeolocationDeniedInfo(): GeolocationErrorInfo {
+  if (isIosDevice()) {
+    return {
+      title: "Location access is blocked",
+      message:
+        "On iPhone, tap the AA icon in the address bar → Website Settings → Location → Allow, then reload this page and tap Use my location again. Also check Settings → Privacy & Security → Location Services is On and Safari is allowed. Preview links each count as a different site, so Allow must be set for this exact URL.",
+    };
+  }
+
   return getGeolocationDeniedInfo("Use my location");
 }
 

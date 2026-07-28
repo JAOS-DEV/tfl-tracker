@@ -36,6 +36,15 @@ describe("getGeolocationDeniedInfo", () => {
   });
 });
 
+describe("getMapGeolocationDeniedInfo", () => {
+  it("mentions website settings for map location", async () => {
+    const { getMapGeolocationDeniedInfo } = await import("@/lib/nearbyStops");
+    const info = getMapGeolocationDeniedInfo();
+    expect(info.title).toMatch(/blocked/i);
+    expect(info.message.length).toBeGreaterThan(0);
+  });
+});
+
 describe("getVisibleNearbyStops", () => {
   it("returns the first page of nearby stops", () => {
     const stops = Array.from({ length: 25 }, (_, index) => index);
