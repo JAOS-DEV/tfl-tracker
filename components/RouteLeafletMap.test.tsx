@@ -26,6 +26,7 @@ const mapInstance = {
   fitBounds,
   remove: removeMap,
   panTo: vi.fn(),
+  setView: vi.fn(),
   getZoom: vi.fn(() => 15),
   on: mapOn,
   off: mapOff,
@@ -52,6 +53,9 @@ vi.mock("leaflet", () => ({
     on: markerOn,
     openPopup: markerOpenPopup,
     getLatLng: vi.fn(() => ({ lat: 51.47, lng: -0.2 })),
+    setLatLng: vi.fn().mockReturnThis(),
+    setIcon: vi.fn().mockReturnThis(),
+    remove: vi.fn(),
   })),
 }));
 

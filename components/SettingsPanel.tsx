@@ -381,8 +381,15 @@ export function SettingsPanel({
           </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Nearby stops uses your browser location only when you tap “Find
-            stops near me”. Location is not saved or sent anywhere except the
-            TfL nearby stop lookup.
+            stops near me”. Location is sent only to the TfL nearby stop lookup
+            and is not saved.
+          </p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Map view can show your position after you tap “Use my location” (or
+            on later visits if you previously allowed it). Location is used only
+            while Map view is open, stays in memory on this device, and is not
+            stored or sent anywhere. Your browser may still ask again if you
+            chose “Allow this time” instead of a lasting Allow.
           </p>
         </section>
 

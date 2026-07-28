@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   routeHistory: "tfl-tracker:route-history",
   displaySettings: "tfl-tracker:display-settings",
   installBannerDismissed: "tfl-tracker:install-banner-dismissed",
+  mapLocationEnabled: "tfl-tracker:map-location-enabled",
 } as const;
 
 export const MAX_ACTIVE_ROUTES = 3;

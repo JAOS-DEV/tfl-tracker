@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RouteMapModal } from "@/components/RouteMapModal";
+import type { UseMapUserLocationResult } from "@/hooks/useMapUserLocation";
 import type { NormalizedRoute } from "@/lib/tfl/types";
 
 vi.mock("@/components/RouteLeafletMap", () => ({
@@ -35,6 +36,23 @@ const route: NormalizedRoute = {
   inbound: [],
 };
 
+function createLocationMock(
+  overrides: Partial<UseMapUserLocationResult> = {},
+): UseMapUserLocationResult {
+  return {
+    status: "idle",
+    position: null,
+    nearestStop: null,
+    nearestStopLabel: null,
+    error: null,
+    fitUserAndRouteSignal: 0,
+    centerOnUserSignal: 0,
+    enableLocation: vi.fn(),
+    findMe: vi.fn(),
+    ...overrides,
+  };
+}
+
 describe("RouteMapModal", () => {
   beforeEach(() => {
     cleanup();
@@ -56,6 +74,8 @@ describe("RouteMapModal", () => {
         onDirectionChange={vi.fn()}
         onClose={vi.fn()}
         isMobile={false}
+        location={createLocationMock()}
+        highlightedStopId={null}
       />,
     );
 
@@ -65,6 +85,12 @@ describe("RouteMapModal", () => {
     expect(
       screen.getByRole("button", { name: /Fit route/i }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Use my location/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Hide my location/i }),
+    ).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(
@@ -73,6 +99,38 @@ describe("RouteMapModal", () => {
         }),
       ).toBeInTheDocument();
     });
+  });
+
+  it("shows Find me when location is ready", () => {
+    render(
+      <RouteMapModal
+        route={route}
+        direction="outbound"
+        vehicles={[]}
+        selectedVehicleId={null}
+        loopLabelSettings={{
+          showRegistration: true,
+          showFleetNumber: true,
+          showRunningNumber: true,
+        }}
+        onVehicleSelect={vi.fn()}
+        onDirectionChange={vi.fn()}
+        onClose={vi.fn()}
+        isMobile={false}
+        location={createLocationMock({
+          status: "ready",
+          position: { lat: 51.46, lon: -0.21 },
+          nearestStopLabel: "Nearest stop: Stop A · 12 m",
+        })}
+        highlightedStopId="490000001A"
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /Find me/i })).toBeInTheDocument();
+    expect(screen.getByText(/Nearest stop: Stop A/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Hide my location/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("closes when the close button is clicked", () => {
@@ -93,6 +151,8 @@ describe("RouteMapModal", () => {
         onDirectionChange={vi.fn()}
         onClose={onClose}
         isMobile={false}
+        location={createLocationMock()}
+        highlightedStopId={null}
       />,
     );
 
@@ -118,6 +178,8 @@ describe("RouteMapModal", () => {
         onDirectionChange={onDirectionChange}
         onClose={vi.fn()}
         isMobile={false}
+        location={createLocationMock()}
+        highlightedStopId={null}
       />,
     );
 

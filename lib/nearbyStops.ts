@@ -57,7 +57,9 @@ export function getGeolocationErrorInfo(
   };
 }
 
-export function getGeolocationDeniedInfo(): GeolocationErrorInfo {
+export function getGeolocationDeniedInfo(
+  retryActionLabel = "Find stops near me",
+): GeolocationErrorInfo {
   if (isIosDevice()) {
     return {
       title: "Location access is blocked",
@@ -68,9 +70,22 @@ export function getGeolocationDeniedInfo(): GeolocationErrorInfo {
 
   return {
     title: "Location access is blocked",
-    message:
-      "Allow location access for this site in your browser settings, then tap Find stops near me again.",
+    message: `Allow location access for this site in your browser settings, then tap ${retryActionLabel} again.`,
   };
+}
+
+export function getMapGeolocationDeniedInfo(): GeolocationErrorInfo {
+  return getGeolocationDeniedInfo("Use my location");
+}
+
+export function getMapGeolocationErrorInfo(
+  error: GeolocationPositionError,
+): GeolocationErrorInfo {
+  if (error.code === error.PERMISSION_DENIED) {
+    return getMapGeolocationDeniedInfo();
+  }
+
+  return getGeolocationErrorInfo(error);
 }
 
 export async function queryGeolocationPermission(): Promise<GeolocationPermissionState> {
@@ -110,4 +125,33 @@ export function requestCurrentPosition(
     timeout: options.timeout ?? 12_000,
     maximumAge: options.maximumAge ?? 60_000,
   });
+}
+
+export function watchCurrentPosition(
+  onSuccess: (position: GeolocationPosition) => void,
+  onError: (error: GeolocationPositionError | Error) => void,
+  options: GeolocationRequestOptions = {},
+): number | null {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    onError(new Error("Geolocation is not supported on this device."));
+    return null;
+  }
+
+  return navigator.geolocation.watchPosition(onSuccess, onError, {
+    enableHighAccuracy: options.enableHighAccuracy ?? true,
+    timeout: options.timeout ?? 12_000,
+    maximumAge: options.maximumAge ?? 5_000,
+  });
+}
+
+export function clearPositionWatch(watchId: number | null): void {
+  if (
+    watchId === null ||
+    typeof navigator === "undefined" ||
+    !navigator.geolocation
+  ) {
+    return;
+  }
+
+  navigator.geolocation.clearWatch(watchId);
 }

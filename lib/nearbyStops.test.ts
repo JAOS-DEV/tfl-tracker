@@ -29,6 +29,11 @@ describe("getGeolocationDeniedInfo", () => {
     expect(info.title).toMatch(/blocked/i);
     expect(info.message).toMatch(/settings/i);
   });
+
+  it("can name the Map retry action", () => {
+    const info = getGeolocationDeniedInfo("Use my location");
+    expect(info.message).toMatch(/Use my location/i);
+  });
 });
 
 describe("getVisibleNearbyStops", () => {

@@ -16,6 +16,7 @@ import {
   buildBusMarkerHtml,
   buildDirectionArrowHtml,
   buildStopMarkerHtml,
+  buildUserLocationMarkerHtml,
   getLeafletMarkerColors,
   getLeafletMarkerOpacity,
   getMapVehicleBadge,
@@ -26,6 +27,8 @@ import {
   buildStopPopupWithActionHtml,
   buildVehicleMapLabelHtml,
 } from "@/lib/routeMapPopups";
+import { MAP_USER_LOCATION_STREET_ZOOM } from "@/lib/mapUserLocation";
+import type { GeoPoint } from "@/lib/routeMapGeometry";
 import type {
   EstimatedVehiclePosition,
   NormalizedRoute,
@@ -44,6 +47,10 @@ interface RouteLeafletMapProps {
   onVehicleSelect: (vehicle: EstimatedVehiclePosition) => void;
   onStopSelect?: (stop: NormalizedStop) => void;
   fitBoundsSignal?: number;
+  userLocation?: GeoPoint | null;
+  highlightedStopId?: string | null;
+  fitUserAndRouteSignal?: number;
+  centerOnUserSignal?: number;
   className?: string;
   ariaLabel: string;
   variant?: "preview" | "full";
@@ -58,6 +65,10 @@ export const RouteLeafletMap = memo(function RouteLeafletMap({
   onVehicleSelect,
   onStopSelect,
   fitBoundsSignal = 0,
+  userLocation = null,
+  highlightedStopId = null,
+  fitUserAndRouteSignal = 0,
+  centerOnUserSignal = 0,
   className,
   ariaLabel,
   variant = "full",
@@ -69,6 +80,7 @@ export const RouteLeafletMap = memo(function RouteLeafletMap({
     stops: LayerGroup | null;
     buses: LayerGroup | null;
     directions: LayerGroup | null;
+    user: Marker | null;
     busMarkersById: Map<string, Marker>;
     stopMarkersById: Map<string, Marker>;
   }>({
@@ -76,12 +88,20 @@ export const RouteLeafletMap = memo(function RouteLeafletMap({
     stops: null,
     buses: null,
     directions: null,
+    user: null,
     busMarkersById: new Map(),
     stopMarkersById: new Map(),
   });
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
+  const lastFitUserSignalRef = useRef(0);
+  const lastCenterUserSignalRef = useRef(0);
+  const highlightedStopIdRef = useRef(highlightedStopId);
   const [mapReady, setMapReady] = useState(false);
   const isPreview = variant === "preview";
+
+  useEffect(() => {
+    highlightedStopIdRef.current = highlightedStopId;
+  }, [highlightedStopId]);
 
   const geographicStops = useMemo(
     () => getGeographicStops(route, direction),
@@ -107,6 +127,38 @@ export const RouteLeafletMap = memo(function RouteLeafletMap({
     () => computeLeafletBounds(routePolylinePoints),
     [routePolylinePoints],
   );
+
+  const applyStopHighlight = useCallback((): void => {
+    const leaflet = leafletRef.current;
+    if (!leaflet || layersRef.current.stopMarkersById.size === 0) {
+      return;
+    }
+
+    for (const [index, stop] of geographicStops.entries()) {
+      const marker = layersRef.current.stopMarkersById.get(stop.naptanId);
+      if (!marker) {
+        continue;
+      }
+
+      const isTerminal =
+        index === 0 || index === geographicStops.length - 1;
+      const isNearest = highlightedStopIdRef.current === stop.naptanId;
+      marker.setIcon(
+        leaflet.divIcon({
+          className: "route-map-leaflet-stop-icon",
+          html: buildStopMarkerHtml(isTerminal, isNearest),
+          iconSize: [
+            isNearest ? 14 : isTerminal ? 10 : 7,
+            isNearest ? 14 : isTerminal ? 10 : 7,
+          ],
+          iconAnchor: [
+            isNearest ? 7 : isTerminal ? 5 : 3.5,
+            isNearest ? 7 : isTerminal ? 5 : 3.5,
+          ],
+        }),
+      );
+    }
+  }, [geographicStops]);
 
   const fitRouteBounds = useCallback(() => {
     const map = mapRef.current;
@@ -172,6 +224,7 @@ export const RouteLeafletMap = memo(function RouteLeafletMap({
         stops: null,
         buses: null,
         directions: null,
+        user: null,
         busMarkersById: new Map(),
         stopMarkersById: new Map(),
       };
@@ -230,7 +283,7 @@ export const RouteLeafletMap = memo(function RouteLeafletMap({
         index === 0 || index === geographicStops.length - 1;
       const icon = leaflet.divIcon({
         className: "route-map-leaflet-stop-icon",
-        html: buildStopMarkerHtml(isTerminal),
+        html: buildStopMarkerHtml(isTerminal, false),
         iconSize: [isTerminal ? 10 : 7, isTerminal ? 10 : 7],
         iconAnchor: [isTerminal ? 5 : 3.5, isTerminal ? 5 : 3.5],
       });
@@ -275,8 +328,115 @@ export const RouteLeafletMap = memo(function RouteLeafletMap({
     layersRef.current.stops = stopsLayer;
     layersRef.current.directions = directionsLayer;
 
+    applyStopHighlight();
     fitRouteBounds();
-  }, [direction, directionMarkers, fitRouteBounds, geographicStops, isPreview, mapReady, route, routePolylineLatLngs]);
+  }, [
+    applyStopHighlight,
+    direction,
+    directionMarkers,
+    fitRouteBounds,
+    geographicStops,
+    isPreview,
+    mapReady,
+    route,
+    routePolylineLatLngs,
+  ]);
+
+  useEffect(() => {
+    if (!mapReady) {
+      return;
+    }
+
+    applyStopHighlight();
+  }, [applyStopHighlight, highlightedStopId, mapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const leaflet = leafletRef.current;
+    if (!mapReady || !map || !leaflet) {
+      return;
+    }
+
+    if (!userLocation) {
+      layersRef.current.user?.remove();
+      layersRef.current.user = null;
+      return;
+    }
+
+    const icon = leaflet.divIcon({
+      className: "route-map-leaflet-user-icon",
+      html: buildUserLocationMarkerHtml(),
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+    });
+
+    if (layersRef.current.user) {
+      layersRef.current.user.setLatLng([userLocation.lat, userLocation.lon]);
+      layersRef.current.user.setIcon(icon);
+      return;
+    }
+
+    const marker = leaflet
+      .marker([userLocation.lat, userLocation.lon], {
+        icon,
+        zIndexOffset: 600,
+        keyboard: true,
+        title: "You are here",
+      })
+      .addTo(map);
+    layersRef.current.user = marker;
+  }, [mapReady, userLocation]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (
+      !mapReady ||
+      !map ||
+      !userLocation ||
+      fitUserAndRouteSignal <= 0 ||
+      fitUserAndRouteSignal === lastFitUserSignalRef.current
+    ) {
+      return;
+    }
+
+    lastFitUserSignalRef.current = fitUserAndRouteSignal;
+    const points = [...routePolylinePoints, userLocation];
+    const nextBounds = computeLeafletBounds(points);
+    if (!nextBounds) {
+      return;
+    }
+
+    map.fitBounds(nextBounds, {
+      padding: isPreview ? [16, 16] : [32, 32],
+      maxZoom: isPreview ? 14 : 16,
+    });
+  }, [
+    fitUserAndRouteSignal,
+    isPreview,
+    mapReady,
+    routePolylinePoints,
+    userLocation,
+  ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (
+      !mapReady ||
+      !map ||
+      !userLocation ||
+      centerOnUserSignal <= 0 ||
+      centerOnUserSignal === lastCenterUserSignalRef.current
+    ) {
+      return;
+    }
+
+    lastCenterUserSignalRef.current = centerOnUserSignal;
+    map.setView(
+      [userLocation.lat, userLocation.lon],
+      Math.max(map.getZoom(), MAP_USER_LOCATION_STREET_ZOOM),
+      { animate: true },
+    );
+  }, [centerOnUserSignal, mapReady, userLocation]);
 
   useEffect(() => {
     const map = mapRef.current;

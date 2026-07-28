@@ -174,8 +174,64 @@ body {
   box-sizing: border-box;
 }
 
+.route-map-leaflet-stop-marker-nearest {
+  background: #e0f2fe;
+  box-shadow: 0 0 0 3px rgb(2 132 199 / 35%);
+}
+
 .dark .route-map-leaflet-stop-marker {
   background: #27272a;
+}
+
+.dark .route-map-leaflet-stop-marker-nearest {
+  background: #0c4a6e;
+}
+
+.route-map-leaflet-user-icon {
+  background: transparent;
+  border: none;
+}
+
+.route-map-user-location-marker {
+  align-items: center;
+  display: flex;
+  height: 24px;
+  justify-content: center;
+  position: relative;
+  width: 24px;
+}
+
+.route-map-user-location-dot {
+  background: #0369a1;
+  border: 2px solid #ffffff;
+  border-radius: 9999px;
+  box-shadow: 0 0 0 1px rgb(3 105 161 / 40%);
+  height: 12px;
+  position: relative;
+  width: 12px;
+  z-index: 1;
+}
+
+.route-map-user-location-pulse {
+  animation: route-map-user-pulse 1.8s ease-out infinite;
+  background: rgb(3 105 161 / 35%);
+  border-radius: 9999px;
+  height: 24px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 24px;
+}
+
+@keyframes route-map-user-pulse {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.55);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
 }
 
 .route-map-leaflet-popup .leaflet-popup-content-wrapper {
