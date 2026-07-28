@@ -9,7 +9,17 @@ import type { EstimatedVehiclePosition, NormalizedRoute } from "@/lib/tfl/types"
 const locationMock: {
   status: "idle" | "locating" | "ready" | "error";
   position: { lat: number; lon: number } | null;
-  nearestStop: null;
+  nearestStop: {
+    stop: {
+      id: string;
+      name: string;
+      naptanId: string;
+      lat: number;
+      lon: number;
+      isTimingPoint: boolean;
+    };
+    distanceMetres: number;
+  } | null;
   nearestStopLabel: string | null;
   error: null;
   fitUserAndRouteSignal: number;
@@ -146,7 +156,49 @@ describe("RouteMapPanel", () => {
       screen.getByRole("button", { name: /Use my location/i }),
     ).toBeInTheDocument();
     expect(
+      screen.queryByRole("button", { name: /Find me/i }),
+    ).not.toBeInTheDocument();
+    expect(
       screen.queryByRole("button", { name: /Hide my location/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps nearest-stop text on preview without Find me when located", async () => {
+    locationMock.status = "ready";
+    locationMock.nearestStop = {
+      stop: {
+        id: "1",
+        name: "Stop A",
+        naptanId: "490000001A",
+        lat: 51.46,
+        lon: -0.21,
+        isTimingPoint: false,
+      },
+      distanceMetres: 120,
+    };
+    locationMock.nearestStopLabel = "Nearest stop: Stop A · 120 m";
+
+    render(
+      <RouteMapPanel
+        route={routeWithGeometry}
+        direction="outbound"
+        onDirectionChange={vi.fn()}
+        vehicles={[]}
+        selectedVehicleId={null}
+        loopLabelSettings={{
+          showRegistration: true,
+          showFleetNumber: true,
+          showRunningNumber: true,
+        }}
+        onVehicleSelect={vi.fn()}
+        isMobile={false}
+      />,
+    );
+
+    expect(await screen.findByText("120 m")).toBeInTheDocument();
+    expect(screen.getByText("Stop A")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Find me/i }),
     ).not.toBeInTheDocument();
   });
 

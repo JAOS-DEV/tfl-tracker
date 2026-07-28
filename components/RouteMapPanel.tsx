@@ -125,7 +125,7 @@ export const RouteMapPanel = memo(function RouteMapPanel({
             ) : null}
           </div>
 
-          <MapLocationControls location={location} />
+          <MapLocationControls location={location} showFindMe={false} />
 
           <details className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950">
             <summary className="cursor-pointer text-sm font-medium text-zinc-700 dark:text-zinc-200">

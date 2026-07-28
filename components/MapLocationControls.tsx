@@ -5,23 +5,28 @@ import { formatMapDistance } from "@/lib/mapUserLocation";
 
 interface MapLocationControlsProps {
   location: UseMapUserLocationResult;
+  /** Expanded map only — preview keeps opt-in + nearest stop, not Find me. */
+  showFindMe?: boolean;
 }
 
 export function MapLocationControls({
   location,
+  showFindMe = true,
 }: MapLocationControlsProps): React.ReactElement {
   const { status, nearestStop, nearestStopLabel, error, enableLocation, findMe } =
     location;
-  const showFindMe = status === "ready";
+  const isReady = status === "ready";
   const isLocating = status === "locating";
   const distanceLabel = nearestStop
     ? formatMapDistance(nearestStop.distanceMetres)
     : null;
+  const showFindMeButton = showFindMe && isReady;
+  const showUseMyLocation = !isReady;
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        {showFindMe ? (
+        {showFindMeButton ? (
           <button
             type="button"
             onClick={findMe}
@@ -29,7 +34,9 @@ export function MapLocationControls({
           >
             Find me
           </button>
-        ) : (
+        ) : null}
+
+        {showUseMyLocation ? (
           <button
             type="button"
             onClick={enableLocation}
@@ -38,11 +45,11 @@ export function MapLocationControls({
           >
             {isLocating ? "Locating…" : "Use my location"}
           </button>
-        )}
+        ) : null}
 
         {nearestStop && distanceLabel ? (
           <p
-            className="min-h-11 flex-1 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+            className="min-h-11 flex-1 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm leading-snug text-zinc-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
             aria-live="polite"
             aria-label={nearestStopLabel ?? undefined}
           >
