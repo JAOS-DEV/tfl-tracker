@@ -1,0 +1,64 @@
+---
+description: Governance and safety rules for the AI feature-development loop
+alwaysApply: false
+---
+
+# AI loop governance
+
+Apply these rules for `/ai-spec`, `/ai-build`, `/ai-review`, and `/ai-status` work in this repository.
+
+## Before any loop work
+
+- Read `AI_LOOP.md` before specification, implementation, or review work.
+- Follow project commands and architecture documented there. Do not invent checks.
+- Missing required CI must not be treated as passing CI.
+
+## Specification and approval
+
+- Acceptance criteria are binding.
+- Non-goals are binding.
+- One approved feature issue per branch and pull request.
+- Do not make unrelated improvements or opportunistic refactors.
+- Do not alter product behaviour outside the approved specification.
+- Stop and request human input when a genuine product decision remains unresolved.
+- Only a human may approve a specification.
+- After explicit human approval in the active `/ai-spec` conversation, the spec agent may create the GitHub issue and apply `agent-ready`.
+- The agent must never apply `agent-ready` without explicit human approval of the complete specification.
+
+## Working tree and Git safety
+
+- A dirty working tree is a firm stop for implementation work.
+- Do not offer to build around unrelated tracked or untracked files.
+- Never use destructive Git operations to remove existing work.
+- Never stash, reset, delete, or overwrite unrelated changes to “make room” for the loop.
+- Never expose, print, or commit secrets (including `TFL_API_KEY` and `.env.local`).
+- Never merge a pull request.
+- Never enable auto-merge.
+- Only a human may merge.
+
+## Autonomous build verification
+
+- `/ai-build` may implement, run checks, use available browser tools, diagnose failures, and correct its implementation autonomously.
+- The builder must run every relevant command documented in `AI_LOOP.md`.
+- The builder must not claim a browser test or automated check passed unless it actually ran successfully.
+- Browser testing must use the applicable verification journeys from the approved issue and `AI_LOOP.md`.
+- If browser tools, credentials, test data, or the development environment are unavailable, record the affected verification as pending rather than pretending it passed.
+- Before opening a PR, use a fresh read-only reviewer subagent when available.
+- The internal reviewer must inspect the approved contract, current diff, tests, and verification evidence.
+- The builder may address internal must-fix findings and repeat verification.
+- Allow no more than two internal reviewer correction rounds.
+- After two unsuccessful correction rounds, stop and require human review.
+- If fresh subagents are unavailable, do not describe the builder’s own review as independent.
+
+## Final review
+
+- `/ai-review` must run in a separate fresh Cursor chat that did not implement the feature.
+- The final reviewer must review the exact current PR commit.
+- The final reviewer remains read-only.
+- The final reviewer never edits, pushes, merges, or enables auto-merge.
+
+## High-risk changes
+
+Authentication, permissions, payments, billing, database migrations, deployment, secrets, security rules, infrastructure, production data access, and destructive data changes always require human review.
+
+In this project that especially includes: TfL API key handling, `app/api/**` proxy behaviour, iBus import/manifest/data updates, schedule/ghost intelligence that could mislead travellers, and CI/deploy secret configuration.
