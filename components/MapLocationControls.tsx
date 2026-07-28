@@ -1,6 +1,7 @@
 "use client";
 
 import type { UseMapUserLocationResult } from "@/hooks/useMapUserLocation";
+import { formatMapDistance } from "@/lib/mapUserLocation";
 
 interface MapLocationControlsProps {
   location: UseMapUserLocationResult;
@@ -9,9 +10,13 @@ interface MapLocationControlsProps {
 export function MapLocationControls({
   location,
 }: MapLocationControlsProps): React.ReactElement {
-  const { status, nearestStopLabel, error, enableLocation, findMe } = location;
+  const { status, nearestStop, nearestStopLabel, error, enableLocation, findMe } =
+    location;
   const showFindMe = status === "ready";
   const isLocating = status === "locating";
+  const distanceLabel = nearestStop
+    ? formatMapDistance(nearestStop.distanceMetres)
+    : null;
 
   return (
     <div className="space-y-2">
@@ -36,13 +41,22 @@ export function MapLocationControls({
         )}
       </div>
 
-      {nearestStopLabel ? (
-        <p
-          className="text-sm text-zinc-700 dark:text-zinc-200"
+      {nearestStop && distanceLabel ? (
+        <div
+          className="rounded-xl border border-sky-300 bg-sky-50 px-3 py-3 dark:border-sky-700 dark:bg-sky-950"
           aria-live="polite"
+          aria-label={nearestStopLabel ?? undefined}
         >
-          {nearestStopLabel}
-        </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200">
+            Nearest stop on this route
+          </p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-sky-950 dark:text-sky-50">
+            {distanceLabel}
+          </p>
+          <p className="mt-0.5 text-sm font-medium text-sky-900 dark:text-sky-100">
+            to {nearestStop.stop.name}
+          </p>
+        </div>
       ) : null}
 
       {error ? (

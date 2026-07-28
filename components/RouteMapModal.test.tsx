@@ -120,6 +120,17 @@ describe("RouteMapModal", () => {
         location={createLocationMock({
           status: "ready",
           position: { lat: 51.46, lon: -0.21 },
+          nearestStop: {
+            stop: {
+              id: "1",
+              name: "Stop A",
+              naptanId: "490000001A",
+              lat: 51.46,
+              lon: -0.21,
+              isTimingPoint: false,
+            },
+            distanceMetres: 12,
+          },
           nearestStopLabel: "Nearest stop: Stop A · 12 m",
         })}
         highlightedStopId="490000001A"
@@ -127,7 +138,9 @@ describe("RouteMapModal", () => {
     );
 
     expect(screen.getByRole("button", { name: /Find me/i })).toBeInTheDocument();
-    expect(screen.getByText(/Nearest stop: Stop A/i)).toBeInTheDocument();
+    expect(screen.getByText("12 m")).toBeInTheDocument();
+    expect(screen.getByText(/to Stop A/i)).toBeInTheDocument();
+    expect(screen.getByText(/Nearest stop on this route/i)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Hide my location/i }),
     ).not.toBeInTheDocument();
