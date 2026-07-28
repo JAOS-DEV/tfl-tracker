@@ -139,8 +139,10 @@ describe("RouteMapModal", () => {
 
     expect(screen.getByRole("button", { name: /Find me/i })).toBeInTheDocument();
     expect(screen.getByText("12 m")).toBeInTheDocument();
-    expect(screen.getByText(/to Stop A/i)).toBeInTheDocument();
-    expect(screen.getByText(/Nearest stop on this route/i)).toBeInTheDocument();
+    expect(screen.getByText("Stop A")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Nearest stop on this route/i),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Hide my location/i }),
     ).not.toBeInTheDocument();

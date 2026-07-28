@@ -25,7 +25,7 @@ describe("MapLocationControls", () => {
     cleanup();
   });
 
-  it("shows a prominent nearest-stop distance card when ready", () => {
+  it("shows a compact nearest-stop distance beside Find me", () => {
     render(
       <MapLocationControls
         location={createLocationMock({
@@ -48,8 +48,10 @@ describe("MapLocationControls", () => {
     );
 
     expect(screen.getByText("240 m")).toBeInTheDocument();
-    expect(screen.getByText(/to Clapham Junction/i)).toBeInTheDocument();
-    expect(screen.getByText(/Nearest stop on this route/i)).toBeInTheDocument();
+    expect(screen.getByText("Clapham Junction")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Nearest stop on this route/i),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Find me/i }));
   });
 });
