@@ -49,6 +49,7 @@ describe("MapLocationControls", () => {
 
     expect(screen.getByText("240 m")).toBeInTheDocument();
     expect(screen.getByText("Clapham Junction")).toBeInTheDocument();
+    expect(screen.getByText(/Nearest stop/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Find me/i })).toBeInTheDocument();
   });
 
