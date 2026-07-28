@@ -137,10 +137,12 @@ export function watchCurrentPosition(
     return null;
   }
 
+  // Prefer a cached/coarse first fix so auto-resume is reliable while the map
+  // is still loading; browsers still deliver fresher updates when available.
   return navigator.geolocation.watchPosition(onSuccess, onError, {
-    enableHighAccuracy: options.enableHighAccuracy ?? true,
-    timeout: options.timeout ?? 12_000,
-    maximumAge: options.maximumAge ?? 5_000,
+    enableHighAccuracy: options.enableHighAccuracy ?? false,
+    timeout: options.timeout ?? 20_000,
+    maximumAge: options.maximumAge ?? 60_000,
   });
 }
 

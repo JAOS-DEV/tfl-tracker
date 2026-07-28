@@ -39,6 +39,19 @@ function toGeoPoint(position: GeolocationPosition): GeoPoint {
   };
 }
 
+function isGeolocationTimeout(
+  error: GeolocationPositionError | Error,
+): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as GeolocationPositionError).TIMEOUT === "number" &&
+    (error as GeolocationPositionError).code ===
+      (error as GeolocationPositionError).TIMEOUT
+  );
+}
+
 function toErrorInfo(error: GeolocationPositionError | Error): GeolocationErrorInfo {
   if (
     typeof GeolocationPositionError !== "undefined" &&
@@ -77,15 +90,21 @@ export function useMapUserLocation(
   const [centerOnUserSignal, setCenterOnUserSignal] = useState(0);
 
   const watchIdRef = useRef<number | null>(null);
+  const watchGenerationRef = useRef(0);
   const firstFixHandledRef = useRef(false);
   const autoResumeSessionRef = useRef(false);
+  const timeoutRetryUsedRef = useRef(false);
   const geographicStopsRef = useRef(geographicStops);
+  const startWatchingRef = useRef<(fromAutoResume: boolean) => void>(
+    () => undefined,
+  );
 
   useEffect(() => {
     geographicStopsRef.current = geographicStops;
   }, [geographicStops]);
 
   const stopWatching = useCallback((): void => {
+    watchGenerationRef.current += 1;
     clearPositionWatch(watchIdRef.current);
     watchIdRef.current = null;
   }, []);
@@ -121,6 +140,16 @@ export function useMapUserLocation(
 
   const handlePositionError = useCallback(
     (watchError: GeolocationPositionError | Error): void => {
+      // One quiet retry on timeout — common while the map is still loading.
+      if (
+        isGeolocationTimeout(watchError) &&
+        !timeoutRetryUsedRef.current
+      ) {
+        timeoutRetryUsedRef.current = true;
+        startWatchingRef.current(autoResumeSessionRef.current);
+        return;
+      }
+
       stopWatching();
       setStatus("error");
       setError(toErrorInfo(watchError));
@@ -134,15 +163,29 @@ export function useMapUserLocation(
         return;
       }
 
-      stopWatching();
+      clearPositionWatch(watchIdRef.current);
+      watchIdRef.current = null;
+
+      const generation = watchGenerationRef.current + 1;
+      watchGenerationRef.current = generation;
       firstFixHandledRef.current = false;
       autoResumeSessionRef.current = fromAutoResume;
       setStatus("locating");
       setError(null);
 
       const watchId = watchCurrentPosition(
-        handlePositionSuccess,
-        handlePositionError,
+        (geoPosition) => {
+          if (generation !== watchGenerationRef.current) {
+            return;
+          }
+          handlePositionSuccess(geoPosition);
+        },
+        (watchError) => {
+          if (generation !== watchGenerationRef.current) {
+            return;
+          }
+          handlePositionError(watchError);
+        },
       );
 
       if (watchId === null) {
@@ -156,10 +199,15 @@ export function useMapUserLocation(
 
       watchIdRef.current = watchId;
     },
-    [enabled, handlePositionError, handlePositionSuccess, stopWatching],
+    [enabled, handlePositionError, handlePositionSuccess],
   );
 
+  useEffect(() => {
+    startWatchingRef.current = startWatching;
+  }, [startWatching]);
+
   const enableLocation = useCallback((): void => {
+    timeoutRetryUsedRef.current = false;
     startWatching(false);
   }, [startWatching]);
 
@@ -185,6 +233,7 @@ export function useMapUserLocation(
     }
 
     let cancelled = false;
+    timeoutRetryUsedRef.current = false;
 
     async function maybeAutoResume(): Promise<void> {
       if (!readMapLocationEnabled()) {

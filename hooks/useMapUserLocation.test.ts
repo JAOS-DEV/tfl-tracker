@@ -276,4 +276,78 @@ describe("useMapUserLocation", () => {
     });
     expect(view.result.current.centerOnUserSignal).toBe(centerBefore + 1);
   });
+
+  it("retries once after a timeout before showing an error", async () => {
+    let attempt = 0;
+    const { watchPosition } = mockGeolocation({
+      watchImpl: (success, error) => {
+        attempt += 1;
+        if (attempt === 1) {
+          error?.({
+            code: 3,
+            PERMISSION_DENIED: 1,
+            POSITION_UNAVAILABLE: 2,
+            TIMEOUT: 3,
+            message: "timeout",
+          } as GeolocationPositionError);
+          return attempt;
+        }
+
+        success({
+          coords: {
+            latitude: 51.5002,
+            longitude: -0.1002,
+            accuracy: 10,
+            altitude: null,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: null,
+            toJSON: () => ({}),
+          },
+          timestamp: Date.now(),
+          toJSON: () => ({}),
+        } as GeolocationPosition);
+        return attempt;
+      },
+    });
+
+    const view = renderHook(() => useMapUserLocation(stops, { enabled: true }));
+    view.result.current.enableLocation();
+
+    await waitFor(() => {
+      expect(view.result.current.status).toBe("ready");
+    });
+
+    expect(watchPosition).toHaveBeenCalledTimes(2);
+    expect(view.result.current.error).toBeNull();
+  });
+
+  it("ignores stale geolocation errors after the watch is cleared", async () => {
+    let firstError: PositionErrorCallback | null = null;
+    mockGeolocation({
+      watchImpl: (_success, error) => {
+        firstError = error ?? null;
+        return 11;
+      },
+    });
+
+    const view = renderHook(() => useMapUserLocation(stops, { enabled: true }));
+    view.result.current.enableLocation();
+
+    await waitFor(() => {
+      expect(firstError).not.toBeNull();
+    });
+
+    view.unmount();
+
+    act(() => {
+      firstError?.({
+        code: 3,
+        PERMISSION_DENIED: 1,
+        POSITION_UNAVAILABLE: 2,
+        TIMEOUT: 3,
+        message: "timeout",
+      } as GeolocationPositionError);
+    });
+  });
 });
