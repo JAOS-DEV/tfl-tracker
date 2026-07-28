@@ -4,9 +4,12 @@ import dynamic from "next/dynamic";
 import { memo, useMemo, useState } from "react";
 import { DirectionSegmentedControl } from "@/components/DirectionSegmentedControl";
 import type { LoopMarkerLabelSettings } from "@/components/LoopMarkerInfoBadges";
+import { MapLocationControls } from "@/components/MapLocationControls";
 import { MapVehicleListItem } from "@/components/MapVehicleListItem";
+import { useMapUserLocation } from "@/hooks/useMapUserLocation";
 import {
   buildRouteMapVehicleMarkers,
+  getGeographicStops,
   hasRouteMapGeometry,
   ROUTE_MAP_UNAVAILABLE_MESSAGE,
 } from "@/lib/routeMapGeometry";
@@ -59,6 +62,13 @@ export const RouteMapPanel = memo(function RouteMapPanel({
 }: RouteMapPanelProps): React.ReactElement {
   const [mapExpanded, setMapExpanded] = useState(false);
   const mapAvailable = hasRouteMapGeometry(route, direction);
+  const geographicStops = useMemo(
+    () => getGeographicStops(route, direction),
+    [direction, route],
+  );
+  const location = useMapUserLocation(geographicStops, {
+    enabled: mapAvailable,
+  });
   const vehicleMarkers = useMemo(
     () => buildRouteMapVehicleMarkers(vehicles, route, direction),
     [vehicles, route, direction],
@@ -67,6 +77,7 @@ export const RouteMapPanel = memo(function RouteMapPanel({
     () => vehicles.filter((vehicle) => vehicle.direction === direction).length,
     [vehicles, direction],
   );
+  const highlightedStopId = location.nearestStop?.stop.naptanId ?? null;
 
   const handleStopSelect = (stop: NormalizedStop): void => {
     onStopSelect?.(stop);
@@ -96,6 +107,10 @@ export const RouteMapPanel = memo(function RouteMapPanel({
               selectedVehicleId={selectedVehicleId}
               loopLabelSettings={loopLabelSettings}
               onVehicleSelect={onVehicleSelect}
+              userLocation={location.position}
+              highlightedStopId={highlightedStopId}
+              fitUserAndRouteSignal={location.fitUserAndRouteSignal}
+              centerOnUserSignal={location.centerOnUserSignal}
               variant="preview"
               ariaLabel={`Map preview for route ${route.routeId}, ${direction} direction`}
               className="h-48 border border-zinc-200 dark:border-zinc-800"
@@ -109,6 +124,8 @@ export const RouteMapPanel = memo(function RouteMapPanel({
               />
             ) : null}
           </div>
+
+          <MapLocationControls location={location} showFindMe={false} />
 
           <details className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950">
             <summary className="cursor-pointer text-sm font-medium text-zinc-700 dark:text-zinc-200">
@@ -152,6 +169,8 @@ export const RouteMapPanel = memo(function RouteMapPanel({
           onStopSelect={onStopSelect ? handleStopSelect : undefined}
           onClose={() => setMapExpanded(false)}
           isMobile={isMobile}
+          location={location}
+          highlightedStopId={highlightedStopId}
         />
       ) : null}
 

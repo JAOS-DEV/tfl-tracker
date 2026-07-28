@@ -6,6 +6,42 @@ import { RouteMapPanel } from "@/components/RouteMapPanel";
 import { ROUTE_MAP_UNAVAILABLE_MESSAGE } from "@/lib/routeMapGeometry";
 import type { EstimatedVehiclePosition, NormalizedRoute } from "@/lib/tfl/types";
 
+const locationMock: {
+  status: "idle" | "locating" | "ready" | "error";
+  position: { lat: number; lon: number } | null;
+  nearestStop: {
+    stop: {
+      id: string;
+      name: string;
+      naptanId: string;
+      lat: number;
+      lon: number;
+      isTimingPoint: boolean;
+    };
+    distanceMetres: number;
+  } | null;
+  nearestStopLabel: string | null;
+  error: null;
+  fitUserAndRouteSignal: number;
+  centerOnUserSignal: number;
+  enableLocation: ReturnType<typeof vi.fn>;
+  findMe: ReturnType<typeof vi.fn>;
+} = {
+  status: "idle",
+  position: null,
+  nearestStop: null,
+  nearestStopLabel: null,
+  error: null,
+  fitUserAndRouteSignal: 0,
+  centerOnUserSignal: 0,
+  enableLocation: vi.fn(),
+  findMe: vi.fn(),
+};
+
+vi.mock("@/hooks/useMapUserLocation", () => ({
+  useMapUserLocation: () => locationMock,
+}));
+
 vi.mock("@/components/RouteMapModal", () => ({
   RouteMapModal: ({
     onClose,
@@ -86,6 +122,109 @@ const liveVehicle = {
 describe("RouteMapPanel", () => {
   beforeEach(() => {
     cleanup();
+    locationMock.status = "idle";
+    locationMock.position = null;
+    locationMock.nearestStop = null;
+    locationMock.nearestStopLabel = null;
+    locationMock.error = null;
+    locationMock.enableLocation = vi.fn();
+    locationMock.findMe = vi.fn();
+  });
+
+  it("shows Use my location on the map preview and never Hide my location", async () => {
+    render(
+      <RouteMapPanel
+        route={routeWithGeometry}
+        direction="outbound"
+        onDirectionChange={vi.fn()}
+        vehicles={[]}
+        selectedVehicleId={null}
+        loopLabelSettings={{
+          showRegistration: true,
+          showFleetNumber: true,
+          showRunningNumber: true,
+        }}
+        onVehicleSelect={vi.fn()}
+        isMobile={false}
+      />,
+    );
+
+    await screen.findByRole("region", {
+      name: /Map preview for route 337/i,
+    });
+    expect(
+      screen.getByRole("button", { name: /Use my location/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Find me/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Hide my location/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps nearest-stop text on preview without Find me when located", async () => {
+    locationMock.status = "ready";
+    locationMock.nearestStop = {
+      stop: {
+        id: "1",
+        name: "Stop A",
+        naptanId: "490000001A",
+        lat: 51.46,
+        lon: -0.21,
+        isTimingPoint: false,
+      },
+      distanceMetres: 120,
+    };
+    locationMock.nearestStopLabel = "Nearest stop: Stop A · 120 m";
+
+    render(
+      <RouteMapPanel
+        route={routeWithGeometry}
+        direction="outbound"
+        onDirectionChange={vi.fn()}
+        vehicles={[]}
+        selectedVehicleId={null}
+        loopLabelSettings={{
+          showRegistration: true,
+          showFleetNumber: true,
+          showRunningNumber: true,
+        }}
+        onVehicleSelect={vi.fn()}
+        isMobile={false}
+      />,
+    );
+
+    expect(await screen.findByText("120 m")).toBeInTheDocument();
+    expect(screen.getByText("Stop A")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Find me/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows Locating… while waiting for the first fix", async () => {
+    locationMock.status = "locating";
+
+    render(
+      <RouteMapPanel
+        route={routeWithGeometry}
+        direction="outbound"
+        onDirectionChange={vi.fn()}
+        vehicles={[]}
+        selectedVehicleId={null}
+        loopLabelSettings={{
+          showRegistration: true,
+          showFleetNumber: true,
+          showRunningNumber: true,
+        }}
+        onVehicleSelect={vi.fn()}
+        isMobile={false}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: /Locating/i }),
+    ).toBeDisabled();
   });
 
   it("shows the unavailable message when geometry is missing", () => {

@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useId, useState } from "react";
 import { DirectionSegmentedControl } from "@/components/DirectionSegmentedControl";
 import type { LoopMarkerLabelSettings } from "@/components/LoopMarkerInfoBadges";
+import { MapLocationControls } from "@/components/MapLocationControls";
+import type { UseMapUserLocationResult } from "@/hooks/useMapUserLocation";
 import type {
   EstimatedVehiclePosition,
   NormalizedRoute,
@@ -34,6 +36,8 @@ interface RouteMapModalProps {
   onStopSelect?: (stop: NormalizedStop) => void;
   onClose: () => void;
   isMobile: boolean;
+  location: UseMapUserLocationResult;
+  highlightedStopId: string | null;
 }
 
 export const RouteMapModal = memo(function RouteMapModal({
@@ -47,6 +51,8 @@ export const RouteMapModal = memo(function RouteMapModal({
   onStopSelect,
   onClose,
   isMobile,
+  location,
+  highlightedStopId,
 }: RouteMapModalProps): React.ReactElement {
   const titleId = useId();
   const [fitBoundsSignal, setFitBoundsSignal] = useState(0);
@@ -97,7 +103,7 @@ export const RouteMapModal = memo(function RouteMapModal({
           >
             Route {route.routeId} map
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               onClick={handleFitRoute}
@@ -116,13 +122,14 @@ export const RouteMapModal = memo(function RouteMapModal({
           </div>
         </div>
 
-        <div className="shrink-0 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+        <div className="shrink-0 space-y-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
           <DirectionSegmentedControl
             route={route}
             selectedDirection={direction}
             onChange={onDirectionChange}
             variant={isMobile ? "mobile" : "desktop"}
           />
+          <MapLocationControls location={location} />
         </div>
 
         <div className="min-h-0 flex-1 p-3 pb-[max(env(safe-area-inset-bottom),12px)]">
@@ -135,6 +142,10 @@ export const RouteMapModal = memo(function RouteMapModal({
             onVehicleSelect={onVehicleSelect}
             onStopSelect={onStopSelect}
             fitBoundsSignal={fitBoundsSignal}
+            userLocation={location.position}
+            highlightedStopId={highlightedStopId}
+            fitUserAndRouteSignal={location.fitUserAndRouteSignal}
+            centerOnUserSignal={location.centerOnUserSignal}
             ariaLabel={`Interactive map for route ${route.routeId}, ${direction} direction`}
             className="border border-zinc-200 dark:border-zinc-800"
           />

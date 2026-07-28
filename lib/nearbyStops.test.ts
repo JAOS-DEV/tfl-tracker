@@ -29,6 +29,20 @@ describe("getGeolocationDeniedInfo", () => {
     expect(info.title).toMatch(/blocked/i);
     expect(info.message).toMatch(/settings/i);
   });
+
+  it("can name the Map retry action", () => {
+    const info = getGeolocationDeniedInfo("Use my location");
+    expect(info.message).toMatch(/Use my location/i);
+  });
+});
+
+describe("getMapGeolocationDeniedInfo", () => {
+  it("mentions website settings for map location", async () => {
+    const { getMapGeolocationDeniedInfo } = await import("@/lib/nearbyStops");
+    const info = getMapGeolocationDeniedInfo();
+    expect(info.title).toMatch(/blocked/i);
+    expect(info.message.length).toBeGreaterThan(0);
+  });
 });
 
 describe("getVisibleNearbyStops", () => {

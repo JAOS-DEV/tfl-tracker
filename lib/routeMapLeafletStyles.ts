@@ -105,9 +105,20 @@ export function buildDirectionArrowHtml(bearing: number): string {
   return `<div class="route-map-direction-arrow" style="transform:rotate(${safeBearing}deg)" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M4 12 L10 6 L16 12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
 }
 
-export function buildStopMarkerHtml(isTerminal: boolean): string {
+export function buildStopMarkerHtml(
+  isTerminal: boolean,
+  isNearest = false,
+): string {
+  if (isNearest) {
+    return `<div class="route-map-leaflet-stop-marker route-map-leaflet-stop-marker-nearest" style="width:14px;height:14px;border:2px solid #0284c7;" title="Nearest stop"></div>`;
+  }
+
   const size = isTerminal ? 10 : 7;
   const border = isTerminal ? "2px solid #ffffff" : "1.5px solid #71717a";
 
   return `<div class="route-map-leaflet-stop-marker" style="width:${size}px;height:${size}px;border:${border};"></div>`;
+}
+
+export function buildUserLocationMarkerHtml(): string {
+  return `<div class="route-map-user-location-marker" role="img" aria-label="You are here" title="You are here"><span class="route-map-user-location-pulse" aria-hidden="true"></span><span class="route-map-user-location-dot" aria-hidden="true"></span></div>`;
 }
