@@ -5,7 +5,10 @@ import {
   resolveAfterMidnightReplayScenario,
 } from "@/lib/tfl/afterMidnightReplay";
 import { normalizeRouteSchedule } from "@/lib/ibus/compactScheduleDecode";
-import { readLocalRouteSchedule } from "@/lib/ibus/testLocalFixtures";
+import {
+  getLocalIbusFixtureVersion,
+  readLocalRouteSchedule,
+} from "@/lib/ibus/testLocalFixtures";
 
 describe("after-midnight replay", () => {
   it("resolves a supported scenario only outside production", () => {
@@ -34,7 +37,7 @@ describe("after-midnight replay", () => {
     "maps every %s replay prediction to its real scheduled journey and stop",
     (scenario) => {
       const schedule = normalizeRouteSchedule(
-        readLocalRouteSchedule("14", "20250619"),
+        readLocalRouteSchedule("14", getLocalIbusFixtureVersion()),
       );
       expect(schedule).not.toBeNull();
 
