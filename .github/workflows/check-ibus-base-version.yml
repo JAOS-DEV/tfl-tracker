@@ -60,16 +60,16 @@ jobs:
 
           ### What to do
 
-          \`\`\`bash
-          npm run check:ibus-base-versions
-          npm run import:ibus:active
-          npm run rebuild:ibus-manifest
-          npm run verify:ibus-local
-          git add public/data/ibus/current.json
-          git add -f public/data/ibus/<NEW_VERSION>
-          \`\`\`
+          Run the guided check locally — it prints the next command until you open a PR:
 
-          Then commit, push, and deploy.
+          \`\`\`bash
+          npm run check:ibus
+          # then follow the printed next step, typically:
+          # npm run import:ibus:active
+          # npm run verify:ibus-local
+          # npm run prepare:ibus-pr
+          # npm run prepare:ibus-pr -- --apply
+          \`\`\`
 
           ### Latest check output
 

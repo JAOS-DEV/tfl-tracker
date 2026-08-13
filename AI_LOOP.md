@@ -56,12 +56,15 @@ All TfL API calls go through Next.js API routes under `app/api/tfl/*` so `TFL_AP
 
 | Purpose | Command |
 | --- | --- |
-| Compare TfL vs local iBus base versions | `npm run check:ibus-base-versions` |
+| Guided iBus base-version check (entry point) | `npm run check:ibus` (alias: `check:ibus-base-versions`) |
 | Import active iBus base version | `npm run import:ibus:active` |
 | Rebuild iBus manifest | `npm run rebuild:ibus-manifest` |
 | Verify local iBus data | `npm run verify:ibus-local` |
+| Explain / apply git + PR for base-version update | `npm run prepare:ibus-pr` (`-- --apply` to run) |
 | Export iBus data for external host | `npm run export:ibus-data` |
 | Regenerate PWA icons | `npm run generate:icons` |
+
+Guided maintainer flow: run `npm run check:ibus`. If an update is needed, the terminal prints the single next command (`import:ibus:active` → `verify:ibus-local` → `prepare:ibus-pr`). Use `--verbose` on the check for remote/local probe details. CI still uses `npm run check:ibus-base-versions -- --fail-on-outdated`.
 
 ---
 

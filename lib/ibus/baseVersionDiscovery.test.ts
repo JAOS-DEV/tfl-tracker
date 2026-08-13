@@ -37,6 +37,7 @@ describe("baseVersionDiscovery status summary", () => {
     expect(lines[0]).toContain("20260717");
     expect(lines[1]).toContain("20260703");
     expect(lines[2]).toContain("UPDATE NEEDED");
+    expect(lines[2]).toContain("npm run check:ibus");
   });
 
   it("handles unknown TfL active version", () => {

@@ -2,6 +2,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { rebuildMultiVersionManifestFromDisk } from "../lib/ibus/multiVersionManifest";
 import { fetchActiveBaseVersionFromXml } from "../lib/ibus/baseVersionDiscovery";
+import {
+  printNextStep,
+  printWorkflowBlock,
+} from "../lib/ibus/baseVersionWorkflow";
 
 async function writeJson(filePath: string, data: unknown): Promise<void> {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -19,10 +23,20 @@ async function main(): Promise<void> {
     path.join("public", "data", "ibus", "current.json"),
     manifest,
   );
-  console.log(
-    `Rebuilt manifest with ${manifest.availableBaseVersions?.length ?? 0} local version(s).`,
-  );
-  console.log(`Active baseVersion from XML: ${manifest.activeBaseVersionFromXml}`);
+
+  printWorkflowBlock({
+    title: "iBus manifest rebuilt",
+    lines: [
+      `  Local version(s): ${manifest.availableBaseVersions?.join(", ") ?? "none"}`,
+      `  App current:      ${manifest.baseVersion}`,
+      `  TfL active XML:   ${manifest.activeBaseVersionFromXml}`,
+    ],
+  });
+
+  printNextStep({
+    command: "npm run verify:ibus-local",
+    note: "Confirms the selected base version is healthy before you open a PR.",
+  });
 }
 
 main().catch((error) => {

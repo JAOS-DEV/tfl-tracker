@@ -162,7 +162,7 @@ export function formatBaseVersionStatusLines(report: {
     status === "up-to-date"
       ? "UP TO DATE — app is using the TfL active version"
       : status === "update-needed"
-        ? "UPDATE NEEDED — run: npm run import:ibus:active"
+        ? "UPDATE NEEDED — run: npm run check:ibus"
         : "UNKNOWN — could not read TfL active version";
 
   return [

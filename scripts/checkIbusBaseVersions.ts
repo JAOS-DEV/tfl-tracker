@@ -1,64 +1,74 @@
 import {
   buildBaseVersionDiscoveryReport,
-  formatBaseVersionStatusLines,
   resolveBaseVersionSyncStatus,
 } from "../lib/ibus/baseVersionDiscovery";
+import {
+  printCheckSummary,
+  printWorkflowBlock,
+  resolveIbusWorkflowGuidance,
+} from "../lib/ibus/baseVersionWorkflow";
+import { hasUncommittedIbusChanges } from "../lib/ibus/ibusGitStatus";
 
-function printReport(
+function printDetails(
   report: Awaited<ReturnType<typeof buildBaseVersionDiscoveryReport>>,
 ): void {
-  console.log("");
-  console.log("=== iBus base version status ===");
-  for (const line of formatBaseVersionStatusLines(report)) {
-    console.log(line);
-  }
-
-  console.log("");
-  console.log("--- Details ---");
-  console.log("Remote available base versions:");
-  for (const version of report.remoteAvailableBaseVersions) {
-    console.log(`  - ${version}`);
-  }
-  console.log("");
-  console.log("Local imported base versions:");
-  for (const version of report.localImportedBaseVersions) {
-    console.log(`  - ${version}`);
-  }
-  console.log("");
-  console.log("Missing locally (remote exists, not imported):");
-  if (report.missingLocally.length === 0) {
-    console.log("  none");
-  } else {
-    for (const version of report.missingLocally) {
-      console.log(`  - ${version}`);
-    }
-  }
-  console.log("");
-  console.log("Missing remotely (local exists, remote probe failed):");
-  if (report.missingRemotely.length === 0) {
-    console.log("  none");
-  } else {
-    for (const version of report.missingRemotely) {
-      console.log(`  - ${version}`);
-    }
-  }
+  printWorkflowBlock({
+    title: "Details",
+    lines: [
+      "  Remote available base versions:",
+      ...(report.remoteAvailableBaseVersions.length > 0
+        ? report.remoteAvailableBaseVersions.map((version) => `    - ${version}`)
+        : ["    (none)"]),
+      "",
+      "  Local imported base versions:",
+      ...(report.localImportedBaseVersions.length > 0
+        ? report.localImportedBaseVersions.map((version) => `    - ${version}`)
+        : ["    (none)"]),
+      "",
+      "  Missing locally (remote exists, not imported):",
+      ...(report.missingLocally.length > 0
+        ? report.missingLocally.map((version) => `    - ${version}`)
+        : ["    none"]),
+      "",
+      "  Missing remotely (local exists, remote probe failed):",
+      ...(report.missingRemotely.length > 0
+        ? report.missingRemotely.map((version) => `    - ${version}`)
+        : ["    none"]),
+      "",
+    ],
+  });
 }
 
 async function main(): Promise<void> {
   const failOnOutdated = process.argv.includes("--fail-on-outdated");
+  const verbose = process.argv.includes("--verbose");
 
-  console.log("Checking iBus base versions...");
+  console.log("Checking iBus base versions against TfL...");
   const report = await buildBaseVersionDiscoveryReport();
-  printReport(report);
-
   const status = resolveBaseVersionSyncStatus(
     report.activeBaseVersionFromXml,
     report.appCurrentBaseVersion,
     report.localImportedBaseVersions,
   );
+  const guidance = resolveIbusWorkflowGuidance({
+    status,
+    activeBaseVersionFromXml: report.activeBaseVersionFromXml,
+    appCurrentBaseVersion: report.appCurrentBaseVersion,
+    localImportedBaseVersions: report.localImportedBaseVersions,
+    hasUncommittedIbusChanges: hasUncommittedIbusChanges(),
+  });
+
+  printCheckSummary({
+    activeBaseVersionFromXml: report.activeBaseVersionFromXml,
+    appCurrentBaseVersion: report.appCurrentBaseVersion,
+    guidance,
+  });
+
+  if (verbose) {
+    printDetails(report);
+  }
 
   if (failOnOutdated && status !== "up-to-date") {
-    console.log("");
     console.error(
       status === "unknown"
         ? "CI check failed: could not determine TfL active base version."
