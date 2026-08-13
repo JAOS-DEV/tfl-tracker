@@ -2,7 +2,9 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fetchActiveBaseVersionFromXml } from "@/lib/ibus/baseVersionDiscovery";
 import type { IbusPrPlan } from "@/lib/ibus/baseVersionWorkflow";
+import { rebuildMultiVersionManifestFromDisk } from "@/lib/ibus/multiVersionManifest";
 
 function runGit(args: string[], cwd: string): string {
   return execFileSync("git", args, {
@@ -97,6 +99,9 @@ export function stageIbusUpdate(
 ): void {
   const manifestPath = "public/data/ibus/current.json";
   const dataPath = `public/data/ibus/${plan.newBaseVersion}`;
+  const keepPaths = plan.keepBaseVersions.map(
+    (version) => `public/data/ibus/${version}`,
+  );
 
   if (!pathExists(cwd, manifestPath)) {
     throw new Error(`Missing ${manifestPath}`);
@@ -104,9 +109,23 @@ export function stageIbusUpdate(
   if (!pathExists(cwd, dataPath)) {
     throw new Error(`Missing ${dataPath} — run npm run import:ibus:active first`);
   }
+  for (const keepPath of keepPaths) {
+    if (!pathExists(cwd, keepPath)) {
+      throw new Error(
+        `Missing ${keepPath} — live predictions still need this version. Re-import it before opening the PR.`,
+      );
+    }
+  }
 
   console.log(`  Staging ${manifestPath}`);
   runGit(["add", manifestPath], cwd);
+
+  for (const keepPath of keepPaths) {
+    console.log(
+      `  Force-adding live-still-used ${keepPath} (must stay in git for timing)`,
+    );
+    runGit(["add", "-f", keepPath], cwd);
+  }
 
   console.log(
     `  Force-adding ${dataPath} (gitignored folder; -f is intentional)`,
@@ -138,6 +157,19 @@ export function createIbusPullRequest(
   plan: IbusPrPlan,
   cwd: string = process.cwd(),
 ): string {
+  try {
+    const existing = runGh(
+      ["pr", "view", "--json", "url", "-q", ".url"],
+      cwd,
+    );
+    if (existing) {
+      console.log(`  PR already open: ${existing}`);
+      return existing;
+    }
+  } catch {
+    // No PR for this branch yet — create one below.
+  }
+
   const bodyPath = path.join(
     os.tmpdir(),
     `ibus-pr-body-${plan.newBaseVersion}.md`,
@@ -163,11 +195,34 @@ export function createIbusPullRequest(
   }
 }
 
-export function applyIbusPrPlan(
+async function rewriteManifestAfterCleanup(
   plan: IbusPrPlan,
-  options: { removeOldVersions: boolean } = { removeOldVersions: true },
+  cwd: string,
+): Promise<void> {
+  const activeBaseVersionFromXml =
+    (await fetchActiveBaseVersionFromXml().catch(() => null)) ??
+    plan.newBaseVersion;
+  const manifest = await rebuildMultiVersionManifestFromDisk(
+    activeBaseVersionFromXml,
+  );
+  const manifestPath = path.join(cwd, "public", "data", "ibus", "current.json");
+  fs.writeFileSync(
+    manifestPath,
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    "utf8",
+  );
+  console.log(
+    `  Rewrote current.json available versions: ${
+      manifest.availableBaseVersions?.join(", ") ?? manifest.baseVersion
+    }`,
+  );
+}
+
+export async function applyIbusPrPlan(
+  plan: IbusPrPlan,
+  options: { removeOldVersions: boolean } = { removeOldVersions: false },
   cwd: string = process.cwd(),
-): { prUrl: string | null } {
+): Promise<{ prUrl: string | null }> {
   console.log("");
   console.log(" Applying plan...");
   console.log("");
@@ -175,14 +230,30 @@ export function applyIbusPrPlan(
   if (options.removeOldVersions && plan.previousBaseVersions.length > 0) {
     console.log("1. Remove previous base version folder(s)");
     removePreviousIbusVersions(plan, cwd);
+    console.log("   Rebuild manifest so deleted versions are not listed");
+    await rewriteManifestAfterCleanup(plan, cwd);
   } else {
-    console.log("1. Skip removing previous versions");
+    console.log(
+      "1. Keep previous local version folder(s) (safer while live TfL may still use them)",
+    );
+    if (plan.previousBaseVersions.length > 0) {
+      console.log(
+        `   Still present: ${plan.previousBaseVersions.join(", ")}`,
+      );
+      console.log(
+        "   Pass --remove-old only after live predictions use the new baseVersion.",
+      );
+    }
   }
 
   console.log("2. Create / switch to update branch");
   ensureIbusUpdateBranch(plan, cwd);
 
-  console.log("3. Stage iBus manifest + version folder");
+  console.log(
+    plan.keepBaseVersions.length > 0
+      ? "3. Stage iBus manifest + live-kept + new version folders"
+      : "3. Stage iBus manifest + version folder",
+  );
   stageIbusUpdate(plan, cwd);
 
   console.log("4. Commit");

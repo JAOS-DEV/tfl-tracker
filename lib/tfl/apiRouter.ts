@@ -7,10 +7,8 @@ import {
   normalizeStopDisruptions,
 } from "@/lib/tfl/disruptions";
 import { tflFetch } from "@/lib/tfl/client";
-import {
-  buildAfterMidnightReplay,
-  resolveAfterMidnightReplayScenario,
-} from "@/lib/tfl/afterMidnightReplay";
+import { resolveAfterMidnightReplayScenario } from "@/lib/tfl/afterMidnightReplay";
+import { buildAfterMidnightReplay } from "@/lib/tfl/afterMidnightReplayServer";
 import { normalizeTimetable } from "@/lib/tfl/timetableNormalizers";
 import {
   normalizeLineSearch,

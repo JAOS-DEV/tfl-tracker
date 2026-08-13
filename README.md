@@ -169,10 +169,11 @@ The app matches live buses against **compact TfL iBus JSON** stored under `publi
 
 ### Why base versions matter
 
-- Live TfL arrival predictions include a **`baseVersion`** field (e.g. `20250619`).
-- TfL’s [`Base_Version.xml`](https://ibus.data.tfl.gov.uk/Base_Version.xml) also indicates the **active** iBus base version.
+- Live TfL arrival predictions include a **`baseVersion`** field (e.g. `20250619`). **This is authoritative for schedule matching.**
+- TfL’s [`Base_Version.xml`](https://ibus.data.tfl.gov.uk/Base_Version.xml) also indicates an **XML-active** iBus base version — it can lead live arrivals by hours or days.
+- Folder / version ids are `YYYYMMDD`. Treat that date as a **labelled go-live / pack date**, not “newest wins”. Future-dated packs (e.g. school or public-holiday schedules) can sit on the FTP site while live predictions still send the previous version.
 - The newest-looking folder on `ibus.data.tfl.gov.uk` is **not always** the version live predictions use right now.
-- Running/block lookup and schedule matching use trip IDs from that active base version. If imported static data is for a different version, lookups fail.
+- Running/block lookup and schedule matching use trip IDs from the **live** base version. If that folder is missing locally, lookups fail.
 - **Blue/unknown buses** often mean: the bus is live and position-known, but schedule timing is unknown or untrusted — commonly because `liveBaseVersion` and the imported static `baseVersion` do not align.
 
 Example mismatch (fix by importing the active version):
@@ -259,9 +260,13 @@ npm run prepare:ibus-pr -- --apply  # branch, commit iBus only, push, open PR
 | `import:ibus:active` | Imports **all routes** for the active base version and rebuilds the manifest, then prints the next step |
 | `rebuild:ibus-manifest` | Refreshes `public/data/ibus/current.json` from local version folders (only needed if the folder exists but is not selected) |
 | `verify:ibus-local` | Checks manifest, active folder, route count; then points at `prepare:ibus-pr` |
-| `prepare:ibus-pr` | Explains each git step (why `git add -f`, etc.). Add `-- --apply` to create the branch, commit **only** iBus paths, push, and open the PR. `--keep-old` skips deleting previous version folders. |
+| `prepare:ibus-pr` | Explains each git step (why `git add -f`, etc.). Add `-- --apply` to create the branch, commit **only** iBus paths, push, and open the PR. Keeps previous version folders by default; `--remove-old` deletes them only after live TfL also uses the new baseVersion. |
 
 Deploy after the PR with the active compact data merges.
+
+After-midnight Route 14 replay (`?replay=…`) resolves trip IDs from the **current** imported schedule at fixed overnight clocks, so a base-version update should not require hand-editing replay fixtures.
+
+**Important:** Always trust **live API `baseVersion`** over XML or the newest FTP folder. `npm run check:ibus` samples live route 337 first, labels each version’s `YYYYMMDD` date vs London today, and prioritises importing whatever live still sends. Keep that folder until live switches — even if XML already points at a newer (possibly future-dated) pack. Do not use `--remove-old` until live has moved on.
 
 ### Manual explicit version fallback
 

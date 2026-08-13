@@ -166,8 +166,8 @@ export function formatBaseVersionStatusLines(report: {
         : "UNKNOWN — could not read TfL active version";
 
   return [
-    `TfL active version (live predictions use this): ${active}`,
-    `App current version (what this project uses):   ${current}`,
+    `TfL XML active version: ${active}`,
+    `App current version:    ${current}`,
     `Status: ${statusLabel}`,
   ];
 }

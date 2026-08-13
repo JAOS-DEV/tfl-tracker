@@ -11,19 +11,21 @@ import {
   printWorkflowBlock,
 } from "../lib/ibus/baseVersionWorkflow";
 import { applyIbusPrPlan } from "../lib/ibus/prepareIbusPrActions";
+import { probeLiveBaseVersion } from "../lib/ibus/liveBaseVersionProbe";
 
 function parseArgs(argv: string[]): {
   apply: boolean;
-  keepOld: boolean;
+  removeOld: boolean;
 } {
   return {
     apply: argv.includes("--apply"),
-    keepOld: argv.includes("--keep-old"),
+    // Default keeps previous versions — live TfL often lags Base_Version.xml.
+    removeOld: argv.includes("--remove-old"),
   };
 }
 
 async function main(): Promise<void> {
-  const { apply, keepOld } = parseArgs(process.argv.slice(2));
+  const { apply, removeOld } = parseArgs(process.argv.slice(2));
 
   const [activeBaseVersionFromXml, appCurrentBaseVersion, localImportedBaseVersions] =
     await Promise.all([
@@ -56,9 +58,11 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const liveProbe = await probeLiveBaseVersion("337");
   const plan = buildIbusPrPlan({
     newBaseVersion: appCurrentBaseVersion,
     oldBaseVersions: localImportedBaseVersions,
+    livePredictionBaseVersion: liveProbe.liveBaseVersion,
   });
 
   printIbusPrPlan(plan);
@@ -69,7 +73,8 @@ async function main(): Promise<void> {
       note: "Runs the steps above automatically (branch, stage iBus only, commit, push, open PR).",
       extraLines: [
         "Options:",
-        "  --keep-old   Do not remove previous local version folder(s)",
+        "  --remove-old   Also delete previous local version folder(s)",
+        "                 Only use after live TfL predictions use the new baseVersion.",
         "",
         "Tip: review with a dry-run first (this command), then add --apply.",
       ],
@@ -77,8 +82,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { prUrl } = applyIbusPrPlan(plan, {
-    removeOldVersions: !keepOld,
+  const { prUrl } = await applyIbusPrPlan(plan, {
+    removeOldVersions: removeOld,
   });
 
   printWorkflowBlock({
