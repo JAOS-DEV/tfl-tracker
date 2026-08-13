@@ -1,6 +1,6 @@
 {
   "baseVersion": "20260816",
-  "generatedAt": "2026-08-13T12:39:40.625Z",
+  "generatedAt": "2026-08-13T13:14:23.852Z",
   "runningShardPathTemplate": "/data/ibus/20260816/running-shards/{shard}.json",
   "routeSchedulePathTemplate": "/data/ibus/20260816/route-schedules/{routeId}.json",
   "garageLookupPath": "/data/ibus/20260816/garage-lookup.json",
@@ -1675,7 +1675,7 @@
       "routeCount": 514,
       "scheduleBytes": 85260970,
       "runningLookupBytes": 74215594,
-      "totalBytes": 161197810
+      "totalBytes": 161197036
     },
     "20260816": {
       "routeCount": 565,
