@@ -1,4 +1,7 @@
-import { buildBaseVersionDiscoveryReport } from "../lib/ibus/baseVersionDiscovery";
+import {
+  buildBaseVersionDiscoveryReport,
+  fetchActiveBaseVersionFromXml,
+} from "../lib/ibus/baseVersionDiscovery";
 import {
   isLargeStaticImportAllowed,
   parseBaseVersionsEnv,
@@ -7,10 +10,14 @@ import {
 import { importSingleIbusBaseVersion } from "../lib/ibus/importSingleVersion";
 import { isForceDownload } from "../lib/ibus/cache";
 import {
-  buildMultiVersionManifest,
   buildStaticSizeReport,
   printStaticSizeReport,
+  rebuildMultiVersionManifestFromDisk,
 } from "../lib/ibus/multiVersionManifest";
+import {
+  printNextStep,
+  printWorkflowBlock,
+} from "../lib/ibus/baseVersionWorkflow";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -42,11 +49,12 @@ async function main(): Promise<void> {
     { forceDownload: isForceDownload() },
   );
 
-  const manifest = buildMultiVersionManifest({
-    activeBaseVersionFromXml: baseVersion,
-    importResults: [result],
-  });
-
+  // Rebuild from every local folder so importing one version does not drop others.
+  const activeBaseVersionFromXml =
+    (await fetchActiveBaseVersionFromXml().catch(() => null)) ?? baseVersion;
+  const manifest = await rebuildMultiVersionManifestFromDisk(
+    activeBaseVersionFromXml,
+  );
   await writeJson(path.join("public", "data", "ibus", "current.json"), manifest);
 
   const sizeReport = await buildStaticSizeReport([result]);
@@ -60,12 +68,22 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  console.log("");
-  console.log("iBus import complete");
-  console.log(`Base version: ${baseVersion}`);
-  console.log(`Route schedules generated: ${result.importReport.routeSchedulesGenerated}`);
-  console.log(`Total output size: ${sizeReport.rows[0]?.totalBytes ?? 0} bytes`);
-  console.log(`Warnings: ${result.warnings.length}`);
+  printWorkflowBlock({
+    title: "iBus import complete",
+    lines: [
+      `  Imported base version: ${baseVersion}`,
+      `  Route schedules:       ${result.importReport.routeSchedulesGenerated}`,
+      `  Local versions now:    ${
+        manifest.availableBaseVersions?.join(", ") ?? manifest.baseVersion
+      }`,
+      `  Warnings:              ${result.warnings.length}`,
+    ],
+  });
+
+  printNextStep({
+    command: "npm run check:ibus",
+    note: "Confirms XML-active and live prediction baseVersions are both available locally.",
+  });
 }
 
 main().catch((error) => {

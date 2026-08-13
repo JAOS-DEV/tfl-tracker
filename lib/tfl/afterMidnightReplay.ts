@@ -1,3 +1,8 @@
+import type {
+  IbusRouteSchedule,
+  IbusScheduledJourney,
+  IbusScheduledStop,
+} from "@/lib/ibus/scheduleTypes";
 import type { TflPrediction } from "@/lib/tfl/types";
 
 export const AFTER_MIDNIGHT_REPLAY_SCENARIOS = [
@@ -18,6 +23,15 @@ const SIMULATED_NOW_BY_SCENARIO: Record<AfterMidnightReplayScenario, string> = {
   "0230": "2026-07-01T01:30:00.000Z",
 };
 
+/** Service-day midnight in London for the fixed replay calendar night. */
+const REPLAY_SERVICE_DAY_START_UTC = "2026-06-29T23:00:00.000Z";
+
+/** Tuesday on the replay service day (0 = Sunday). */
+const REPLAY_SERVICE_DAY_OF_WEEK = 2;
+
+const MATCH_WINDOW_MINUTES = 5;
+const REPLAY_ROUTE_ID = "14";
+
 export interface AfterMidnightReplay {
   scenario: AfterMidnightReplayScenario;
   simulatedNow: string;
@@ -25,146 +39,88 @@ export interface AfterMidnightReplay {
   rawPredictions: TflPrediction[];
 }
 
-interface ReplaySample {
-  id: string;
+/**
+ * Preferred stop anchors for the overnight story. Trip IDs are resolved from
+ * the current imported schedule so base-version updates do not require re-pinning.
+ */
+interface ReplaySlotTemplate {
   naptanId: string;
-  stationName: string;
-  destinationName: string;
-  direction: string;
-  timeToStation: number;
+  direction: "inbound" | "outbound";
   vehicleId: string;
-  tripId: string;
-  currentLocation: string;
 }
 
-/** Known Route 14 overnight samples pinned to the imported active base version. */
-const ROUTE_14_SAMPLES_BY_SCENARIO: Record<
+const ROUTE_14_SLOT_TEMPLATES: Record<
   AfterMidnightReplayScenario,
-  ReplaySample[]
+  ReplaySlotTemplate[]
 > = {
   "0015": [
     {
-      id: "replay-14-123-0015",
       naptanId: "490011285E2",
-      stationName: "Putney Heath / Green Man",
-      destinationName: "Russell Square",
       direction: "inbound",
-      timeToStation: 0,
       vehicleId: "YY66OZB",
-      tripId: "581999",
-      currentLocation: "Putney Heath / Green Man",
     },
     {
-      id: "replay-14-153-0015",
       naptanId: "490005069E",
-      stationName: "Chelsea Football Club",
-      destinationName: "Russell Square",
       direction: "inbound",
-      timeToStation: 9,
       vehicleId: "LJ62KGG",
-      tripId: "509785",
-      currentLocation: "Chelsea Football Club",
     },
   ],
   "0045": [
     {
-      id: "replay-14-129-0045",
       naptanId: "490011285S1",
-      stationName: "Putney Heath / Green Man",
-      destinationName: "Putney Heath / Green Man",
       direction: "outbound",
-      timeToStation: 0,
       vehicleId: "YY66OZB",
-      tripId: "510138",
-      currentLocation: "Putney Heath / Green Man",
     },
     {
-      id: "replay-14-116-0045",
       naptanId: "490000200E",
-      stationName: "Russell Square",
-      destinationName: "Putney Heath / Green Man",
       direction: "outbound",
-      timeToStation: 0,
       vehicleId: "LJ62KGG",
-      tripId: "581983",
-      currentLocation: "Russell Square",
     },
   ],
   "0115": [
     {
-      id: "replay-14-157-0115",
       naptanId: "490015157T",
-      stationName: "Putney Bridge Stn  / Gonville Street",
-      destinationName: "Putney Heath / Green Man",
       direction: "outbound",
-      timeToStation: 0,
       vehicleId: "YY66OZB",
-      tripId: "509846",
-      currentLocation: "Putney Bridge Stn  / Gonville Street",
     },
   ],
   "0130": [
     {
-      id: "replay-14-116-0130",
       naptanId: "490011285S1",
-      stationName: "Putney Heath / Green Man",
-      destinationName: "Putney Heath / Green Man",
       direction: "outbound",
-      timeToStation: 0,
       vehicleId: "YY66OZB",
-      tripId: "581983",
-      currentLocation: "Putney Heath / Green Man",
     },
     {
-      id: "replay-14-125-0130",
       naptanId: "490000200E",
-      stationName: "Russell Square",
-      destinationName: "Putney Heath / Green Man",
       direction: "outbound",
-      timeToStation: 0,
       vehicleId: "LJ62KGG",
-      tripId: "582009",
-      currentLocation: "Russell Square",
     },
   ],
   "0230": [
     {
-      id: "replay-14-112-0230",
       naptanId: "490000200E",
-      stationName: "Russell Square",
-      destinationName: "Putney Heath / Green Man",
       direction: "outbound",
-      timeToStation: 0,
       vehicleId: "YY66OZB",
-      tripId: "581978",
-      currentLocation: "Russell Square",
     },
     {
-      id: "replay-14-129-0230",
       naptanId: "490000084M",
-      stationName: "Fulham Broadway Station",
-      destinationName: "Putney Heath / Green Man",
       direction: "outbound",
-      timeToStation: 0,
       vehicleId: "LJ62KGG",
-      tripId: "582023",
-      currentLocation: "Fulham Broadway Station",
     },
     {
-      id: "replay-14-125-0230",
       naptanId: "490011285E2",
-      stationName: "Putney Heath / Green Man",
-      destinationName: "Russell Square",
       direction: "inbound",
-      timeToStation: 0,
       vehicleId: "BV66VHK",
-      tripId: "582011",
-      currentLocation: "Putney Heath / Green Man",
     },
   ],
 };
 
-const AFTER_MIDNIGHT_REPLAY_BASE_VERSION = "20260731";
+interface ResolvedReplayStop {
+  journey: IbusScheduledJourney;
+  stop: IbusScheduledStop;
+  direction: "inbound" | "outbound";
+  deltaMinutes: number;
+}
 
 export function resolveAfterMidnightReplayScenario(
   value: string | null,
@@ -190,30 +146,153 @@ export function buildAfterMidnightReplayUrl(
   return url.toString();
 }
 
-export function buildAfterMidnightReplay(
+export function mapRoute14ReplayDirection(
+  journey: IbusScheduledJourney,
+): "inbound" | "outbound" {
+  const destination = (journey.destination ?? "").toLowerCase();
+  if (destination.includes("russell")) {
+    return "inbound";
+  }
+  if (destination.includes("putney")) {
+    return "outbound";
+  }
+  // Route 14 compact schedules: "1" toward Russell Square, "2" toward Putney Heath.
+  return journey.direction === "1" ? "inbound" : "outbound";
+}
+
+function stripTowardsPrefix(destination: string | null, fallback: string): string {
+  if (!destination) {
+    return fallback;
+  }
+  return destination.replace(/^towards\s+/i, "").trim() || fallback;
+}
+
+function scoreMatch(candidate: ResolvedReplayStop): number {
+  const dayBonus = candidate.journey.serviceDays.includes(REPLAY_SERVICE_DAY_OF_WEEK)
+    ? 0
+    : 100;
+  return Math.abs(candidate.deltaMinutes) + dayBonus;
+}
+
+function collectMatchesNearClock(
+  schedule: IbusRouteSchedule,
+  simulatedNowMs: number,
+  serviceDayStartMs: number,
+): ResolvedReplayStop[] {
+  const matches: ResolvedReplayStop[] = [];
+
+  for (const journey of schedule.journeys) {
+    const direction = mapRoute14ReplayDirection(journey);
+    for (const stop of journey.stops) {
+      if (!stop.naptanId) {
+        continue;
+      }
+      const scheduledArrivalMs =
+        serviceDayStartMs + stop.scheduledSeconds * 1_000;
+      const deltaMinutes = (scheduledArrivalMs - simulatedNowMs) / 60_000;
+      if (Math.abs(deltaMinutes) > MATCH_WINDOW_MINUTES) {
+        continue;
+      }
+      matches.push({ journey, stop, direction, deltaMinutes });
+    }
+  }
+
+  return matches.sort((left, right) => scoreMatch(left) - scoreMatch(right));
+}
+
+function resolveSlot(
+  matches: ResolvedReplayStop[],
+  template: ReplaySlotTemplate,
+  usedTripIds: Set<string>,
+): ResolvedReplayStop | null {
+  const exact = matches.find(
+    (candidate) =>
+      !usedTripIds.has(candidate.journey.tripId) &&
+      candidate.stop.naptanId === template.naptanId &&
+      candidate.direction === template.direction,
+  );
+  if (exact) {
+    return exact;
+  }
+
+  return (
+    matches.find(
+      (candidate) =>
+        !usedTripIds.has(candidate.journey.tripId) &&
+        candidate.direction === template.direction,
+    ) ?? null
+  );
+}
+
+export function buildAfterMidnightReplayFromSchedule(
   routeId: string,
   scenario: AfterMidnightReplayScenario,
+  schedule: IbusRouteSchedule | null,
 ): AfterMidnightReplay {
   const simulatedNow = SIMULATED_NOW_BY_SCENARIO[scenario];
-  const timestampMs = Date.parse(simulatedNow);
-  const samples = routeId.toLowerCase() === "14"
-    ? ROUTE_14_SAMPLES_BY_SCENARIO[scenario]
-    : [];
+  const simulatedNowMs = Date.parse(simulatedNow);
+  const serviceDayStartMs = Date.parse(REPLAY_SERVICE_DAY_START_UTC);
+
+  if (
+    routeId.toLowerCase() !== REPLAY_ROUTE_ID ||
+    !schedule ||
+    schedule.journeys.length === 0
+  ) {
+    return {
+      scenario,
+      simulatedNow,
+      provenance: "synthetic-known-sample",
+      rawPredictions: [],
+    };
+  }
+
+  const matches = collectMatchesNearClock(
+    schedule,
+    simulatedNowMs,
+    serviceDayStartMs,
+  );
+  const templates = ROUTE_14_SLOT_TEMPLATES[scenario];
+  const usedTripIds = new Set<string>();
+  const rawPredictions: TflPrediction[] = [];
+
+  for (const [index, template] of templates.entries()) {
+    const resolved = resolveSlot(matches, template, usedTripIds);
+    if (!resolved || !resolved.stop.naptanId) {
+      continue;
+    }
+
+    usedTripIds.add(resolved.journey.tripId);
+    const timeToStation = Math.max(0, Math.round(resolved.deltaMinutes * 60));
+    const destinationName = stripTowardsPrefix(
+      resolved.journey.destination,
+      template.direction === "inbound" ? "Russell Square" : "Putney Heath / Green Man",
+    );
+
+    rawPredictions.push({
+      id: `replay-14-${resolved.journey.tripId}-${scenario}-${index}`,
+      lineId: routeId,
+      lineName: routeId,
+      naptanId: resolved.stop.naptanId,
+      stationName: resolved.stop.stopName,
+      destinationName,
+      direction: resolved.direction,
+      timeToStation,
+      expectedArrival: new Date(
+        simulatedNowMs + timeToStation * 1_000,
+      ).toISOString(),
+      vehicleId: template.vehicleId,
+      tripId: resolved.journey.tripId,
+      baseVersion: schedule.baseVersion,
+      currentLocation: resolved.stop.stopName,
+      modeName: "bus",
+      timestamp: simulatedNow,
+    });
+  }
 
   return {
     scenario,
     simulatedNow,
     provenance: "synthetic-known-sample",
-    rawPredictions: samples.map((sample) => ({
-      ...sample,
-      lineId: routeId,
-      lineName: routeId,
-      expectedArrival: new Date(
-        timestampMs + sample.timeToStation * 1_000,
-      ).toISOString(),
-      baseVersion: AFTER_MIDNIGHT_REPLAY_BASE_VERSION,
-      modeName: "bus",
-      timestamp: simulatedNow,
-    })),
+    rawPredictions,
   };
 }

@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildAfterMidnightReplay,
+  buildAfterMidnightReplayFromSchedule,
   buildAfterMidnightReplayUrl,
   resolveAfterMidnightReplayScenario,
 } from "@/lib/tfl/afterMidnightReplay";
+import { buildAfterMidnightReplay } from "@/lib/tfl/afterMidnightReplayServer";
 import { normalizeRouteSchedule } from "@/lib/ibus/compactScheduleDecode";
 import {
   getLocalIbusFixtureVersion,
@@ -36,15 +37,22 @@ describe("after-midnight replay", () => {
   it.each(["0015", "0045", "0115", "0130", "0230"] as const)(
     "maps every %s replay prediction to its real scheduled journey and stop",
     (scenario) => {
+      const version = getLocalIbusFixtureVersion();
       const schedule = normalizeRouteSchedule(
-        readLocalRouteSchedule("14", getLocalIbusFixtureVersion()),
+        readLocalRouteSchedule("14", version),
       );
       expect(schedule).not.toBeNull();
 
-      const replay = buildAfterMidnightReplay("14", scenario);
+      const replay = buildAfterMidnightReplayFromSchedule(
+        "14",
+        scenario,
+        schedule,
+      );
       expect(replay.rawPredictions.length).toBeGreaterThan(0);
 
       for (const prediction of replay.rawPredictions) {
+        expect(prediction.baseVersion).toBe(schedule!.baseVersion);
+
         const journey = schedule!.journeys.find(
           (candidate) => candidate.tripId === prediction.tripId,
         );
@@ -56,7 +64,8 @@ describe("after-midnight replay", () => {
         expect(stop, `missing stop ${prediction.naptanId}`).toBeDefined();
 
         const serviceDayStartUtc = Date.parse("2026-06-29T23:00:00.000Z");
-        const scheduledArrival = serviceDayStartUtc + stop!.scheduledSeconds * 1_000;
+        const scheduledArrival =
+          serviceDayStartUtc + stop!.scheduledSeconds * 1_000;
         const liveArrival = Date.parse(prediction.expectedArrival);
         expect(Math.abs(liveArrival - scheduledArrival)).toBeLessThanOrEqual(
           5 * 60 * 1_000,
@@ -64,6 +73,24 @@ describe("after-midnight replay", () => {
       }
     },
   );
+
+  it("resolves trip IDs from the current schedule instead of hardcoded fixtures", () => {
+    const schedule = normalizeRouteSchedule(
+      readLocalRouteSchedule("14", getLocalIbusFixtureVersion()),
+    );
+    expect(schedule).not.toBeNull();
+
+    const replay = buildAfterMidnightReplayFromSchedule("14", "0230", schedule);
+    expect(replay.rawPredictions.length).toBeGreaterThan(0);
+
+    for (const prediction of replay.rawPredictions) {
+      expect(
+        schedule!.journeys.some(
+          (journey) => journey.tripId === prediction.tripId,
+        ),
+      ).toBe(true);
+    }
+  });
 
   it("simulates Route 14 buses during the overnight service at 02:30", () => {
     const replay = buildAfterMidnightReplay("14", "0230");

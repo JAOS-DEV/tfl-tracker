@@ -81,9 +81,11 @@ The app works without running the iBus importer if compact static JSON is availa
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run typecheck` | TypeScript check (`tsc --noEmit`) |
 | `npm run lint` | ESLint |
-| `npm run check:ibus-base-versions` | Compare active XML, remote probes, and local imported versions |
+| `npm run check:ibus` | Guided check: up to date, or prints the next update command |
+| `npm run check:ibus-base-versions` | Same as `check:ibus` (kept for CI / older docs) |
 | `npm run import:ibus` | Import iBus static JSON (optional route schedules via env) |
 | `npm run import:ibus:active` | Import all routes for the active base version from `Base_Version.xml` |
+| `npm run prepare:ibus-pr` | Explain the git / PR steps (use `-- --apply` to run them) |
 | `npm run rebuild:ibus-manifest` | Rebuild `public/data/ibus/current.json` from local folders |
 | `npm run verify:ibus-local` | Verify local manifest and active version are ready to deploy |
 | `npm run export:ibus-data` | Copy `public/data/ibus/` to `dist/ibus-data/data/ibus/` for external upload |
@@ -167,10 +169,11 @@ The app matches live buses against **compact TfL iBus JSON** stored under `publi
 
 ### Why base versions matter
 
-- Live TfL arrival predictions include a **`baseVersion`** field (e.g. `20250619`).
-- TfL’s [`Base_Version.xml`](https://ibus.data.tfl.gov.uk/Base_Version.xml) also indicates the **active** iBus base version.
+- Live TfL arrival predictions include a **`baseVersion`** field (e.g. `20250619`). **This is authoritative for schedule matching.**
+- TfL’s [`Base_Version.xml`](https://ibus.data.tfl.gov.uk/Base_Version.xml) also indicates an **XML-active** iBus base version — it can lead live arrivals by hours or days.
+- Folder / version ids are `YYYYMMDD`. Treat that date as a **labelled go-live / pack date**, not “newest wins”. Future-dated packs (e.g. school or public-holiday schedules) can sit on the FTP site while live predictions still send the previous version.
 - The newest-looking folder on `ibus.data.tfl.gov.uk` is **not always** the version live predictions use right now.
-- Running/block lookup and schedule matching use trip IDs from that active base version. If imported static data is for a different version, lookups fail.
+- Running/block lookup and schedule matching use trip IDs from the **live** base version. If that folder is missing locally, lookups fail.
 - **Blue/unknown buses** often mean: the bus is live and position-known, but schedule timing is unknown or untrusted — commonly because `liveBaseVersion` and the imported static `baseVersion` do not align.
 
 Example mismatch (fix by importing the active version):
@@ -235,25 +238,35 @@ You can also run it manually from the Actions tab → **Check iBus base version*
 
 ### Routine update (recommended)
 
+Start with one command. The terminal tells you whether you are up to date, or prints the **single next command** to run:
+
 ```bash
-npm run check:ibus-base-versions
-npm run import:ibus:active
-npm run rebuild:ibus-manifest
-npm run verify:ibus-local
-npm run typecheck
-npm run lint
-npm test
-npm run build
+npm run check:ibus
+```
+
+Typical guided path when an update is needed:
+
+```bash
+npm run check:ibus
+npm run import:ibus:active          # only if check says so
+npm run verify:ibus-local           # printed after import
+npm run prepare:ibus-pr             # explains each git step
+npm run prepare:ibus-pr -- --apply  # branch, commit iBus only, push, open PR
 ```
 
 | Command | Purpose |
 | --- | --- |
-| `check:ibus-base-versions` | Shows TfL active vs app current version, plus remote/local details. Add `--fail-on-outdated` to exit non-zero when behind (used by CI). |
-| `import:ibus:active` | Imports **all routes** for the active base version and rebuilds the manifest |
-| `rebuild:ibus-manifest` | Refreshes `public/data/ibus/current.json` from local version folders |
-| `verify:ibus-local` | Checks manifest, active folder, route count; warns if too many local versions or remote URL is set |
+| `check:ibus` | Clear TfL-vs-app status. If behind, prints the next command. Add `--verbose` for remote/local probe details. Alias: `check:ibus-base-versions`. CI uses `--fail-on-outdated`. |
+| `import:ibus:active` | Imports **all routes** for the active base version and rebuilds the manifest, then prints the next step |
+| `rebuild:ibus-manifest` | Refreshes `public/data/ibus/current.json` from local version folders (only needed if the folder exists but is not selected) |
+| `verify:ibus-local` | Checks manifest, active folder, route count; then points at `prepare:ibus-pr` |
+| `prepare:ibus-pr` | Explains each git step (why `git add -f`, etc.). Add `-- --apply` to create the branch, commit **only** iBus paths, push, and open the PR. Keeps previous version folders by default; `--remove-old` deletes them only after live TfL also uses the new baseVersion. |
 
-Deploy after the active compact data is updated.
+Deploy after the PR with the active compact data merges.
+
+After-midnight Route 14 replay (`?replay=…`) resolves trip IDs from the **current** imported schedule at fixed overnight clocks, so a base-version update should not require hand-editing replay fixtures.
+
+**Important:** Always trust **live API `baseVersion`** over XML or the newest FTP folder. `npm run check:ibus` samples live route 337 first, labels each version’s `YYYYMMDD` date vs London today, and prioritises importing whatever live still sends. Keep that folder until live switches — even if XML already points at a newer (possibly future-dated) pack. Do not use `--remove-old` until live has moved on.
 
 ### Manual explicit version fallback
 
@@ -270,6 +283,15 @@ npm run verify:ibus-local
 ### Replacing an old local base version
 
 To switch from an old version to the new active one and keep the repo smaller:
+
+Prefer the guided helper (explains each step, then can run them):
+
+```bash
+npm run prepare:ibus-pr
+npm run prepare:ibus-pr -- --apply
+```
+
+Manual equivalent:
 
 ```bash
 # Optional: remove old local version folder
@@ -368,7 +390,7 @@ the likely fix is:
 Import the active/live baseVersion (npm run import:ibus:active) and redeploy.
 ```
 
-Run `npm run check:ibus-base-versions` to compare live XML vs local folders.
+Run `npm run check:ibus` to compare live XML vs local folders (prints the next step if an update is needed).
 
 
 ## Project structure

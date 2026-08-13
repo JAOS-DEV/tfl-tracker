@@ -1,5 +1,9 @@
 import { isForceDownload } from "../lib/ibus/cache";
 import { importActiveIbusVersion } from "../lib/ibus/importActiveIbusVersion";
+import {
+  printNextStep,
+  printWorkflowBlock,
+} from "../lib/ibus/baseVersionWorkflow";
 
 async function main(): Promise<void> {
   console.log("Importing active iBus base version (all routes)...");
@@ -8,15 +12,22 @@ async function main(): Promise<void> {
     rebuildFromDisk: true,
   });
 
-  console.log("");
-  console.log("Active iBus import complete");
-  console.log(`Active baseVersion: ${result.activeBaseVersion}`);
-  console.log(
-    `Route schedules generated: ${result.importResult.importReport.routeSchedulesGenerated}`,
-  );
-  console.log(
-    `Local versions in manifest: ${result.manifest.availableBaseVersions?.join(", ") ?? result.manifest.baseVersion}`,
-  );
+  printWorkflowBlock({
+    title: "iBus import complete",
+    lines: [
+      `  Active base version:     ${result.activeBaseVersion}`,
+      `  Route schedules:         ${result.importResult.importReport.routeSchedulesGenerated}`,
+      `  Local versions in manifest: ${
+        result.manifest.availableBaseVersions?.join(", ") ??
+        result.manifest.baseVersion
+      }`,
+    ],
+  });
+
+  printNextStep({
+    command: "npm run verify:ibus-local",
+    note: "Confirms the new data looks healthy before you open a PR.",
+  });
 }
 
 main().catch((error) => {

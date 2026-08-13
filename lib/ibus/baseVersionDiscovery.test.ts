@@ -17,8 +17,8 @@ describe("baseVersionDiscovery status summary", () => {
         localImportedBaseVersions: ["20260717"],
       }),
     ).toEqual([
-      "TfL active version (live predictions use this): 20260717",
-      "App current version (what this project uses):   20260717",
+      "TfL XML active version: 20260717",
+      "App current version:    20260717",
       "Status: UP TO DATE — app is using the TfL active version",
     ]);
   });
@@ -37,6 +37,7 @@ describe("baseVersionDiscovery status summary", () => {
     expect(lines[0]).toContain("20260717");
     expect(lines[1]).toContain("20260703");
     expect(lines[2]).toContain("UPDATE NEEDED");
+    expect(lines[2]).toContain("npm run check:ibus");
   });
 
   it("handles unknown TfL active version", () => {

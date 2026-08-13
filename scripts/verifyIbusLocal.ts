@@ -1,48 +1,49 @@
 import { verifyLocalIbusData } from "../lib/ibus/verifyLocalIbusData";
+import {
+  printNextStep,
+  printWorkflowBlock,
+} from "../lib/ibus/baseVersionWorkflow";
 
 async function main(): Promise<void> {
   console.log("Verifying local iBus static data...");
   const result = await verifyLocalIbusData();
 
-  console.log("");
-  console.log("=== Local iBus verification ===");
-  console.log(`Manifest: ${result.manifestPath}`);
-  console.log(
-    `TfL active version (live predictions use this): ${result.activeBaseVersionFromXml ?? "unknown"}`,
-  );
-  console.log(
-    `App current version (what this project uses):   ${result.manifestBaseVersion ?? "unknown"}`,
-  );
-  console.log(
-    `Manifest activeBaseVersionFromXml: ${result.manifestActiveBaseVersion ?? "unknown"}`,
-  );
-  console.log(`Local baseVersion folders: ${result.localBaseVersions.join(", ") || "none"}`);
-  console.log(
-    `Active version route count: ${result.activeVersionRouteCount ?? "unknown"}`,
-  );
-  console.log(
-    `Remote data URL configured: ${result.remoteDataBaseUrlConfigured ? "yes" : "no"}`,
-  );
+  printWorkflowBlock({
+    title: "Local iBus verification",
+    lines: [
+      `  Manifest: ${result.manifestPath}`,
+      `  TfL active version:  ${result.activeBaseVersionFromXml ?? "unknown"}`,
+      `  App current version: ${result.manifestBaseVersion ?? "unknown"}`,
+      `  Manifest activeBaseVersionFromXml: ${result.manifestActiveBaseVersion ?? "unknown"}`,
+      `  Local baseVersion folders: ${result.localBaseVersions.join(", ") || "none"}`,
+      `  Active version route count: ${result.activeVersionRouteCount ?? "unknown"}`,
+      `  Remote data URL configured: ${result.remoteDataBaseUrlConfigured ? "yes" : "no"}`,
+    ],
+  });
 
   if (result.warnings.length > 0) {
-    console.log("");
-    console.log("Warnings:");
+    console.log("  Warnings:");
     for (const warning of result.warnings) {
-      console.log(`  - ${warning}`);
+      console.log(`    - ${warning}`);
     }
+    console.log("");
   }
 
   if (result.errors.length > 0) {
-    console.log("");
-    console.log("Errors:");
+    console.log("  Errors:");
     for (const error of result.errors) {
-      console.log(`  - ${error}`);
+      console.log(`    - ${error}`);
     }
+    console.log("");
     process.exit(1);
   }
 
-  console.log("");
-  console.log("Local iBus data looks ready for deployment.");
+  console.log("  Local iBus data looks ready for deployment.");
+
+  printNextStep({
+    command: "npm run prepare:ibus-pr",
+    note: "Dry-run explains each git step. Then run: npm run prepare:ibus-pr -- --apply",
+  });
 }
 
 main().catch((error) => {
