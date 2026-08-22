@@ -33,8 +33,24 @@ describe("resolveIbusWorkflowGuidance", () => {
     });
 
     expect(guidance.step).toBe("import-live");
-    expect(guidance.nextCommand).toContain("IBUS_BASE_VERSION=20260731");
+    expect(guidance.nextCommand).toBe("npm run import:ibus:active");
     expect(guidance.detail).toMatch(/Live arrivals use/i);
+  });
+
+  it("detects a live folder with zero route schedules", () => {
+    const guidance = resolveIbusWorkflowGuidance({
+      status: "up-to-date",
+      activeBaseVersionFromXml: "20260822",
+      appCurrentBaseVersion: "20260822",
+      localImportedBaseVersions: ["20260822"],
+      livePredictionBaseVersion: "20260822",
+      routeScheduleCountsByVersion: { "20260822": 0 },
+      todayLondon: "2026-08-22",
+    });
+
+    expect(guidance.step).toBe("import-live");
+    expect(guidance.headline).toMatch(/no route schedules/i);
+    expect(guidance.nextCommand).toBe("npm run import:ibus:active");
   });
 
   it("treats future-dated XML as optional prep when live is already local", () => {

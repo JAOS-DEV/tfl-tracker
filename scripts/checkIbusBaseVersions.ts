@@ -1,5 +1,6 @@
 import {
   buildBaseVersionDiscoveryReport,
+  getIbusDataRoot,
   resolveBaseVersionSyncStatus,
 } from "../lib/ibus/baseVersionDiscovery";
 import {
@@ -15,6 +16,33 @@ import {
 } from "../lib/ibus/baseVersionWorkflow";
 import { hasUncommittedIbusChanges } from "../lib/ibus/ibusGitStatus";
 import { probeLiveBaseVersion } from "../lib/ibus/liveBaseVersionProbe";
+import type { IbusMultiVersionManifest } from "../lib/ibus/types";
+import fs from "node:fs";
+import path from "node:path";
+
+function readRouteScheduleCountsByVersion(): Record<string, number> {
+  try {
+    const manifestPath = path.join(getIbusDataRoot(), "current.json");
+    const manifest = JSON.parse(
+      fs.readFileSync(manifestPath, "utf8"),
+    ) as IbusMultiVersionManifest;
+    const counts: Record<string, number> = {};
+    const byVersion = manifest.routeScheduleRoutesByBaseVersion ?? {};
+    for (const [version, routes] of Object.entries(byVersion)) {
+      counts[version] = routes.length;
+    }
+    if (
+      manifest.baseVersion &&
+      !(manifest.baseVersion in counts) &&
+      manifest.routeScheduleRoutes
+    ) {
+      counts[manifest.baseVersion] = manifest.routeScheduleRoutes.length;
+    }
+    return counts;
+  } catch {
+    return {};
+  }
+}
 
 function printDetails(
   report: Awaited<ReturnType<typeof buildBaseVersionDiscoveryReport>>,
@@ -72,12 +100,14 @@ async function main(): Promise<void> {
     report.localImportedBaseVersions,
   );
   const livePredictionBaseVersion = liveProbe.liveBaseVersion;
+  const routeScheduleCountsByVersion = readRouteScheduleCountsByVersion();
   const guidance = resolveIbusWorkflowGuidance({
     status,
     activeBaseVersionFromXml: report.activeBaseVersionFromXml,
     appCurrentBaseVersion: report.appCurrentBaseVersion,
     localImportedBaseVersions: report.localImportedBaseVersions,
     livePredictionBaseVersion,
+    routeScheduleCountsByVersion,
     todayLondon,
     hasUncommittedIbusChanges: hasUncommittedIbusChanges(),
   });
