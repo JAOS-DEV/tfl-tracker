@@ -29,6 +29,8 @@ export interface IbusWorkflowContext {
   localImportedBaseVersions: string[];
   /** Majority baseVersion from live TfL arrivals (authoritative for schedule matching). */
   livePredictionBaseVersion?: string | null;
+  /** Route schedule counts by base version from current.json (0 = timing will fail). */
+  routeScheduleCountsByVersion?: Record<string, number>;
   /** London YYYY-MM-DD; injectable for tests. */
   todayLondon?: string;
   /** True when local data already matches TfL active, but git still has ibus changes to ship. */
@@ -66,6 +68,17 @@ export function resolveIbusWorkflowGuidance(
   const local = context.localImportedBaseVersions;
   const live = context.livePredictionBaseVersion?.trim() || null;
   const todayLondon = context.todayLondon ?? londonCalendarDate();
+  const routeCounts = context.routeScheduleCountsByVersion ?? {};
+
+  const routeCountFor = (version: string | null): number | null => {
+    if (!version) {
+      return null;
+    }
+    if (!(version in routeCounts)) {
+      return null;
+    }
+    return routeCounts[version] ?? 0;
+  };
 
   // Live arrivals are what schedule matching uses. Missing that folder is urgent.
   if (live && !local.includes(live)) {
@@ -81,9 +94,39 @@ export function resolveIbusWorkflowGuidance(
       step: "import-live",
       headline: "Live predictions need a local base version",
       detail: `Live arrivals use ${formatEffectiveDateRelation(liveInfo)}. That folder is not imported locally, so buses will show Unknown timing.${xmlNote}`,
-      nextCommand: `IBUS_BASE_VERSION=${live} IBUS_ROUTE_SCHEDULES=all npm run import:ibus`,
+      nextCommand: "npm run import:ibus:active",
       nextCommandNote:
-        "Imports the version live TfL is actually sending, then run: npm run rebuild:ibus-manifest. Keep this version until live moves on.",
+        "Imports the XML/live-active version with ALL route schedules (required for timing). Prefer this over bare import:ibus, which defaults to zero schedules.",
+    };
+  }
+
+  // Folder exists but no schedules → Unknown timing (common after bare npm run import:ibus).
+  const liveRouteCount = routeCountFor(live);
+  if (live && local.includes(live) && liveRouteCount === 0) {
+    return {
+      step: "import-live",
+      headline: "Live base version has no route schedules",
+      detail: `${live} is imported, but it has 0 route schedules. Schedule matching needs per-route JSON — without it every bus shows Unknown timing.`,
+      nextCommand: "npm run import:ibus:active",
+      nextCommandNote:
+        `Re-imports with all route schedules. Prefer npm run import:ibus:active. On PowerShell: $env:IBUS_BASE_VERSION="${live}"; $env:IBUS_ROUTE_SCHEDULES="all"; npm run import:ibus`,
+    };
+  }
+
+  const currentRouteCount = routeCountFor(current);
+  if (
+    current &&
+    local.includes(current) &&
+    currentRouteCount === 0 &&
+    (!live || live === current)
+  ) {
+    return {
+      step: "import-live",
+      headline: "App current base version has no route schedules",
+      detail: `${current} is selected in current.json but has 0 route schedules.`,
+      nextCommand: "npm run import:ibus:active",
+      nextCommandNote:
+        "Re-imports with all route schedules (bare import:ibus defaults to none).",
     };
   }
 

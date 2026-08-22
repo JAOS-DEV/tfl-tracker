@@ -80,9 +80,21 @@ async function main(): Promise<void> {
     ],
   });
 
+  if (result.importReport.routeSchedulesGenerated === 0) {
+    printNextStep({
+      command: "npm run import:ibus:active",
+      note: "This import had 0 route schedules (IBUS_ROUTE_SCHEDULES defaults to none). Re-run with all routes or timing will stay Unknown.",
+      extraLines: [
+        "Bare npm run import:ibus does not import schedules unless you set:",
+        '  $env:IBUS_ROUTE_SCHEDULES="all"',
+      ],
+    });
+    return;
+  }
+
   printNextStep({
-    command: "npm run check:ibus",
-    note: "Confirms XML-active and live prediction baseVersions are both available locally.",
+    command: "npm run verify:ibus-local",
+    note: "Confirms the new data looks healthy before you open a PR.",
   });
 }
 
