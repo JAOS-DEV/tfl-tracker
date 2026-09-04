@@ -39,10 +39,17 @@ async function main(): Promise<void> {
   }
 
   console.log("  Local iBus data looks ready for deployment.");
+  console.log("");
+  console.log(
+    "  Note: Source Control may show no pending iBus files — version folders are",
+  );
+  console.log(
+    "  gitignored. prepare:ibus-pr -- --apply force-adds them into the commit.",
+  );
 
   printNextStep({
     command: "npm run prepare:ibus-pr",
-    note: "Dry-run explains each git step. Then run: npm run prepare:ibus-pr -- --apply",
+    note: "Dry-run explains each git step (including why nothing appears to stage). Then: npm run prepare:ibus-pr -- --apply",
   });
 }
 

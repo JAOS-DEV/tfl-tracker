@@ -222,7 +222,12 @@ export async function applyIbusPrPlan(
   plan: IbusPrPlan,
   options: { removeOldVersions: boolean } = { removeOldVersions: false },
   cwd: string = process.cwd(),
-): Promise<{ prUrl: string | null }> {
+): Promise<{
+  prUrl: string | null;
+  committed: boolean;
+  changedFileCount: number;
+  hadNothingToCommit: boolean;
+}> {
   console.log("");
   console.log(" Applying plan...");
   console.log("");
@@ -257,7 +262,20 @@ export async function applyIbusPrPlan(
   stageIbusUpdate(plan, cwd);
 
   console.log("4. Commit");
-  commitIbusUpdate(plan, cwd);
+  const committed = commitIbusUpdate(plan, cwd);
+  const stagedAfter = committed
+    ? null
+    : runGit(["diff", "--cached", "--name-only"], cwd);
+
+  let changedFileCount = 0;
+  try {
+    const nameOnly = runGit(["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"], cwd);
+    changedFileCount = nameOnly
+      ? nameOnly.split(/\r?\n/).filter(Boolean).length
+      : 0;
+  } catch {
+    changedFileCount = 0;
+  }
 
   console.log("5. Push");
   pushIbusUpdateBranch(cwd);
@@ -265,5 +283,10 @@ export async function applyIbusPrPlan(
   console.log("6. Open pull request");
   const prUrl = createIbusPullRequest(plan, cwd);
 
-  return { prUrl };
+  return {
+    prUrl,
+    committed,
+    changedFileCount,
+    hadNothingToCommit: !committed && !stagedAfter,
+  };
 }
