@@ -439,6 +439,32 @@ describe("RouteMapPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows a loading empty state while live data is fetching", () => {
+    render(
+      <RouteMapPanel
+        route={routeWithGeometry}
+        direction="outbound"
+        onDirectionChange={vi.fn()}
+        vehicles={[]}
+        selectedVehicleId={null}
+        loopLabelSettings={{
+          showRegistration: true,
+          showFleetNumber: true,
+          showRunningNumber: true,
+        }}
+        onVehicleSelect={vi.fn()}
+        isMobile={false}
+        isLoadingLiveData
+      />,
+    );
+
+    fireEvent.click(screen.getByText(/Bus list \(0\)/i));
+    expect(screen.getByText(/Loading live buses/i)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/No live buses to show for this direction right now/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows an empty state when there are no buses for the direction", () => {
     render(
       <RouteMapPanel

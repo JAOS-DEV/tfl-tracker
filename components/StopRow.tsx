@@ -20,6 +20,7 @@ interface StopRowProps {
   isLast: boolean;
   stopDisruption?: StopDisruption;
   showTimingPoints?: boolean;
+  isLoadingLiveData?: boolean;
   onSelect: (stop: NormalizedStop) => void;
 }
 
@@ -32,6 +33,7 @@ export function StopRow({
   isLast,
   stopDisruption,
   showTimingPoints = false,
+  isLoadingLiveData = false,
   onSelect,
 }: StopRowProps): React.ReactElement {
   const headway = calculateHeadway(predictions);
@@ -101,7 +103,9 @@ export function StopRow({
             {headway.nextMinutes !== null ? (
               <p>Next: {headway.nextMinutes} min</p>
             ) : (
-              <p className="opacity-60">No buses</p>
+              <p className="opacity-60">
+                {isLoadingLiveData ? "Loading…" : "No buses"}
+              </p>
             )}
             {headway.gapMinutes !== null ? (
               <p>Gap: {headway.gapMinutes} min</p>

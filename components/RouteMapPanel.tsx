@@ -47,6 +47,7 @@ interface RouteMapPanelProps {
   onVehicleSelect: (vehicle: EstimatedVehiclePosition) => void;
   onStopSelect?: (stop: NormalizedStop) => void;
   isMobile: boolean;
+  isLoadingLiveData?: boolean;
 }
 
 export const RouteMapPanel = memo(function RouteMapPanel({
@@ -59,6 +60,7 @@ export const RouteMapPanel = memo(function RouteMapPanel({
   onVehicleSelect,
   onStopSelect,
   isMobile,
+  isLoadingLiveData = false,
 }: RouteMapPanelProps): React.ReactElement {
   const [mapExpanded, setMapExpanded] = useState(false);
   const mapAvailable = hasRouteMapGeometry(route, direction);
@@ -144,9 +146,11 @@ export const RouteMapPanel = memo(function RouteMapPanel({
               </ul>
             ) : (
               <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                {directionVehicleCount > 0
-                  ? "Live buses are available for this direction, but map positions aren't ready yet."
-                  : "No live buses to show for this direction right now."}
+                {isLoadingLiveData
+                  ? "Loading live buses…"
+                  : directionVehicleCount > 0
+                    ? "Live buses are available for this direction, but map positions aren't ready yet."
+                    : "No live buses to show for this direction right now."}
               </p>
             )}
           </details>

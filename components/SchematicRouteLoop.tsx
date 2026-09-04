@@ -61,6 +61,7 @@ interface SchematicRouteLoopProps {
   onBusSelect: (vehicle: EstimatedVehiclePosition) => void;
   selectedStopId: string | null;
   selectedVehicleId: string | null;
+  isLoadingLiveData?: boolean;
 }
 
 function applyMobileLabels(
@@ -126,6 +127,7 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
   onBusSelect,
   selectedStopId,
   selectedVehicleId,
+  isLoadingLiveData = false,
 }: SchematicRouteLoopProps): React.ReactElement {
   const isMobile = useMediaQuery("(max-width: 640px)");
   const layout = useMemo(
@@ -444,7 +446,9 @@ export const SchematicRouteLoop = memo(function SchematicRouteLoop({
 
       {vehicles.length === 0 ? (
         <p className="mt-3 px-3 text-center text-sm text-zinc-500 sm:px-0 dark:text-zinc-400">
-          No live vehicles detected right now.
+          {isLoadingLiveData
+            ? "Loading live vehicles…"
+            : "No live vehicles detected right now."}
         </p>
       ) : null}
 

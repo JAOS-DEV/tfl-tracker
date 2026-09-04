@@ -198,20 +198,33 @@ export const RouteCard = memo(function RouteCard({
       displaySettings.globalAlertDefaults,
     );
 
+  const isLoadingLiveData =
+    arrivalsQuery.isLoading && arrivalsQuery.data === undefined;
+
   const userAlerts = useMemo(() => {
-    if (!serviceHealth) {
+    if (isLoadingLiveData || !serviceHealth) {
       return [];
     }
     return evaluateRouteAlerts(serviceHealth, preferences);
-  }, [serviceHealth, preferences]);
+  }, [serviceHealth, preferences, isLoadingLiveData]);
 
   const statusChips = useMemo(() => {
+    if (isLoadingLiveData) {
+      return [
+        {
+          id: "loading",
+          label: "Loading live data…",
+          variant: "info" as const,
+        },
+      ];
+    }
     if (!serviceHealth) {
       return [];
     }
     const summary = buildServiceHealthSummary(serviceHealth, {
       isFetching: arrivalsQuery.isFetching,
       isStale: serviceHealth.isDataStale,
+      isInitialLoading: false,
     });
     return summary.chips.map((chip) => ({
       id: chip.id,
@@ -222,6 +235,7 @@ export const RouteCard = memo(function RouteCard({
   }, [
     serviceHealth,
     arrivalsQuery.isFetching,
+    isLoadingLiveData,
   ]);
 
   useRouteHistoryRecorder(
@@ -598,6 +612,7 @@ export const RouteCard = memo(function RouteCard({
                   onBusSelect={setSelectedVehicle}
                   selectedStopId={selectedStop?.naptanId ?? null}
                   selectedVehicleId={selectedVehicle?.vehicleId ?? null}
+                  isLoadingLiveData={isLoadingLiveData}
                 />
               </div>
             ) : visualMode === "map" && route ? (
@@ -611,6 +626,7 @@ export const RouteCard = memo(function RouteCard({
                 onVehicleSelect={setSelectedVehicle}
                 onStopSelect={setSelectedStop}
                 isMobile={isMobile}
+                isLoadingLiveData={isLoadingLiveData}
               />
             ) : (
               <div className="px-4">
@@ -632,6 +648,7 @@ export const RouteCard = memo(function RouteCard({
                     vehicles={vehicles}
                     stopDisruptionsByNaptanId={stopDisruptionsByNaptanId}
                     showTimingPoints={displaySettings.showTimingPoints}
+                    isLoadingLiveData={isLoadingLiveData}
                     onStopSelect={setSelectedStop}
                   />
                 </div>
