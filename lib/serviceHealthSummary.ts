@@ -38,12 +38,23 @@ function healthVariant(score: number): ServiceHealthSummaryChip["variant"] {
 interface BuildServiceHealthSummaryOptions {
   isFetching?: boolean;
   isStale?: boolean;
+  /** First load — no arrivals yet. Avoid showing "0 buses" as if service is empty. */
+  isInitialLoading?: boolean;
 }
 
 export function buildServiceHealthSummary(
   metrics: ServiceHealthMetrics,
   options?: BuildServiceHealthSummaryOptions,
 ): ServiceHealthSummary {
+  if (options?.isInitialLoading) {
+    return {
+      chips: [
+        { id: "loading", label: "Loading live data…", variant: "info" },
+      ],
+      topWarning: null,
+    };
+  }
+
   const chips: ServiceHealthSummaryChip[] = [];
 
   if (options?.isFetching) {

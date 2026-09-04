@@ -54,7 +54,8 @@ export function RouteCardMoreMenu({
       top: rect.bottom + 4,
       left,
       width: MENU_MIN_WIDTH,
-      zIndex: 60,
+      // Above Leaflet map panes (~200–700) and the map expand overlay (z-500).
+      zIndex: 10000,
     });
   };
 
@@ -103,7 +104,10 @@ export function RouteCardMoreMenu({
       ref={menuRef}
       role="menu"
       style={menuStyle}
-      className="rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+      className="pointer-events-auto rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onWheel={(event) => event.stopPropagation()}
     >
       <button
         type="button"

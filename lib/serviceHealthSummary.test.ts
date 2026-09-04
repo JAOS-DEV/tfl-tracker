@@ -74,4 +74,16 @@ describe("buildServiceHealthSummary", () => {
     expect(summary.chips.some((chip) => chip.id === "late")).toBe(false);
     expect(summary.chips.some((chip) => chip.id === "ghost")).toBe(false);
   });
+
+  it("shows a loading chip instead of empty-service chips on first load", () => {
+    const summary = buildServiceHealthSummary(
+      createMetrics({ liveVehicleCount: 0 }),
+      { isInitialLoading: true },
+    );
+
+    expect(summary.chips).toEqual([
+      { id: "loading", label: "Loading live data…", variant: "info" },
+    ]);
+    expect(summary.topWarning).toBeNull();
+  });
 });

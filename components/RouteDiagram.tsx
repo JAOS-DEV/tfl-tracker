@@ -24,6 +24,7 @@ interface RouteDiagramProps {
   vehicles?: EstimatedVehiclePosition[];
   stopDisruptionsByNaptanId?: Map<string, StopDisruption>;
   showTimingPoints?: boolean;
+  isLoadingLiveData?: boolean;
   onStopSelect: (stop: NormalizedStop) => void;
 }
 
@@ -49,6 +50,7 @@ export function RouteDiagram({
   vehicles = [],
   stopDisruptionsByNaptanId,
   showTimingPoints = false,
+  isLoadingLiveData = false,
   onStopSelect,
 }: RouteDiagramProps): React.ReactElement {
   const listRef = useRef<HTMLDivElement>(null);
@@ -140,7 +142,9 @@ export function RouteDiagram({
             </button>
           ) : (
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              No live bus stops to jump to
+              {isLoadingLiveData
+                ? "Loading live buses…"
+                : "No live bus stops to jump to"}
             </span>
           )}
         </div>
@@ -175,6 +179,7 @@ export function RouteDiagram({
                 isLast={stopIndex === stops.length - 1}
                 stopDisruption={stopDisruptionsByNaptanId?.get(stop.naptanId)}
                 showTimingPoints={showTimingPoints}
+                isLoadingLiveData={isLoadingLiveData}
                 onSelect={onStopSelect}
               />
             </div>
