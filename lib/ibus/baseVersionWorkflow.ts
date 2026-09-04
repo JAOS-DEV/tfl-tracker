@@ -156,7 +156,7 @@ export function resolveIbusWorkflowGuidance(
             : "Local data already matches TfL XML. Uncommitted iBus files still need committing and pushing. Keep any version live predictions still use.",
         nextCommand: "npm run prepare:ibus-pr -- --apply",
         nextCommandNote:
-          "Creates the branch, commits only iBus data, pushes, and opens the PR. Dry-run first with: npm run prepare:ibus-pr",
+          "Force-adds gitignored iBus folders (Source Control looks empty beforehand — that is normal), commits, pushes, and opens the PR. Dry-run first: npm run prepare:ibus-pr",
       };
     }
 
@@ -422,13 +422,24 @@ export function printNextStep(options: {
 }
 
 export function printIbusPrPlan(plan: IbusPrPlan): void {
+  const keepNote =
+    plan.keepBaseVersions.length > 0
+      ? ` + keep live ${plan.keepBaseVersions.join(", ")}`
+      : "";
+
   printWorkflowBlock({
     title: "Prepare iBus base version PR",
     lines: [
-      `  Base version to ship: ${plan.newBaseVersion}`,
+      `  Base version to ship: ${plan.newBaseVersion}${keepNote}`,
       `  Branch:               ${plan.branchName}`,
       "",
-      "  What will happen (only iBus data paths are staged):",
+      "  Why Cursor / Source Control looks empty right now:",
+      "  public/data/ibus/YYYYMMDD/ is gitignored on purpose. Import writes",
+      "  those folders to disk, but Git will not list them as changes to stage.",
+      "  This command force-adds them during --apply (git add -f) — that is the",
+      "  step that creates the commit. You are not missing a manual stage step.",
+      "",
+      "  What --apply will do (only iBus data paths):",
     ],
   });
 

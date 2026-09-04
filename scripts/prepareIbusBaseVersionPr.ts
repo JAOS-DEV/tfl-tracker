@@ -70,19 +70,19 @@ async function main(): Promise<void> {
   if (!apply) {
     printNextStep({
       command: "npm run prepare:ibus-pr -- --apply",
-      note: "Runs the steps above automatically (branch, stage iBus only, commit, push, open PR).",
+      note: "Force-adds the gitignored iBus folders, commits, pushes, and opens/updates the PR. Source Control staying empty beforehand is normal.",
       extraLines: [
         "Options:",
         "  --remove-old   Also delete previous local version folder(s)",
         "                 Only use after live TfL predictions use the new baseVersion.",
         "",
-        "Tip: review with a dry-run first (this command), then add --apply.",
+        "Tip: this dry-run does not stage anything yet — only --apply does.",
       ],
     });
     return;
   }
 
-  const { prUrl } = await applyIbusPrPlan(plan, {
+  const { prUrl, committed, changedFileCount } = await applyIbusPrPlan(plan, {
     removeOldVersions: removeOld,
   });
 
@@ -92,9 +92,25 @@ async function main(): Promise<void> {
       `  Base version: ${plan.newBaseVersion}`,
       `  Branch:       ${plan.branchName}`,
       `  Pull request: ${prUrl ?? "(created — check gh pr view)"}`,
+      `  Files in latest commit: ${changedFileCount}${committed ? "" : " (no new commit — already up to date?)"}`,
       "",
       "  Only public/data/ibus files were staged for this commit.",
-      "  Unrelated local changes (if any) were left alone.",
+      "  Your local Source Control panel will look empty now — that is expected;",
+      "  the import was committed into the PR, not left as uncommitted changes.",
+      ...(changedFileCount > 300
+        ? [
+            "",
+            "  Note: GitHub's Files changed tab often fails / looks empty when a PR",
+            "  has more than ~300 files. Open the Commits tab and inspect the commit",
+            "  instead — the data is there.",
+          ]
+        : []),
+      ...(plan.keepBaseVersions.length > 0
+        ? [
+            "",
+            `  Kept live version(s) in the commit: ${plan.keepBaseVersions.join(", ")}`,
+          ]
+        : []),
     ],
   });
 
@@ -106,7 +122,7 @@ async function main(): Promise<void> {
       "",
       "  npm run check:ibus",
       "",
-      "It should report: Base version up to date.",
+      "It should report timing-safe / up to date (keep live until API switches).",
     ],
   });
 }
