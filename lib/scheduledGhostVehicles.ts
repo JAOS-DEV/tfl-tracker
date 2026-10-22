@@ -4,6 +4,10 @@ import {
   getScheduledGhostCandidates,
   scheduledGhostToVehiclePosition,
 } from "@/lib/scheduledGhostBuses";
+import {
+  journeysForDuplicateBoardDetection,
+  selectScheduleGhostJourneys,
+} from "@/lib/schedulePipeline/selectScheduleGhostJourneys";
 import type { ScheduledGhostPositionDiagnostics } from "@/lib/scheduledGhostBuses";
 import { debugScheduledJourneyForRun } from "@/lib/scheduledGhostDebug";
 import type { ScheduledRunDebugResult } from "@/lib/scheduledGhostDebug";
@@ -303,6 +307,20 @@ function buildRunDiagnostics(input: {
   };
 }
 
+function liveTripIds(vehicles: readonly EstimatedVehiclePosition[]): string[] {
+  const ids: string[] = [];
+  for (const vehicle of vehicles) {
+    if (vehicle.tripId) {
+      ids.push(vehicle.tripId);
+    }
+    const predictionTripId = vehicle.nextPrediction.tripId;
+    if (predictionTripId && predictionTripId !== vehicle.tripId) {
+      ids.push(predictionTripId);
+    }
+  }
+  return ids;
+}
+
 export function appendScheduledGhostVehicles(
   input: AppendScheduledGhostInput,
 ): AppendScheduledGhostResult {
@@ -384,7 +402,17 @@ export function appendScheduledGhostVehicles(
   const nowDate = new Date(input.now);
   const scheduledJourneys =
     input.activeJourneys ?? input.schedule.journeys;
-  const activeScheduledJourneyCount = scheduledJourneys.length;
+  const boardSelection = selectScheduleGhostJourneys({
+    boardJourneys: journeysForDuplicateBoardDetection(
+      input.schedule.journeys,
+      scheduledJourneys,
+      nowDate,
+    ),
+    activeJourneys: scheduledJourneys,
+    liveTripIds: liveTripIds(actualLiveVehicles),
+  });
+  const ghostJourneys = boardSelection.journeys;
+  const activeScheduledJourneyCount = ghostJourneys.length;
 
   const rawPositionDiagnostics: ScheduledGhostPositionDiagnostics[] | undefined =
     input.collectDiagnostics ? [] : undefined;
@@ -392,7 +420,7 @@ export function appendScheduledGhostVehicles(
     routeId: input.routeId,
     now: new Date(input.now),
     liveVehicles,
-    scheduledJourneys,
+    scheduledJourneys: ghostJourneys,
     route: input.route,
     layout: input.layout,
     liveBaseVersion: input.liveBaseVersion,
@@ -444,7 +472,7 @@ export function appendScheduledGhostVehicles(
   const duplicateGuardHiddenReasons = duplicateGuardHidden.map(
     () => "duplicate guard suppressed",
   );
-  const activeScheduledJourneys = scheduledJourneys;
+  const activeScheduledJourneys = ghostJourneys;
   const scheduledActiveRunningNumbers = uniqueSorted(
     activeScheduledJourneys.map((journey) => journey.runningNo),
   );
@@ -675,9 +703,16 @@ export function appendScheduledGhostVehicles(
           routeLevelSanityWarnings: sanityWarnings,
           liveEnrichmentComplete: input.liveEnrichmentComplete ?? true,
         };
+        const droppedBoardDiagnostic =
+          boardSelection.droppedRunningNumbers.length > 0
+            ? [
+                `Dropped duplicate running board: ${boardSelection.droppedRunningNumbers.join(",")} because live trips match ${boardSelection.liveMatchedRunningNumbers.join(",")}.`,
+              ]
+            : [];
         return [
           `Schedule ghosts route ${input.routeId}: journeys=${input.schedule.journeys.length}, active=${activeScheduledJourneyCount}, live=${liveVehicles.length}, predictions=${input.livePredictionCount ?? "unknown"}, candidates=${candidates.length}, appended=${scheduledGhosts.length}, stale=${isRouteDataStale}, baseVersion=${input.schedule.baseVersion}, liveEnrichmentComplete=${input.liveEnrichmentComplete ?? true}.`,
           `Schedule sanity summary: ${JSON.stringify(summary)}`,
+          ...droppedBoardDiagnostic,
           ...guarded.diagnostics,
           ...positionDiagnostics,
           ...activeRunDiagnostics,

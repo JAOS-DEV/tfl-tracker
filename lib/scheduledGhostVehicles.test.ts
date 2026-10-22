@@ -440,4 +440,38 @@ describe("appendScheduledGhostVehicles route sanity", () => {
       }),
     ]);
   });
+
+  it("hides a duplicate running board once live trips use the other board", () => {
+    const currentRuns = ["331", "332", "333", "334", "335", "336", "337", "338"];
+    const oldRuns = ["561", "562", "563", "564", "565", "566", "567", "568"];
+    const result = appendScheduledGhostVehicles({
+      routeId: "337",
+      route,
+      layout: LOOP_LAYOUT,
+      vehicles: [liveVehicleForRunningNo("331")],
+      schedule: scheduleForRunningNos([...currentRuns, ...oldRuns]),
+      now: new Date("2026-06-12T09:05:00.000Z").getTime(),
+      dataUpdatedAt: new Date("2026-06-12T09:05:00.000Z").getTime(),
+      liveBaseVersion: "20260606",
+      livePredictionCount: 1,
+      showScheduleGhosts: true,
+      includeLowConfidence: false,
+      collectDiagnostics: true,
+      liveEnrichmentComplete: true,
+    });
+
+    const ghostRuns = result.vehicles
+      .filter((vehicle) => vehicle.isScheduledGhostCandidate)
+      .map((vehicle) => vehicle.scheduledGhostRunningNo);
+
+    expect(ghostRuns.some((runningNo) => Number(runningNo) >= 561)).toBe(false);
+    expect(result.ghostComparisonSummary?.activeScheduledRunningNumbers).toEqual(
+      currentRuns,
+    );
+    expect(
+      result.diagnostics.some((line) =>
+        line.startsWith("Dropped duplicate running board:"),
+      ),
+    ).toBe(true);
+  });
 });
